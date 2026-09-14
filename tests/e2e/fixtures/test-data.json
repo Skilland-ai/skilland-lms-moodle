@@ -1,0 +1,48 @@
+{
+  "moodle": {
+    "baseUrl": "http://localhost:8081",
+    "admin": {
+      "username": "admin",
+      "password": "Admin123!"
+    },
+    "teacher": {
+      "username": "teacher1",
+      "password": "Teacher123!",
+      "email": "teacher1@example.com",
+      "firstname": "Test",
+      "lastname": "Teacher"
+    },
+    "student": {
+      "username": "student1",
+      "password": "Student123!",
+      "email": "student1@example.com",
+      "firstname": "Test",
+      "lastname": "Student"
+    }
+  },
+  "skilland": {
+    "baseUrl": "http://localhost:3000",
+    "apiUrl": "http://localhost:8000/api",
+    "testOrganization": {
+      "id": "test-org-id",
+      "name": "Test Organization"
+    },
+    "testSkill": {
+      "id": "test-skill-id",
+      "name": "Test Skill"
+    },
+    "testTopic": {
+      "id": "test-topic-id",
+      "name": "Test Topic"
+    }
+  },
+  "testCourse": {
+    "fullname": "E2E Test Course",
+    "shortname": "e2e-test",
+    "category": 1
+  },
+  "testActivity": {
+    "name": "Skilland Test Activity",
+    "intro": "This is a test activity for E2E testing"
+  }
+}

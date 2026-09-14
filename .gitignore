@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+.playwright/
+*.trace.zip
+
+# Test screenshots and videos
+**/test-failed-*.png
+**/test-*.webm
+
+# Composer dev dependencies (PHPUnit + transitive)
+vendor/bin/
+vendor/myclabs/
+vendor/nikic/
+vendor/phar-io/
+vendor/phpunit/
+vendor/sebastian/
+vendor/theseer/
+
+# Environment variables
+.env

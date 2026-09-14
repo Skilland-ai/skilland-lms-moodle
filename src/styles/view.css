@@ -1,0 +1,751 @@
+/**
+ * Skilland View Page Styles
+ *
+ * @package    mod_skilland
+ * @copyright  2024
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+/* ========================================
+   Activity Header (Moodle's module header)
+   ======================================== */
+
+/* Add more vertical spacing to the page context header (logo + title area) */
+.path-mod-skilland .page-context-header {
+  padding-top: 2.5rem;
+  padding-bottom: 1.5rem;
+}
+
+/* Also target the activity header area */
+.path-mod-skilland .activity-header {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Style the activity description/intro area */
+.path-mod-skilland #intro {
+  margin-bottom: 2rem;
+}
+
+/* Add spacing to the main region content */
+.path-mod-skilland #region-main>.box {
+  padding-top: 1rem;
+}
+
+/* ========================================
+   Lessons Container
+   ======================================== */
+
+.skilland-lessons-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding-top: 1rem;
+}
+
+.skilland-lessons-header {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #1f2937;
+}
+
+/* ========================================
+   Lessons List
+   ======================================== */
+
+.skilland-lessons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ========================================
+   Lesson Card
+   ======================================== */
+
+.skilland-lesson-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.skilland-lesson-card:hover {
+  transform: translateY(-1px);
+  text-decoration: none;
+  color: inherit;
+}
+
+.skilland-lesson-card:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Completed state - green */
+.skilland-lesson-card.skilland-lesson-completed {
+  background: #f0fdf4;
+  border-color: #22c55e;
+}
+
+.skilland-lesson-card.skilland-lesson-completed:hover {
+  background: #dcfce7;
+  border-color: #16a34a;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+}
+
+/* In progress state - amber/yellow */
+.skilland-lesson-card.skilland-lesson-in-progress {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.skilland-lesson-card.skilland-lesson-in-progress:hover {
+  background: #fef3c7;
+  border-color: #d97706;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+/* Failed state - red */
+.skilland-lesson-card.skilland-lesson-failed {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.skilland-lesson-card.skilland-lesson-failed:hover {
+  background: #fee2e2;
+  border-color: #dc2626;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+/* Available/Ready state - blue */
+.skilland-lesson-card.skilland-lesson-available {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.skilland-lesson-card.skilland-lesson-available:hover {
+  background: #dbeafe;
+  border-color: #2563eb;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+/* Default/pending state - neutral */
+.skilland-lesson-card.skilland-lesson-pending:hover {
+  border-color: #9ca3af;
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.15);
+}
+
+/* ========================================
+   Lesson Number Badge
+   ======================================== */
+
+.skilland-lesson-number {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.skilland-lesson-card.skilland-lesson-available .skilland-lesson-number {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.skilland-lesson-card.skilland-lesson-completed .skilland-lesson-number {
+  background: #d1fae5;
+  color: #059669;
+}
+
+/* ========================================
+   Lesson Content
+   ======================================== */
+
+.skilland-lesson-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.skilland-lesson-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #1f2937;
+  display: block;
+}
+
+.skilland-lesson-card:hover .skilland-lesson-title {
+  color: #2563eb;
+}
+
+.skilland-lesson-meta {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+/* ========================================
+   Lesson Status
+   ======================================== */
+
+.skilland-lesson-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.skilland-status-icon {
+  font-size: 1.1rem;
+}
+
+.skilland-status-text {
+  display: none;
+}
+
+@media (min-width: 576px) {
+  .skilland-status-text {
+    display: inline;
+  }
+}
+
+.skilland-lesson-available .skilland-status-icon {
+  color: #3b82f6;
+}
+
+.skilland-lesson-completed .skilland-status-icon {
+  color: #10b981;
+}
+
+.skilland-lesson-in-progress .skilland-status-icon {
+  color: #d97706;
+}
+
+.skilland-lesson-failed .skilland-status-icon {
+  color: #dc2626;
+}
+
+/* In-progress lesson badge */
+.skilland-lesson-card.skilland-lesson-in-progress .skilland-lesson-number {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+/* Failed lesson badge */
+.skilland-lesson-card.skilland-lesson-failed .skilland-lesson-number {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Disabled lesson card (no SCO mapped) */
+.skilland-lesson-card.skilland-lesson-disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.skilland-lesson-card.skilland-lesson-disabled:hover {
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transform: none;
+}
+
+.skilland-lesson-card.skilland-lesson-disabled .skilland-lesson-title {
+  color: #6b7280;
+}
+
+.skilland-lesson-card.skilland-lesson-disabled:hover .skilland-lesson-title {
+  color: #6b7280;
+}
+
+/* ========================================
+   SCORM Player View
+   ======================================== */
+
+.skilland-player-header {
+  max-width: 100%;
+  margin-bottom: 1rem;
+}
+
+.skilland-back-link {
+  display: inline-block;
+  color: #6b7280;
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.skilland-back-link:hover {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.skilland-player-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.skilland-player-container {
+  width: 100%;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.skilland-scorm-frame {
+  width: 100%;
+  height: 75vh;
+  min-height: 500px;
+  border: none;
+  display: block;
+}
+
+.skilland-player-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ========================================
+   Lesson View (Single Lesson) - DEPRECATED
+   ======================================== */
+
+.skilland-lesson-view {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.skilland-back-nav {
+  margin-bottom: 1rem;
+}
+
+.skilland-lesson-view-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+}
+
+.skilland-lesson-content-area {
+  background: #f9fafb;
+  border-radius: 12px;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+}
+
+/* ========================================
+   Content Placeholder
+   ======================================== */
+
+.skilland-content-placeholder {
+  text-align: center;
+  padding: 3rem;
+}
+
+.skilland-placeholder-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  line-height: 1;
+}
+
+.skilland-content-placeholder h4 {
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+/* ========================================
+   SCORM Launch
+   ======================================== */
+
+.skilland-scorm-launch {
+  text-align: center;
+  padding: 3rem;
+}
+
+.skilland-launch-btn {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  border-radius: 8px;
+}
+
+/* ========================================
+   Provision Container
+   ======================================== */
+
+.skilland-provision-container {
+  text-align: center;
+  padding: 3rem;
+}
+
+.skilland-provision-container h4 {
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.skilland-provision-btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.skilland-provision-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
+.skilland-provision-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.skilland-provision-loading {
+  padding: 1.5rem;
+  color: #6b7280;
+}
+
+.skilland-provision-loading .fa-spinner {
+  color: #3b82f6;
+}
+
+/* ========================================
+   Lesson Navigation (Prev/Next)
+   ======================================== */
+
+.skilland-lesson-nav {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.skilland-nav-prev,
+.skilland-nav-next {
+  color: #6b7280;
+  text-decoration: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+}
+
+.skilland-nav-prev:hover,
+.skilland-nav-next:hover {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.skilland-nav-next {
+  text-align: right;
+}
+
+/* ========================================
+   Responsive Adjustments
+   ======================================== */
+
+@media (max-width: 575.98px) {
+  .skilland-lesson-card {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .skilland-lesson-number {
+    width: 40px;
+    height: 40px;
+    font-size: 0.75rem;
+  }
+
+  .skilland-lesson-title {
+    font-size: 0.95rem;
+  }
+
+  .skilland-lesson-content-area {
+    min-height: 300px;
+  }
+
+  .skilland-lesson-nav {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .skilland-nav-prev,
+  .skilland-nav-next {
+    max-width: 100%;
+    text-align: left;
+  }
+}
+
+/* ========================================
+   Fullscreen Player Mode
+   ======================================== */
+
+.skilland-fullscreen-wrapper {
+  /* Default: inline/normal flow */
+  display: flex;
+  flex-direction: column;
+}
+
+/* When fullscreen is active */
+.skilland-fullscreen-wrapper[data-fullscreen="true"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: #fff;
+}
+
+/* Fullscreen Header Bar */
+.skilland-fullscreen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #1f2937;
+  color: #fff;
+  flex-shrink: 0;
+  position: relative;
+  /* For absolute title centering */
+}
+
+.skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+}
+
+/* Back link in fullscreen header */
+.skilland-fullscreen-back {
+  color: #d1d5db;
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+  z-index: 1;
+  /* Above the title */
+}
+
+.skilland-fullscreen-back:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Lesson title in fullscreen header - absolutely centered */
+.skilland-fullscreen-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+  /* Prevent overlap with back/close buttons */
+  pointer-events: none;
+  /* Allow clicks to pass through to buttons below */
+}
+
+/* Close button (X) in fullscreen header */
+.skilland-fullscreen-close {
+  color: #9ca3af;
+  text-decoration: none;
+  font-size: 1.5rem;
+  font-weight: 300;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  z-index: 1;
+  /* Above the title */
+}
+
+.skilland-fullscreen-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  text-decoration: none;
+}
+
+.skilland-fullscreen-close:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Fullscreen content area */
+.skilland-fullscreen-content {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* Fullscreen iframe */
+.skilland-fullscreen-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* Fullscreen Bottom Navigation Bar */
+.skilland-fullscreen-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: #1f2937;
+  flex-shrink: 0;
+  gap: 16px;
+}
+
+.skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+}
+
+.skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-content {
+  padding-top: 60px;
+  padding-bottom: 56px;
+  /* Height of bottom nav */
+  height: 100vh;
+}
+
+.skilland-fullscreen-nav-prev,
+.skilland-fullscreen-nav-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d1d5db;
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+  max-width: 45%;
+}
+
+.skilland-fullscreen-nav-prev:hover,
+.skilland-fullscreen-nav-next:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  text-decoration: none;
+}
+
+.skilland-fullscreen-nav-prev:focus,
+.skilland-fullscreen-nav-next:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.skilland-fullscreen-nav-disabled {
+  visibility: hidden;
+}
+
+.skilland-fullscreen-nav-arrow {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.skilland-fullscreen-nav-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skilland-fullscreen-nav-next {
+  margin-left: auto;
+}
+
+/* Non-fullscreen mode: show nav at bottom of container */
+.skilland-fullscreen-wrapper:not([data-fullscreen="true"]) .skilland-fullscreen-nav {
+  border-radius: 0 0 12px 12px;
+  border: 1px solid #374151;
+  border-top: none;
+  margin-top: 0;
+}
+
+/* Responsive adjustments for fullscreen */
+@media (max-width: 575.98px) {
+  .skilland-fullscreen-header {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .skilland-fullscreen-back {
+    font-size: 0.8rem;
+  }
+
+  .skilland-fullscreen-title {
+    font-size: 0.85rem;
+  }
+
+  .skilland-fullscreen-toggle {
+    width: 32px;
+    height: 32px;
+  }
+
+  .skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-content {
+    padding-top: 52px;
+    padding-bottom: 52px;
+  }
+
+  .skilland-fullscreen-nav {
+    padding: 10px 12px;
+  }
+
+  .skilland-fullscreen-nav-prev,
+  .skilland-fullscreen-nav-next {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    max-width: 48%;
+  }
+
+  .skilland-fullscreen-nav-text {
+    display: none;
+  }
+
+  .skilland-fullscreen-nav-arrow {
+    font-size: 1.2rem;
+  }
+}

@@ -1,0 +1,426 @@
+<?php
+
+namespace mod_skilland\tests;
+
+use PHPUnit\Framework\TestCase;
+use mod_skilland\task\sync_content;
+
+class task_sync_content_test extends TestCase {
+
+    /** @var \FakeDatabase */
+    private $db;
+
+    protected function setUp(): void {
+        parent::setUp();
+        $this->db = new \FakeDatabase();
+        $GLOBALS['DB'] = $this->db;
+        $GLOBALS['_test_debug_messages'] = [];
+        $GLOBALS['_test_plugin_config'] = [];
+        // Reset configurable stubs.
+        unset($GLOBALS['_test_topic_snapshot']);
+        unset($GLOBALS['_test_update_topic_scorm']);
+        unset($GLOBALS['_test_get_coursemodule_from_id']);
+        unset($GLOBALS['_test_get_coursemodule_from_instance']);
+        unset($GLOBALS['_test_get_course']);
+        \mod_skilland\logger::reset_cache();
+
+        // By default, seed the modules table so the plugin is considered enabled.
+        $this->db->seed('modules', [
+            (object)['id' => 1, 'name' => 'skilland', 'visible' => 1],
+        ]);
+    }
+
+    private function makeTask(): sync_content {
+        return new sync_content();
+    }
+
+    private function invokePrivate(object $object, string $method, array $args = []) {
+        $ref = new \ReflectionMethod($object, $method);
+        return $ref->invoke($object, ...$args);
+    }
+
+    // ---------------------------------------------------------------
+    // get_name()
+    // ---------------------------------------------------------------
+
+    public function test_get_name_returns_string(): void {
+        $task = $this->makeTask();
+        $name = $task->get_name();
+        $this->assertIsString($name);
+        $this->assertEquals('task_sync_content', $name);
+    }
+
+    // ---------------------------------------------------------------
+    // execute() — skip when plugin disabled
+    // ---------------------------------------------------------------
+
+    public function test_execute_skips_when_plugin_disabled(): void {
+        // Override the default setUp seed — mark module as hidden (disabled).
+        $this->db->seed('modules', [
+            (object)['id' => 1, 'name' => 'skilland', 'visible' => 0],
+        ]);
+
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => 'key',
+            'orgid' => 'org',
+            'graphql_endpoint' => 'http://localhost/graphql',
+        ];
+
+        $task = $this->makeTask();
+        $task->execute();
+
+        $disabled = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'Plugin is disabled'));
+        $this->assertNotEmpty($disabled);
+    }
+
+    // ---------------------------------------------------------------
+    // execute() — skip when config incomplete
+    // ---------------------------------------------------------------
+
+    public function test_execute_skips_when_config_incomplete(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => '',
+            'orgid' => '',
+            'graphql_endpoint' => '',
+        ];
+
+        $task = $this->makeTask();
+        $task->execute();
+
+        $warns = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'not fully configured'));
+        $this->assertNotEmpty($warns);
+    }
+
+    public function test_execute_skips_when_no_activities(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => 'key',
+            'orgid' => 'org',
+            'graphql_endpoint' => 'http://localhost/graphql',
+        ];
+
+        // get_records_select will return empty by default.
+        $task = $this->makeTask();
+        $task->execute();
+
+        $infos = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'No auto-update activities'));
+        $this->assertNotEmpty($infos);
+    }
+
+    // ---------------------------------------------------------------
+    // check_and_update() — cooldown
+    // ---------------------------------------------------------------
+
+    public function test_check_and_update_skips_recent_sync(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 60,  // 60 seconds ago (< 300s threshold).
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'hash1',
+        ];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('skipped', $result);
+    }
+
+    public function test_check_and_update_bypasses_cooldown_when_lastsynced_null(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => null,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'abc123',
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z'];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        // Should reach hash comparison (not be skipped by cooldown).
+        $this->assertEquals('current', $result);
+    }
+
+    public function test_check_and_update_bypasses_cooldown_when_lastsynced_zero(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => 0,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'abc123',
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z'];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('current', $result);
+    }
+
+    // ---------------------------------------------------------------
+    // check_and_update() — lock after first access
+    // ---------------------------------------------------------------
+
+    public function test_check_and_update_skips_when_locked_and_students_accessed(): void {
+        $this->db->seed('scorm', [
+            (object)['id' => 50, 'course' => 1],
+        ]);
+        $this->db->seed('scorm_attempt', [
+            (object)['id' => 1, 'scormid' => 50],
+        ]);
+
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 1,
+            'snapshotid' => 'hash1',
+        ];
+
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
+        $this->db->get_manager()->set_table_exists('scorm_attempt', true);
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('skipped', $result);
+    }
+
+    // ---------------------------------------------------------------
+    // check_and_update() — hash comparison
+    // ---------------------------------------------------------------
+
+    public function test_check_and_update_returns_current_when_hash_matches(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'abc123',
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z'];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('current', $result);
+
+        // Verify lastsynced was updated.
+        $setFields = $this->db->get_calls_for('set_field');
+        $this->assertNotEmpty($setFields);
+        $this->assertEquals('lastsynced', $setFields[0]['field']);
+    }
+
+    public function test_check_and_update_skips_when_api_returns_null(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'abc123',
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('skipped', $result);
+    }
+
+    // ---------------------------------------------------------------
+    // check_and_update() — snapshotid edge cases
+    // ---------------------------------------------------------------
+
+    public function test_check_and_update_triggers_update_when_snapshotid_null(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => null,
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_update_topic_scorm'] = 200;
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        // null snapshotid → !empty('') is false → goes to update path.
+        $this->assertEquals('updated', $result);
+
+        // Verify snapshot fields updated.
+        $updates = $this->db->get_calls_for('update_record');
+        $this->assertNotEmpty($updates);
+        $updated = $updates[0]['data'];
+        $this->assertEquals('newhash', $updated->snapshotid);
+    }
+
+    public function test_check_and_update_triggers_update_when_both_hashes_empty(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => '',
+        ];
+
+        // Remote also returns empty contentHash.
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => '', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_update_topic_scorm'] = 200;
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        // Both empty → !empty('') is false → update path (treats as stale).
+        $this->assertEquals('updated', $result);
+    }
+
+    public function test_check_and_update_returns_updated_when_hash_differs(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'oldhash',
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_update_topic_scorm'] = 200;
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('updated', $result);
+
+        // Verify snapshot was saved.
+        $updates = $this->db->get_calls_for('update_record');
+        $lastUpdate = end($updates);
+        $this->assertEquals('newhash', $lastUpdate['data']->snapshotid);
+    }
+
+    // ---------------------------------------------------------------
+    // has_student_access() — all branches
+    // ---------------------------------------------------------------
+
+    public function test_has_student_access_returns_false_without_scormcmid(): void {
+        $activity = (object)[
+            'id' => 1,
+            'scormcmid' => null,
+        ];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_has_student_access_returns_false_when_cm_not_found(): void {
+        $activity = (object)[
+            'id' => 1,
+            'scormcmid' => 999,
+        ];
+
+        $GLOBALS['_test_get_coursemodule_from_id'] = false;
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_has_student_access_returns_false_when_scorm_record_not_found(): void {
+        $activity = (object)[
+            'id' => 1,
+            'scormcmid' => 100,
+        ];
+
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
+        // Don't seed scorm table — get_record will return false.
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_has_student_access_falls_back_to_scorm_scoes_track(): void {
+        $activity = (object)[
+            'id' => 1,
+            'scormcmid' => 100,
+        ];
+
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
+        $this->db->seed('scorm', [(object)['id' => 50, 'course' => 1]]);
+        $this->db->seed('scorm_scoes_track', [(object)['id' => 1, 'scormid' => 50]]);
+
+        // scorm_attempt table doesn't exist → falls back to scorm_scoes_track.
+        $this->db->get_manager()->set_table_exists('scorm_attempt', false);
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_has_student_access_returns_false_when_no_attempts(): void {
+        $activity = (object)[
+            'id' => 1,
+            'scormcmid' => 100,
+        ];
+
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
+        $this->db->seed('scorm', [(object)['id' => 50, 'course' => 1]]);
+        // scorm_attempt table exists but has no records for this scorm.
+        $this->db->get_manager()->set_table_exists('scorm_attempt', true);
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
+
+        $this->assertFalse($result);
+    }
+
+    // ---------------------------------------------------------------
+    // execute() — exception in one activity doesn't stop others
+    // ---------------------------------------------------------------
+
+    public function test_execute_continues_after_exception(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => 'key',
+            'orgid' => 'org',
+            'graphql_endpoint' => 'http://localhost/graphql',
+        ];
+
+        // Seed two activities — the task iterates both even if one fails.
+        $this->db->seed('skilland', [
+            (object)['id' => 1, 'autoupdate' => 1, 'scormcmid' => 100, 'skilland_topicid' => 'topic1'],
+            (object)['id' => 2, 'autoupdate' => 1, 'scormcmid' => 200, 'skilland_topicid' => 'topic2'],
+        ]);
+
+        $task = $this->makeTask();
+        // Even if check_and_update throws for one, the task logs error and continues.
+        // With our stubs, both will fail (no snapshot stub) but the task itself won't throw.
+        $task->execute();
+
+        // Should see "Sync complete" log with error count.
+        $completeLog = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'Sync complete'));
+        $this->assertNotEmpty($completeLog);
+    }
+}

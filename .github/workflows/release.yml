@@ -1,0 +1,152 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from src/version.php
+        id: version
+        run: |
+          VERSION=$(grep -oP "\\\$plugin->release\s*=\s*'\K[^']+" src/version.php)
+          MOODLE_VERSION=$(grep -oP "\\\$plugin->version\s*=\s*\K[0-9]+" src/version.php)
+          echo "release=$VERSION" >> $GITHUB_OUTPUT
+          echo "moodle_version=$MOODLE_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$MOODLE_VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION (Moodle version: $MOODLE_VERSION)"
+
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          TAG="v${{ steps.version.outputs.moodle_version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release $TAG already exists, skipping..."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Release $TAG does not exist, will create..."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        if: steps.check_release.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Build plugin
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify build version consistency
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          echo "=== Verifying version consistency ==="
+
+          SRC_RELEASE=$(grep -oP "\\\$plugin->release\s*=\s*'\K[^']+" src/version.php)
+          DIST_RELEASE=$(grep -oP "\\\$plugin->release\s*=\s*'\K[^']+" dist/version.php)
+          SRC_VERSION=$(grep -oP "\\\$plugin->version\s*=\s*\K[0-9]+" src/version.php)
+          DIST_VERSION=$(grep -oP "\\\$plugin->version\s*=\s*\K[0-9]+" dist/version.php)
+
+          echo "src/version.php  → release=$SRC_RELEASE, version=$SRC_VERSION"
+          echo "dist/version.php → release=$DIST_RELEASE, version=$DIST_VERSION"
+
+          if [ "$SRC_RELEASE" != "$DIST_RELEASE" ]; then
+            echo "::error::Release mismatch! src=$SRC_RELEASE dist=$DIST_RELEASE"
+            exit 1
+          fi
+
+          if [ "$SRC_VERSION" != "$DIST_VERSION" ]; then
+            echo "::error::Version mismatch! src=$SRC_VERSION dist=$DIST_VERSION"
+            exit 1
+          fi
+
+          # Validate maturity consistency
+          SRC_MATURITY=$(grep -oP "\\\$plugin->maturity\s*=\s*\KMATURITY_\w+" src/version.php)
+          echo "Maturity: $SRC_MATURITY, Release: $SRC_RELEASE"
+
+          if echo "$SRC_RELEASE" | grep -qi "beta"; then
+            if [ "$SRC_MATURITY" != "MATURITY_BETA" ]; then
+              echo "::error::Release contains 'beta' but maturity is $SRC_MATURITY (expected MATURITY_BETA)"
+              exit 1
+            fi
+          elif echo "$SRC_RELEASE" | grep -qi "alpha"; then
+            if [ "$SRC_MATURITY" != "MATURITY_ALPHA" ]; then
+              echo "::error::Release contains 'alpha' but maturity is $SRC_MATURITY (expected MATURITY_ALPHA)"
+              exit 1
+            fi
+          elif echo "$SRC_RELEASE" | grep -qi "rc"; then
+            if [ "$SRC_MATURITY" != "MATURITY_RC" ]; then
+              echo "::error::Release contains 'rc' but maturity is $SRC_MATURITY (expected MATURITY_RC)"
+              exit 1
+            fi
+          else
+            if [ "$SRC_MATURITY" != "MATURITY_STABLE" ]; then
+              echo "::error::Release is stable but maturity is $SRC_MATURITY (expected MATURITY_STABLE)"
+              exit 1
+            fi
+          fi
+
+          echo "✓ Version consistency verified"
+
+      - name: Create release zip
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          # Copy dist to a folder named 'skilland' for Moodle zip structure
+          cp -r dist skilland
+
+          # Create zip
+          zip -r mod_skilland-${{ steps.version.outputs.moodle_version }}.zip skilland
+
+          echo "Created mod_skilland-${{ steps.version.outputs.moodle_version }}.zip"
+          ls -la *.zip
+
+      - name: Create git tag
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.release }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.release }} (${{ steps.version.outputs.moodle_version }})
+          body: |
+            ## Skilland Moodle Plugin ${{ steps.version.outputs.release }}
+
+            **Moodle Version:** ${{ steps.version.outputs.moodle_version }}
+
+            ### Installation
+            1. Download `mod_skilland-${{ steps.version.outputs.moodle_version }}.zip`
+            2. Extract to your Moodle's `mod/` directory
+            3. Visit Site Administration > Notifications to complete installation
+
+            ### Requirements
+            - Moodle 4.0 or later
+          files: |
+            mod_skilland-${{ steps.version.outputs.moodle_version }}.zip
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.release, 'alpha') || contains(steps.version.outputs.release, 'beta') || contains(steps.version.outputs.release, 'rc') }}
+
+

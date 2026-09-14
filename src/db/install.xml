@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="mod/skilland/db" VERSION="2025120100" COMMENT="Skilland module DB schema">
+    <TABLES>
+
+        <!-- Main Skilland activity table: one row per mod_skilland instance (one topic in a course) -->
+        <TABLE NAME="skilland" COMMENT="Skilland activity instances">
+            <FIELDS>
+                <!-- Standard Moodle module fields -->
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="Course this Skilland activity belongs to"/>
+                <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="Activity name"/>
+                <FIELD NAME="intro" TYPE="text" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="General introduction of the Skilland activity"/>
+                <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="Format of the intro field (MOODLE, HTML, MARKDOWN, etc.)"/>
+
+                <!-- Skilland linkage -->
+                <FIELD NAME="skilland_topicid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="ID of the topic in Skilland represented by this activity"/>
+
+                <!-- Snapshot / sync metadata -->
+                <FIELD NAME="snapshotid" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Snapshot identifier from Skilland for the last published version"/>
+                <FIELD NAME="snapshotcreatedat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Unix time when the current snapshot was created in Skilland"/>
+                <FIELD NAME="lastsynced" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Unix time when SCORM activities were last synced from Skilland"/>
+
+                <!-- Behaviour flags -->
+                <FIELD NAME="autoupdate" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="If 1, automatically update SCORM activities when a new snapshot is published"/>
+                <FIELD NAME="lockafterfirstaccess" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="If 1, prevent updates once students have accessed the content"/>
+                <FIELD NAME="hidelabels" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="If 1, hide Skilland codes (e.g. T2-L1) from student-facing names"/>
+
+                <!-- Topic position for lesson numbering -->
+                <FIELD NAME="topic_orderindex" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false"
+                       COMMENT="Position of this topic within the course (1-based) for lesson numbering like L3.1"/>
+
+                <!-- Topic-level SCORM linkage -->
+                <FIELD NAME="scormcmid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Course module ID of the topic SCORM package (one per topic)"/>
+                <FIELD NAME="scorm_provisioned" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Unix timestamp when the topic SCORM was provisioned"/>
+
+                <!-- Standard timestamps -->
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+            </FIELDS>
+
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+            </KEYS>
+
+            <INDEXES>
+                <INDEX NAME="course_idx" UNIQUE="false" FIELDS="course"/>
+            </INDEXES>
+        </TABLE>
+
+        <!-- Maps Moodle course to a Skilland course (one Skilland course per Moodle course) -->
+        <TABLE NAME="skilland_course" COMMENT="Maps Moodle course to a Skilland course">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true"
+                       COMMENT="Moodle course id"/>
+                <FIELD NAME="skilland_courseid" TYPE="char" LENGTH="64" NOTNULL="true"
+                       COMMENT="ID of the Skilland course corresponding to this Moodle course"/>
+                <FIELD NAME="skilland_orgid" TYPE="char" LENGTH="64" NOTNULL="true"
+                       COMMENT="Skilland organization ID (for audit/logging)"/>
+                <FIELD NAME="timesynced" TYPE="int" LENGTH="10" NOTNULL="false"
+                       COMMENT="Unix time when course was last synced with Skilland"/>
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+            </FIELDS>
+
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="course_unique" TYPE="unique" FIELDS="course"/>
+            </KEYS>
+
+            <INDEXES>
+                <INDEX NAME="skilland_courseid_idx" UNIQUE="false" FIELDS="skilland_courseid"
+                       COMMENT="Index on Skilland course ID"/>
+            </INDEXES>
+        </TABLE>
+
+        <!-- Selected lessons for each Skilland activity and their SCORM link -->
+        <TABLE NAME="skilland_lesson" COMMENT="Lessons imported from Skilland for a given activity">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="skillandid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="FK to skilland.id"/>
+                <FIELD NAME="skilland_lessonid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="Lesson ID in Skilland"/>
+                <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="Lesson title as imported from Skilland"/>
+                <FIELD NAME="orderindex" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="Ordering of lessons within the topic"/>
+                <FIELD NAME="scormcmid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="DEPRECATED: Legacy per-lesson SCORM cmid. Use skilland.scormcmid for topic SCORM."/>
+
+                <!-- SCO mapping for topic-level SCORM -->
+                <FIELD NAME="scoid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Moodle scorm_scoes.id for this lesson's SCO within the topic SCORM package"/>
+                <FIELD NAME="sco_identifier" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="SCO identifier from the SCORM manifest (matches API mappings.scoId)"/>
+
+                <!-- Optional per-lesson snapshot info (can mirror topic snapshot if needed) -->
+                <FIELD NAME="snapshotid" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Snapshot identifier for this lesson, if provided by Skilland"/>
+                <FIELD NAME="snapshotcreatedat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Unix time when lesson snapshot was created in Skilland"/>
+                <FIELD NAME="updatedat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Last update timestamp from Skilland"/>
+                <FIELD NAME="visible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"
+                       COMMENT="Whether this lesson is selected for visibility"/>
+            </FIELDS>
+
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="skillandid_fk" TYPE="foreign" FIELDS="skillandid"
+                     REFTABLE="skilland" REFFIELDS="id"/>
+            </KEYS>
+
+            <INDEXES>
+                <INDEX NAME="skillandid_idx" UNIQUE="false" FIELDS="skillandid"/>
+                <INDEX NAME="skilland_lesson_unique" UNIQUE="true" FIELDS="skillandid, skilland_lessonid"/>
+            </INDEXES>
+        </TABLE>
+
+    </TABLES>
+</XMLDB>

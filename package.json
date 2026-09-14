@@ -1,0 +1,27 @@
+{
+  "name": "mod_skilland",
+  "description": "Skilland Moodle Activity Module",
+  "private": true,
+  "scripts": {
+    "build": "grunt build",
+    "watch": "grunt watch",
+    "lint": "eslint tests/e2e",
+    "lint:fix": "eslint tests/e2e --fix",
+    "test:e2e": "npx playwright test --config=tests/e2e/playwright.config.js",
+    "test:e2e:ui": "npx playwright test --config=tests/e2e/playwright.config.js --ui",
+    "test:e2e:headed": "npx playwright test --config=tests/e2e/playwright.config.js --headed",
+    "test:e2e:debug": "npx playwright test --config=tests/e2e/playwright.config.js --debug",
+    "test:unit": "docker run --rm -v \"$(pwd)\":/app -w /app composer:2 install --no-interaction --quiet && docker run --rm -v \"$(pwd)\":/app -w /app php:8.2-cli vendor/bin/phpunit -c phpunit.xml",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "eslint": "^8.57.1",
+    "grunt": "^1.6.1",
+    "grunt-contrib-clean": "^2.0.1",
+    "grunt-contrib-copy": "^1.0.0",
+    "grunt-contrib-uglify": "^5.2.2",
+    "grunt-contrib-watch": "^1.1.0",
+    "husky": "^9.1.7"
+  }
+}

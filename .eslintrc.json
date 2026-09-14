@@ -1,0 +1,19 @@
+{
+  "env": {
+    "node": true,
+    "es2021": true
+  },
+  "parserOptions": {
+    "ecmaVersion": "latest"
+  },
+  "globals": {
+    "M": "readonly",
+    "document": "readonly"
+  },
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-undef": "error",
+    "semi": ["error", "never"],
+    "quotes": ["error", "single", { "avoidEscape": true }]
+  }
+}
