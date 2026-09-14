@@ -11,7 +11,7 @@
 
 ### 📥 Quick Install
 
-[**Download the latest Release ZIP**](https://github.com/f3r/skilland-lms-moodle/releases/latest) and upload it to your Moodle via **Site administration > Plugins > Install plugins**.
+[**Download the latest Release ZIP**](https://github.com/Skilland-ai/skilland-lms-moodle/releases/latest) and upload it to your Moodle via **Site administration > Plugins > Install plugins**.
 
 ---
 
