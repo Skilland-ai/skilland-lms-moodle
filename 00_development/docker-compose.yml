@@ -41,6 +41,11 @@ services:
       MOODLE_ADMIN_EMAIL: admin@localhost.local
       MOODLE_SITE_FULLNAME: "Skilland Moodle Development"
       MOODLE_SITE_SHORTNAME: skilland-dev
+      # Skilland wiring read by config.php; MOODLE_SSO_SECRET lives in the monorepo .env
+      # (./start.sh --plugin generates it). Empty means the plugin is configured by hand.
+      SKILLAND_SSO_SECRET: ${MOODLE_SSO_SECRET:-}
+      SKILLAND_GRAPHQL_ENDPOINT: ${SKILLAND_GRAPHQL_ENDPOINT:-}
+      SKILLAND_FRONTEND_URL: ${SKILLAND_FRONTEND_URL:-}
     volumes:
       - moodle_data:/var/www/html
       - moodle_moodledata:/var/moodledata
