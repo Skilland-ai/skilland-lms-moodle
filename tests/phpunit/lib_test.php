@@ -607,4 +607,103 @@ class lib_test extends TestCase {
 
         skilland_update_instance($data);
     }
+
+    public function test_add_instance_rejects_foreign_select_topicid_without_saved(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic-of-another-skill';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped_to_skill', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_add_instance_rejects_missing_course(): void {
+        $data = new \stdClass();
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_add_instance_rejects_topic_when_skill_has_no_topics(): void {
+        $this->stubSkillTopics([]);
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic1';
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_add_instance($data);
+    }
+
+    public function test_add_instance_uses_table_mapping_when_custom_field_empty(): void {
+        $GLOBALS['_test_customfield_value'][10] = '';
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic1';
+
+        skilland_add_instance($data);
+
+        $this->assertCount(1, $this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_update_instance_accepts_same_valid_saved_topic(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 7;
+        $data->skilland_topicid = 'topic1';
+        $data->skilland_topicid_saved = 'topic1';
+
+        $this->assertTrue(skilland_update_instance($data));
+
+        $updates = $this->db->get_calls_for('update_record');
+        $this->assertCount(1, $updates);
+        $this->assertSame('topic1', $updates[0]['data']->skilland_topicid);
+        $this->assertObjectNotHasProperty('skilland_topicid_saved', $updates[0]['data']);
+    }
+
+    public function test_update_instance_rejects_unmapped_course(): void {
+        $data = new \stdClass();
+        $data->course = 99;
+        $data->instance = 1;
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_update_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('update_record'));
+    }
+
+    public function test_update_instance_throws_when_topic_check_api_fails(): void {
+        $GLOBALS['_test_curl_response'] = ['body' => 'boom', 'http_code' => 500, 'errno' => 0, 'error' => ''];
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 1;
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_update_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertNotSame('', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('update_record'));
+    }
 }

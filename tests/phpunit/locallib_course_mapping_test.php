@@ -277,4 +277,81 @@ class locallib_course_mapping_test extends TestCase {
         $this->assertFalse(skilland_topic_belongs_to_course('', 'skill-a'));
         $this->assertFalse(skilland_topic_belongs_to_course('topic-1', ''));
     }
+
+    public function test_get_mapped_courseid_empty_custom_field_falls_back_to_table(): void {
+        $GLOBALS['_test_customfield_value'][10] = '';
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+
+        $this->assertSame('skill-table', skilland_get_mapped_courseid(10));
+    }
+
+    public function test_get_mapped_courseid_null_custom_field_falls_back_to_table(): void {
+        $GLOBALS['_test_customfield_value'][10] = null;
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+
+        $this->assertSame('skill-table', skilland_get_mapped_courseid(10));
+    }
+
+    public function test_get_mapped_courseid_empty_everywhere_is_unmapped(): void {
+        $GLOBALS['_test_customfield_value'][10] = '';
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => ''],
+        ]);
+
+        $this->assertNull(skilland_get_mapped_courseid(10));
+    }
+
+    public function test_require_mapped_course_rejects_empty_request_id(): void {
+        $GLOBALS['_test_customfield_value'][10] = 'skill-a';
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_require_mapped_course(10, '');
+    }
+
+    public function test_require_mapped_course_is_case_sensitive(): void {
+        $GLOBALS['_test_customfield_value'][10] = 'skill-a';
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_require_mapped_course(10, 'SKILL-A');
+    }
+
+    public function test_topic_belongs_to_course_false_for_empty_topic_list(): void {
+        $this->stubTopics('skill-a', []);
+
+        $this->assertFalse(skilland_topic_belongs_to_course('topic-1', 'skill-a'));
+    }
+
+    public function test_topic_belongs_to_course_false_when_api_returns_no_course(): void {
+        $this->stubTopics('skill-a', []);
+        $GLOBALS['_test_curl_response']['body'] = json_encode(['data' => ['course' => null]]);
+
+        $this->assertFalse(skilland_topic_belongs_to_course('topic-1', 'skill-a'));
+    }
+
+    public function test_topic_belongs_to_course_ignores_topics_without_id(): void {
+        $this->stubTopics('skill-a', []);
+        $GLOBALS['_test_curl_response']['body'] = json_encode(['data' => ['course' => [
+            'id' => 'skill-a', 'name' => 'C', 'topics' => [['name' => 'topic-1']],
+        ]]]);
+
+        $this->assertFalse(skilland_topic_belongs_to_course('topic-1', 'skill-a'));
+    }
+
+    public function test_topic_belongs_to_course_throws_on_api_failure(): void {
+        $this->stubTopics('skill-a', ['topic-1']);
+        $GLOBALS['_test_curl_response']['http_code'] = 500;
+        $GLOBALS['_test_curl_response']['body'] = 'boom';
+
+        $this->expectException(\moodle_exception::class);
+
+        skilland_topic_belongs_to_course('topic-1', 'skill-a');
+    }
 }

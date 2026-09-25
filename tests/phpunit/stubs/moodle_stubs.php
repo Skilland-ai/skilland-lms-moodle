@@ -324,10 +324,17 @@ if (!class_exists('context_system')) {
 }
 
 // Capability stubs — every capability is granted unless listed in
-// $GLOBALS['_test_denied_capabilities'].
+// $GLOBALS['_test_denied_capabilities'], or unless $GLOBALS['_test_capability_course_ids']
+// is set and the course context's instance id is not in it (a teacher of those courses only).
 if (!function_exists('has_capability')) {
     function has_capability($capability, $context, $user = null) {
-        return !in_array($capability, $GLOBALS['_test_denied_capabilities'] ?? [], true);
+        if (in_array($capability, $GLOBALS['_test_denied_capabilities'] ?? [], true)) {
+            return false;
+        }
+        if (isset($GLOBALS['_test_capability_course_ids']) && $context instanceof \context_course) {
+            return in_array($context->instanceid, $GLOBALS['_test_capability_course_ids'], true);
+        }
+        return true;
     }
 }
 
