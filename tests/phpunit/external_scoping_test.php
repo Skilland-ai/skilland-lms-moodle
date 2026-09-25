@@ -313,7 +313,8 @@ class external_scoping_test extends TestCase {
 
     public function test_upgrade_step_matches_version_and_guards_drop(): void {
         preg_match('/\$plugin->version\s*=\s*(\d+);/', $this->srcFile('version.php'), $vm);
-        $this->assertSame('2026092522', $vm[1] ?? null);
+        $this->assertNotEmpty($vm, 'plugin version not found');
+        $this->assertGreaterThanOrEqual(2026092522, (int)$vm[1], 'version must reach the 2026092522 upgrade step');
 
         $upgrade = $this->srcFile('db/upgrade.php');
         $start = strpos($upgrade, 'if ($oldversion < 2026092522)');

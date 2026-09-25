@@ -26,7 +26,12 @@ class lib_test extends TestCase {
     }
 
     protected function tearDown(): void {
-        unset($GLOBALS['_test_curl_response'], $GLOBALS['_test_customfield_value']);
+        unset(
+            $GLOBALS['_test_curl_response'],
+            $GLOBALS['_test_customfield_value'],
+            $GLOBALS['_test_events'],
+            $GLOBALS['_test_completion_viewed']
+        );
         parent::tearDown();
     }
 
@@ -48,8 +53,61 @@ class lib_test extends TestCase {
         $this->assertTrue(skilland_supports(FEATURE_MOD_INTRO));
     }
 
+    public function test_supports_completion_tracks_views(): void {
+        $this->assertTrue(skilland_supports(FEATURE_COMPLETION_TRACKS_VIEWS));
+    }
+
     public function test_supports_returns_null_for_unknown_feature(): void {
         $this->assertNull(skilland_supports('some_unknown_feature'));
+    }
+
+    // ---------------------------------------------------------------
+    // skilland_view()
+    // ---------------------------------------------------------------
+
+    private function runView(): array {
+        $GLOBALS['_test_events'] = [];
+        $GLOBALS['_test_completion_viewed'] = [];
+        $skilland = (object)['id' => 7, 'name' => 'T1 - Topic'];
+        $course = (object)['id' => 10, 'fullname' => 'Course'];
+        $cm = (object)['id' => 42, 'instance' => 7, 'course' => 10];
+        $context = \context_module::instance(42);
+        skilland_view($skilland, $course, $cm, $context);
+        return [$skilland, $course, $cm, $context];
+    }
+
+    public function test_view_triggers_one_course_module_viewed_event(): void {
+        [$skilland, , , $context] = $this->runView();
+
+        $this->assertCount(1, $GLOBALS['_test_events']);
+        $event = $GLOBALS['_test_events'][0];
+        $this->assertInstanceOf(\mod_skilland\event\course_module_viewed::class, $event);
+        $this->assertSame(7, $event->objectid);
+        $this->assertSame($context, $event->context);
+        $this->assertSame('skilland', $event->objecttable);
+        $this->assertSame('r', $event->crud);
+        $this->assertSame(\core\event\base::LEVEL_PARTICIPATING, $event->edulevel);
+    }
+
+    public function test_view_adds_course_and_skilland_snapshots(): void {
+        [$skilland, $course] = $this->runView();
+
+        $event = $GLOBALS['_test_events'][0];
+        $this->assertSame($course, $event->get_record_snapshot('course', 10));
+        $this->assertSame($skilland, $event->get_record_snapshot('skilland', 7));
+    }
+
+    public function test_view_marks_module_viewed_for_completion_once(): void {
+        [, , $cm] = $this->runView();
+
+        $this->assertSame([$cm], $GLOBALS['_test_completion_viewed']);
+    }
+
+    public function test_viewed_event_maps_objectid_to_skilland_table(): void {
+        $this->assertSame(
+            ['db' => 'skilland', 'restore' => 'skilland'],
+            \mod_skilland\event\course_module_viewed::get_objectid_mapping()
+        );
     }
 
     // ---------------------------------------------------------------

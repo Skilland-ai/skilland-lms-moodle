@@ -4,6 +4,9 @@
 if (!defined('FEATURE_MOD_INTRO')) {
     define('FEATURE_MOD_INTRO', 'mod_intro');
 }
+if (!defined('FEATURE_COMPLETION_TRACKS_VIEWS')) {
+    define('FEATURE_COMPLETION_TRACKS_VIEWS', 'completion_tracks_views');
+}
 if (!defined('PARAM_INT')) {
     define('PARAM_INT', 'int');
 }
@@ -354,4 +357,9 @@ if (!class_exists('core_customfield\\handler')) {
 // Scheduled task base class loaded from separate file (namespaces can't be in if blocks).
 if (!class_exists('core\task\scheduled_task')) {
     require_once __DIR__ . '/scheduled_task_stub.php';
+}
+
+// Event base classes loaded from a separate file (namespaces can't be in if blocks).
+if (!class_exists('core\\event\\base')) {
+    require_once __DIR__ . '/event_stub.php';
 }
