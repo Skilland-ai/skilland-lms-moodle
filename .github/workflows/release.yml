@@ -105,6 +105,12 @@ jobs:
 
           echo "✓ Version consistency verified"
 
+      - name: Scan built plugin for secrets
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source /repo/dist --no-git --redact --config /repo/.gitleaks.toml
+
       - name: Create release zip
         if: steps.check_release.outputs.exists == 'false'
         run: |

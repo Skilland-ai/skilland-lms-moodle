@@ -34,3 +34,15 @@ jobs:
             echo '  $plugin->maturity (MATURITY_ALPHA|BETA|RC|STABLE)'
             exit 1
           fi
+
+  secret-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Scan source tree for secrets
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source /repo --no-git --redact --config /repo/.gitleaks.toml

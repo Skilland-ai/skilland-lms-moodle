@@ -1,0 +1,12 @@
+# Secret scan for the plugin source tree and the built dist/ that ships in the release zip.
+title = "mod_skilland gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Third-party code"
+paths = [
+  '''vendor/''',
+  '''node_modules/''',
+]
