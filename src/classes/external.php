@@ -322,7 +322,7 @@ class mod_skilland_external extends external_api {
                     'id' => $topic['id'],
                     'name' => $topic['name'] ?? '',
                     'code' => $topic['code'] ?? '',
-                    'description' => $topic['description'] ?? '',
+                    'description' => clean_text($topic['description'] ?? '', FORMAT_HTML),
                 ];
             }
 
@@ -383,7 +383,7 @@ class mod_skilland_external extends external_api {
                     'id' => new external_value(PARAM_TEXT, 'Topic ID'),
                     'name' => new external_value(PARAM_TEXT, 'Topic name'),
                     'code' => new external_value(PARAM_TEXT, 'Topic code', VALUE_OPTIONAL),
-                    'description' => new external_value(PARAM_RAW, 'Topic description', VALUE_OPTIONAL),
+                    'description' => new external_value(PARAM_CLEANHTML, 'Topic description', VALUE_OPTIONAL),
                 ])
             ),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),

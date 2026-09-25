@@ -438,6 +438,31 @@ class mod_skilland_mod_form extends moodleform_mod {
 
             $js = "
             (function() {
+                function escapeHtml(str) {
+                    return String(str === undefined || str === null ? '' : str)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/\"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+                }
+
+                function showLessonsError(container, message) {
+                    container.innerHTML = '';
+                    var errorSpan = document.createElement('span');
+                    errorSpan.className = 'text-danger';
+                    errorSpan.textContent = message;
+                    container.appendChild(errorSpan);
+                }
+
+                function showTopicSelectError(select, message) {
+                    select.innerHTML = '';
+                    var errorOption = document.createElement('option');
+                    errorOption.value = '';
+                    errorOption.textContent = message;
+                    select.appendChild(errorOption);
+                }
+
                 var skillandCourseId = " . json_encode($skillandcourseid) . ";
                 var moodleCourseId = " . json_encode($this->get_course()->id) . ";
                 var currentTopicId = " . json_encode($currenttopicid) . ";
@@ -577,7 +602,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                             }])[0].then(function(response) {
                                 if (response.error) {
                                     notification.addNotification({
-                                        message: updateErrorText + ': ' + response.error,
+                                        message: escapeHtml(updateErrorText + ': ' + response.error),
                                         type: 'error'
                                     });
                                     // Reset button state
@@ -593,7 +618,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 }
                             }).catch(function(error) {
                                 notification.addNotification({
-                                    message: updateErrorText + ': ' + error.message,
+                                    message: escapeHtml(updateErrorText + ': ' + error.message),
                                     type: 'error'
                                 });
                                 // Reset button state
@@ -714,11 +739,13 @@ class mod_skilland_mod_form extends moodleform_mod {
                             if (window.Y && window.Y.one) {
                                 var editorNode = window.Y.one('#id_introeditable');
                                 if (editorNode) {
+                                    // Description is purified server-side (clean_text + PARAM_CLEANHTML).
                                     editorNode.setHTML(description);
                                 }
                             }
 
                             // Check for TinyMCE
+                            // Description is purified server-side (clean_text + PARAM_CLEANHTML).
                             if (window.tinyMCE && window.tinyMCE.get('id_intro')) {
                                 window.tinyMCE.get('id_intro').setContent(description);
                             } else if (window.tinyMCE && window.tinyMCE.activeEditor && window.tinyMCE.activeEditor.id === 'id_intro') {
@@ -742,7 +769,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 }
                             }])[0].then(function(response) {
                                 if (response.error) {
-                                    lessonsContainer.innerHTML = '<span class=\"text-danger\">' + response.error + '</span>';
+                                    showLessonsError(lessonsContainer, response.error);
                                     return;
                                 }
 
@@ -754,7 +781,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 console.log('Skilland: Lessons response received', response);
                                 renderLessons(response.lessons);
                             }).catch(function(error) {
-                                lessonsContainer.innerHTML = '<span class=\"text-danger\">' + error.message + '</span>';
+                                showLessonsError(lessonsContainer, error.message);
                             });
                         });
                     }
@@ -1002,9 +1029,9 @@ class mod_skilland_mod_form extends moodleform_mod {
                             console.log('Skilland: Topics response received', response);
 
                             if (response.error) {
-                                topicSelect.innerHTML = '<option value=\"\">' + errorText + '</option>';
+                                showTopicSelectError(topicSelect, errorText);
                                 notification.addNotification({
-                                    message: 'Failed to fetch topics from Skilland: ' + response.error,
+                                    message: escapeHtml('Failed to fetch topics from Skilland: ' + response.error),
                                     type: 'error'
                                 });
                                 return;
@@ -1014,13 +1041,23 @@ class mod_skilland_mod_form extends moodleform_mod {
                             if (response.course && response.course.name) {
                                 var courseDisplayEl = document.querySelector('#fitem_id_skilland_course_id_display .felement, #fitem_id_skilland_course_id_display .fstatic');
                                 if (courseDisplayEl) {
-                                    var displayText = '<span class=\"skilland-course-name\">' + response.course.name + '</span>';
+                                    courseDisplayEl.innerHTML = '';
+                                    var nameSpan = document.createElement('span');
+                                    nameSpan.className = 'skilland-course-name';
+                                    nameSpan.textContent = response.course.name;
+                                    courseDisplayEl.appendChild(nameSpan);
                                     // Only show code if it's different from the name and doesn't look like a long ID
                                     if (response.course.code && response.course.code !== response.course.name && response.course.code.length < 20) {
-                                        displayText += ' (' + response.course.code + ')';
+                                        var codeSpan = document.createElement('span');
+                                        codeSpan.className = 'skilland-course-code';
+                                        codeSpan.textContent = ' (' + response.course.code + ')';
+                                        courseDisplayEl.appendChild(codeSpan);
                                     }
-                                    displayText += '<span class=\"skilland-course-edit-link\">(' + editLinkHtml + ')</span>';
-                                    courseDisplayEl.innerHTML = displayText;
+                                    // editLinkHtml is a trusted fragment built server-side by html_writer.
+                                    var editLinkSpan = document.createElement('span');
+                                    editLinkSpan.className = 'skilland-course-edit-link';
+                                    editLinkSpan.innerHTML = '(' + editLinkHtml + ')';
+                                    courseDisplayEl.appendChild(editLinkSpan);
                                 }
                             }
 
@@ -1067,9 +1104,9 @@ class mod_skilland_mod_form extends moodleform_mod {
                             console.error('Skilland: Error message:', error.message);
                             console.error('Skilland: Error type:', typeof error);
                             console.error('Skilland: Error keys:', Object.keys(error));
-                            topicSelect.innerHTML = '<option value=\"\">' + errorText + '</option>';
+                            showTopicSelectError(topicSelect, errorText);
                             notification.addNotification({
-                                message: 'Failed to fetch topics from Skilland: ' + (error.message || JSON.stringify(error)),
+                                message: escapeHtml('Failed to fetch topics from Skilland: ' + (error.message || JSON.stringify(error))),
                                 type: 'error'
                             });
                         });

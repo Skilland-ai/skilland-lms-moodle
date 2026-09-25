@@ -166,7 +166,7 @@ class hooks {
                                     // Disable select and show creating state.
                                     select.disabled = true;
                                     var originalText = select.options[select.selectedIndex].textContent;
-                                    select.options[select.selectedIndex].textContent = '" . addslashes(\get_string('creating_course', 'mod_skilland')) . "';
+                                    select.options[select.selectedIndex].textContent = " . json_encode(\get_string('creating_course', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
 
                                     require(['core/ajax', 'core/notification'], function(ajax, notification) {
                                         ajax.call([{
@@ -249,7 +249,7 @@ class hooks {
                                     // Add '+ Create in Skilland' option.
                                     var createOption = document.createElement('option');
                                     createOption.value = '__create_new__';
-                                    createOption.textContent = '" . addslashes(\get_string('create_in_skilland', 'mod_skilland')) . "';
+                                    createOption.textContent = " . json_encode(\get_string('create_in_skilland', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
                                     createOption.style.fontWeight = 'bold';
                                     select.appendChild(createOption);
 
@@ -302,7 +302,8 @@ class hooks {
                 $ssourl = (new \moodle_url('/mod/skilland/sso_redirect.php', [
                     'sesskey' => sesskey()
                 ]))->out(false);
-                $buttontext = addslashes(\get_string('go_to_skilland', 'mod_skilland'));
+                $buttontext = json_encode(\get_string('go_to_skilland', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $ssourljs = json_encode($ssourl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
 
                 $buttonjs = "
                 (function() {
@@ -331,10 +332,18 @@ class hooks {
                         var div = document.createElement('div');
                         div.id = 'skilland-goto-btn';
                         div.className = 'd-flex justify-content-center mb-3';
-                        div.innerHTML = '<a class=\"btn btn-secondary\" href=\"" . $ssourl . "\" target=\"_blank\">' +
-                            '<span>" . $buttontext . "</span> ' +
-                            '<i class=\"fa fa-external-link ml-1\"></i>' +
-                            '</a>';
+                        var link = document.createElement('a');
+                        link.className = 'btn btn-secondary';
+                        link.href = " . $ssourljs . ";
+                        link.target = '_blank';
+                        var label = document.createElement('span');
+                        label.textContent = " . $buttontext . ";
+                        var icon = document.createElement('i');
+                        icon.className = 'fa fa-external-link ml-1';
+                        link.appendChild(label);
+                        link.appendChild(document.createTextNode(' '));
+                        link.appendChild(icon);
+                        div.appendChild(link);
 
                         formItem.parentNode.insertBefore(div, formItem);
                     }

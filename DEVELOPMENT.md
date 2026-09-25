@@ -158,6 +158,10 @@ Settings location: **Site administration → Plugins → Activity modules → Sk
 4.  **Clear cache**: In Moodle, go to **Site administration → Development → Purge all caches** (often needed when adding new files or changing version).
 5.  **Test**: Create/edit a Skilland activity to test your changes.
 
+### Coding conventions: escaping output
+
+Never pass SkilLand API data (course and topic names, descriptions, error messages) or language strings to `innerHTML`, and never build a JS string literal with `addslashes()`. In inline JS, set text with `textContent` and build markup with `document.createElement`; when a Moodle API only takes HTML (e.g. `notification.addNotification`), wrap the value in the form's `escapeHtml()` helper. From PHP, emit strings and URLs into JS as whole literals with `json_encode($value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)`. HTML that is meant to be rendered (topic descriptions) is purified server-side with `clean_text()` and declared as `PARAM_CLEANHTML` in the external function's return structure. `tests/phpunit/xss_sinks_test.php` guards these rules (SKL-674).
+
 ## Common Development Tasks
 
 ### Debugging GraphQL Queries
