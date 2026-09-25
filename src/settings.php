@@ -39,9 +39,8 @@ if ($ADMIN->fulltree) {
         get_string('customfield_status', 'mod_skilland'),
         $description));
 
-    // Development mode toggle.
-    // Use custom class to handle dynamic UI behavior (pre-filling/locking fields).
-    $settings->add(new \mod_skilland\admin_setting_dev_mode('mod_skilland/devmode',
+    // Verbose debug logging toggle.
+    $settings->add(new admin_setting_configcheckbox('mod_skilland/devmode',
         get_string('settings_devmode', 'mod_skilland'),
         get_string('settings_devmode_desc', 'mod_skilland'), 0));
 

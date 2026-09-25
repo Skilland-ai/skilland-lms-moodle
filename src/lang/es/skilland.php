@@ -64,8 +64,8 @@ $string['settings_sso_secret'] = 'Secreto Compartido SSO';
 $string['settings_sso_secret_desc'] = 'Secreto compartido para autenticación SSO. Debe coincidir con la variable de entorno MOODLE_SSO_SECRET en el backend de Skilland. Use una cadena aleatoria fuerte (mínimo 32 caracteres).';
 
 // Development settings.
-$string['settings_devmode'] = 'Modo desarrollo';
-$string['settings_devmode_desc'] = 'Habilitar registro en consola para depuración. Desactivar en producción.';
+$string['settings_devmode'] = 'Registro de depuración detallado';
+$string['settings_devmode_desc'] = 'Registra los detalles de las peticiones con nivel DEBUG_DEVELOPER. No lo active nunca en un sitio de producción.';
 
 // Error messages.
 $string['error_config_missing_orgid'] = 'El ID de Organización de Skilland no está configurado. Por favor, configúrelo en los ajustes del plugin.';

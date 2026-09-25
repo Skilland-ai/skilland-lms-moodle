@@ -63,8 +63,8 @@ $string['settings_sso_secret'] = 'SSO Shared Secret';
 $string['settings_sso_secret_desc'] = 'Shared secret for SSO authentication. This must match the MOODLE_SSO_SECRET environment variable in the Skilland backend. Use a strong random string (min 32 characters).';
 
 // Development settings.
-$string['settings_devmode'] = 'Development mode';
-$string['settings_devmode_desc'] = 'Enable console logging for debugging. Disable in production.';
+$string['settings_devmode'] = 'Verbose debug logging';
+$string['settings_devmode_desc'] = 'Logs request details at DEBUG_DEVELOPER level. Never enable on a production site.';
 
 // Error messages.
 $string['error_config_missing_orgid'] = 'Skilland Organization ID is not configured. Please set it in plugin settings.';
