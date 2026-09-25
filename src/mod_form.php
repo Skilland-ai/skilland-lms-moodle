@@ -155,13 +155,13 @@ class mod_skilland_mod_form extends moodleform_mod {
         $mform->addElement('select', 'skilland_topicid',
             get_string('topicid', 'mod_skilland'),
             array('' => get_string('loading', 'mod_skilland')));
-        $mform->setType('skilland_topicid', PARAM_TEXT);
+        $mform->setType('skilland_topicid', PARAM_ALPHANUMEXT);
         $mform->addRule('skilland_topicid', null, 'required', null, 'client');
         $mform->addHelpButton('skilland_topicid', 'topicid', 'mod_skilland');
 
         // Hidden field to remember last saved topic ID (used when select hasn't loaded yet).
         $mform->addElement('hidden', 'skilland_topicid_saved', '');
-        $mform->setType('skilland_topicid_saved', PARAM_TEXT);
+        $mform->setType('skilland_topicid_saved', PARAM_ALPHANUMEXT);
 
         // Hidden field to store topic order index (T1, T2, etc.).
         $mform->addElement('hidden', 'topic_orderindex', 1);
@@ -1136,6 +1136,16 @@ class mod_skilland_mod_form extends moodleform_mod {
             $linktext = get_string('set_skilland_course_id', 'mod_skilland');
             $link = html_writer::link($courseediturl, $linktext);
             $errors['skilland_course_id_display'] = get_string('skilland_course_id_required', 'mod_skilland', $link);
+        } else {
+            // The submitted topic must belong to the skill this course is mapped to.
+            $topicid = !empty($data['skilland_topicid_saved']) ? $data['skilland_topicid_saved'] : ($data['skilland_topicid'] ?? '');
+            try {
+                if (!skilland_topic_belongs_to_course((string)$topicid, (string)$skillandcourseid)) {
+                    $errors['skilland_topicid'] = get_string('error_course_not_mapped_to_skill', 'mod_skilland');
+                }
+            } catch (moodle_exception $e) {
+                $errors['skilland_topicid'] = $e->getMessage();
+            }
         }
 
         return $errors;

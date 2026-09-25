@@ -253,7 +253,7 @@ function skilland_ensure_course_customfield() {
         $description = get_string('customfield_skilland_course_id_desc', 'mod_skilland');
         $field->set('description', $description);
         $field->set('descriptionformat', FORMAT_HTML);
-        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,"ispassword":"0","link":"","locked":"0","visibility":"2"}');
+        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,"ispassword":"0","link":"","locked":"1","visibility":"2"}');
         $field->save();
 
         return $field;
@@ -292,6 +292,69 @@ function skilland_get_course_customfield_value($courseid) {
     }
 
     return null;
+}
+
+/**
+ * Resolve the Skilland course (skill) mapped to a Moodle course.
+ *
+ * The locked course custom field is authoritative; the legacy `skilland_course`
+ * table is the fallback for courses mapped before the custom field existed.
+ *
+ * @param int $moodlecourseid Moodle course ID
+ * @return string|null The mapped Skilland course ID, or null when the course is not mapped
+ */
+function skilland_get_mapped_courseid(int $moodlecourseid): ?string {
+    $value = skilland_get_course_customfield_value($moodlecourseid);
+    if (!empty($value)) {
+        return (string)$value;
+    }
+
+    $legacy = skilland_get_skilland_courseid($moodlecourseid);
+    return !empty($legacy) ? (string)$legacy : null;
+}
+
+/**
+ * Require that a Skilland course ID is the one mapped to a Moodle course.
+ *
+ * A teacher holds capabilities in their own Moodle course only, so any Skilland
+ * course ID a request names must be the one that course is mapped to.
+ *
+ * @param int $moodlecourseid Moodle course ID
+ * @param string $courseid Skilland course ID supplied by the request
+ * @return string The mapped Skilland course ID
+ * @throws moodle_exception When the course is not mapped or is mapped to another skill
+ */
+function skilland_require_mapped_course(int $moodlecourseid, string $courseid): string {
+    $mapped = skilland_get_mapped_courseid($moodlecourseid);
+    if ($mapped === null) {
+        throw new moodle_exception('error_course_not_mapped', 'mod_skilland');
+    }
+    if (!hash_equals($mapped, $courseid)) {
+        throw new moodle_exception('error_course_not_mapped_to_skill', 'mod_skilland');
+    }
+    return $mapped;
+}
+
+/**
+ * Check whether a Skilland topic belongs to a Skilland course.
+ *
+ * @param string $topicid Skilland topic ID
+ * @param string $skillandcourseid Skilland course ID
+ * @return bool True when the course lists the topic
+ * @throws moodle_exception If the Skilland API call fails
+ */
+function skilland_topic_belongs_to_course(string $topicid, string $skillandcourseid): bool {
+    if ($topicid === '' || $skillandcourseid === '') {
+        return false;
+    }
+
+    $course = mod_skilland_fetch_topics($skillandcourseid);
+    foreach ($course['topics'] ?? [] as $topic) {
+        if (isset($topic['id']) && (string)$topic['id'] === $topicid) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**

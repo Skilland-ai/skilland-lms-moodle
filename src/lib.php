@@ -73,6 +73,8 @@ function skilland_add_instance($skilland, $mform = null) {
 
     logger::debug('Instance', 'Final skilland_topicid = ' . (isset($skilland->skilland_topicid) ? $skilland->skilland_topicid : 'EMPTY'));
 
+    skilland_require_topic_in_mapped_course((int)($skilland->course ?? 0), (string)($skilland->skilland_topicid ?? ''));
+
     // Ensure topic_orderindex has a default value.
     if (empty($skilland->topic_orderindex)) {
         $skilland->topic_orderindex = 1;
@@ -105,6 +107,7 @@ function skilland_add_instance($skilland, $mform = null) {
  */
 function skilland_update_instance($skilland, $mform = null) {
     global $DB;
+    require_once(__DIR__ . '/locallib.php');
 
     logger::debug('Instance', 'skilland_update_instance called');
     logger::debug('Instance', 'skilland_topicid = ' . (isset($skilland->skilland_topicid) ? $skilland->skilland_topicid : 'NOT SET'));
@@ -127,6 +130,8 @@ function skilland_update_instance($skilland, $mform = null) {
 
     logger::debug('Instance', 'Final skilland_topicid = ' . (isset($skilland->skilland_topicid) ? $skilland->skilland_topicid : 'EMPTY'));
 
+    skilland_require_topic_in_mapped_course((int)($skilland->course ?? 0), (string)($skilland->skilland_topicid ?? ''));
+
     // Ensure topic_orderindex has a default value.
     if (empty($skilland->topic_orderindex)) {
         $skilland->topic_orderindex = 1;
@@ -144,6 +149,26 @@ function skilland_update_instance($skilland, $mform = null) {
     }
 
     return $result;
+}
+
+/**
+ * Require that a topic belongs to the Skilland course mapped to a Moodle course.
+ *
+ * The topic ID arrives from a hidden form field, so it is checked here on the server
+ * rather than trusted from the topic select.
+ *
+ * @param int $moodlecourseid Moodle course ID
+ * @param string $topicid Skilland topic ID
+ * @throws moodle_exception When the course is unmapped or the topic belongs to another skill
+ */
+function skilland_require_topic_in_mapped_course(int $moodlecourseid, string $topicid): void {
+    $skillandcourseid = skilland_get_mapped_courseid($moodlecourseid);
+    if ($skillandcourseid === null) {
+        throw new moodle_exception('error_course_not_mapped', 'mod_skilland');
+    }
+    if (!skilland_topic_belongs_to_course($topicid, $skillandcourseid)) {
+        throw new moodle_exception('error_course_not_mapped_to_skill', 'mod_skilland');
+    }
 }
 
 /**

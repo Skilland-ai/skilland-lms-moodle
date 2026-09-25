@@ -26,7 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->libdir . '/externallib.php');
-require_once($CFG->dirroot . '/mod/skilland/locallib.php');
+require_once(__DIR__ . '/../locallib.php');
 
 use mod_skilland\logger;
 
@@ -307,6 +307,9 @@ class mod_skilland_external extends external_api {
         $context = context_course::instance($moodlecourseid);
         require_capability('moodle/course:update', $context);
 
+        // The requested Skilland course must be the one this Moodle course is mapped to.
+        $courseid = skilland_require_mapped_course($moodlecourseid, $courseid);
+
         logger::debug('AJAX', 'fetch_topics_ajax called with courseid: ' . $courseid);
 
         try {
@@ -361,7 +364,7 @@ class mod_skilland_external extends external_api {
      */
     public static function fetch_topics_ajax_parameters() {
         return new external_function_parameters([
-            'courseid' => new external_value(PARAM_TEXT, 'Skilland course ID', VALUE_REQUIRED),
+            'courseid' => new external_value(PARAM_ALPHANUMEXT, 'Skilland course ID', VALUE_REQUIRED),
             'moodlecourseid' => new external_value(PARAM_INT, 'Moodle course ID', VALUE_REQUIRED),
         ]);
     }
@@ -413,6 +416,15 @@ class mod_skilland_external extends external_api {
         $context = context_course::instance($moodlecourseid);
         require_capability('moodle/course:update', $context);
 
+        // The requested topic must belong to the Skilland course this Moodle course is mapped to.
+        $skillandcourseid = skilland_get_mapped_courseid($moodlecourseid);
+        if ($skillandcourseid === null) {
+            throw new moodle_exception('error_course_not_mapped', 'mod_skilland');
+        }
+        if (!skilland_topic_belongs_to_course($topicid, $skillandcourseid)) {
+            throw new moodle_exception('error_course_not_mapped_to_skill', 'mod_skilland');
+        }
+
         logger::debug('AJAX', 'fetch_lessons_ajax called with topicid: ' . $topicid);
 
         try {
@@ -455,7 +467,7 @@ class mod_skilland_external extends external_api {
      */
     public static function fetch_lessons_ajax_parameters() {
         return new external_function_parameters([
-            'topicid' => new external_value(PARAM_TEXT, 'Skilland topic ID', VALUE_REQUIRED),
+            'topicid' => new external_value(PARAM_ALPHANUMEXT, 'Skilland topic ID', VALUE_REQUIRED),
             'moodlecourseid' => new external_value(PARAM_INT, 'Moodle course ID', VALUE_REQUIRED),
         ]);
     }

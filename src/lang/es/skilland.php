@@ -168,6 +168,8 @@ $string['update_available_desc'] = 'El contenido ha sido actualizado en Skilland
 
 // Plugin disabled.
 $string['error_plugin_disabled'] = 'El plugin de Skilland está desactivado.';
+$string['error_course_not_mapped'] = 'Este curso de Moodle no está vinculado a un curso de Skilland. Configura primero el ID de Curso de Skilland en los ajustes del curso.';
+$string['error_course_not_mapped_to_skill'] = 'El contenido de Skilland solicitado no pertenece al curso de Skilland vinculado a este curso de Moodle.';
 
 // Errors.
 $string['invalidactivity'] = 'Actividad especificada inválida.';
