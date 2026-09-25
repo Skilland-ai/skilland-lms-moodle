@@ -279,7 +279,7 @@ class mod_skilland_external extends external_api {
         return new external_single_structure([
             'skillid' => new external_value(PARAM_TEXT, 'Skilland skill/course ID'),
             'name' => new external_value(PARAM_TEXT, 'Course name'),
-            'redirect_url' => new external_value(PARAM_RAW, 'SSO redirect URL to Skilland'),
+            'redirect_url' => new external_value(PARAM_URL, 'SSO redirect URL to Skilland'),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),
         ]);
     }

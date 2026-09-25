@@ -34,6 +34,15 @@ class hooks {
                 // without relying on AMD module loading.
                 $js = "
                 (function() {
+                    function escapeHtml(str) {
+                        return String(str === undefined || str === null ? '' : str)
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/\"/g, '&quot;')
+                            .replace(/'/g, '&#39;');
+                    }
+
                     console.log('Skilland: Initializing course mapping field for course " . $courseid . "');
 
                     // Wait for DOM to be ready.
@@ -175,7 +184,7 @@ class hooks {
                                         }])[0].then(function(resp) {
                                             if (resp.error) {
                                                 notification.addNotification({
-                                                    message: 'Failed to create course: ' + resp.error,
+                                                    message: escapeHtml('Failed to create course: ' + resp.error),
                                                     type: 'error'
                                                 });
                                                 // Restore the create option text and re-enable.
@@ -238,7 +247,7 @@ class hooks {
                                         container.style.display = 'none';
 
                                         notification.addNotification({
-                                            message: 'Failed to fetch courses from Skilland: ' + response.error,
+                                            message: escapeHtml('Failed to fetch courses from Skilland: ' + response.error),
                                             type: 'error'
                                         });
                                         return;
@@ -287,7 +296,11 @@ class hooks {
                             if (form) {
                                 form.addEventListener('submit', function() {
                                     if (pendingRedirectUrl) {
-                                        window.open(pendingRedirectUrl, '_blank');
+                                        if (/^https?:\/\//i.test(pendingRedirectUrl)) {
+                                            window.open(pendingRedirectUrl, '_blank');
+                                        } else {
+                                            console.warn('Skilland: ignoring non-http(s) redirect URL');
+                                        }
                                         pendingRedirectUrl = null;
                                     }
                                 });
