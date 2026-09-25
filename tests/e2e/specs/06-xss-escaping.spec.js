@@ -18,7 +18,10 @@ const {
 const SKILL_ID = 'xss-test-skill'
 const TOPIC_ID = 'xss-topic-1'
 const MALICIOUS_COURSE_NAME = '<img src=x onerror="window.__xss=1">Evil course'
-const MALICIOUS_DESCRIPTION = '<p>Intro</p><img src=x onerror="window.__xss=1">'
+// The AJAX mock bypasses the server, where clean_text() purifies descriptions
+// (covered by tests/phpunit/xss_sinks_test.php), so the mock returns the already
+// purified HTML: a raw onerror payload here would reach Atto's setHTML unfiltered.
+const PURIFIED_DESCRIPTION = '<p>Intro <strong>bold</strong></p><img src="x">'
 const MALICIOUS_ERROR = '<b>boom</b>'
 
 /**
@@ -103,7 +106,7 @@ test.describe('XSS escaping of SkilLand API data', () => {
     }
   })
 
-  test('course name and topic description do not execute', async ({ authenticatedPage }) => {
+  test('course name renders as text and the purified description as HTML', async ({ authenticatedPage }) => {
     test.skip(!courseId, 'No test course available')
 
     const page = authenticatedPage
@@ -117,7 +120,7 @@ test.describe('XSS escaping of SkilLand API data', () => {
     await mockSkillandAjax(page, {
       mod_skilland_fetch_topics_ajax: {
         course: { id: SKILL_ID, name: MALICIOUS_COURSE_NAME, code: 'XSS' },
-        topics: [{ id: TOPIC_ID, name: 'Topic one', code: 'T1', description: MALICIOUS_DESCRIPTION }],
+        topics: [{ id: TOPIC_ID, name: 'Topic one', code: 'T1', description: PURIFIED_DESCRIPTION }],
         error: null
       },
       mod_skilland_fetch_lessons_ajax: { lessons: [], error: null }
@@ -134,7 +137,7 @@ test.describe('XSS escaping of SkilLand API data', () => {
     await topicSelect.selectOption(TOPIC_ID)
     await page.waitForTimeout(1000)
 
-    // The editor must not hold a live onerror handler.
+    // Purified description HTML is still meant to render in the editor.
     const editorHtml = await page.evaluate(() => {
       const w = /** @type {any} */ (window)
       if (w.tinyMCE && w.tinyMCE.get('id_intro')) {
@@ -143,7 +146,8 @@ test.describe('XSS escaping of SkilLand API data', () => {
       const atto = document.getElementById('id_introeditable')
       return atto ? atto.innerHTML : ''
     })
-    expect(editorHtml).not.toMatch(/<img[^>]*onerror/i)
+    expect(editorHtml).toMatch(/<strong>bold<\/strong>/)
+    expect(editorHtml).not.toMatch(/onerror/i)
 
     const xssFired = await page.evaluate(() => /** @type {any} */ (window).__xss)
     expect(xssFired).toBeUndefined()

@@ -96,8 +96,11 @@ class xss_sinks_test extends TestCase {
         return $m[2];
     }
 
-    public function test_escape_html_helper_escapes_all_five_characters_ampersand_first(): void {
-        $body = $this->js_function_body($this->source('mod_form.php'), 'escapeHtml');
+    /**
+     * @dataProvider notification_files
+     */
+    public function test_escape_html_helper_escapes_all_five_characters_ampersand_first(string $file): void {
+        $body = $this->js_function_body($this->source($file), 'escapeHtml');
 
         // The source is a PHP double-quoted string, so \" in it is a literal " in the emitted JS.
         $this->assertGreaterThan(0, preg_match_all("#\.replace\(/(.+?)/g,\s*'([^']*)'\)#", $body, $m, PREG_SET_ORDER));
