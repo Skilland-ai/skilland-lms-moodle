@@ -60,17 +60,20 @@ $string['settings_frontend_url_desc'] = 'The URL of the Skilland frontend applic
 
 // SSO settings.
 $string['settings_sso_secret'] = 'SSO Shared Secret';
-$string['settings_sso_secret_desc'] = 'Shared secret for SSO authentication. This must match the MOODLE_SSO_SECRET environment variable in the Skilland backend. Use a strong random string (min 32 characters).';
+$string['settings_sso_secret_desc'] = 'Shared secret for SSO authentication. This must match the MOODLE_SSO_SECRET environment variable in the Skilland backend. Use at least 32 random bytes, e.g. generate one with <code>openssl rand -base64 32</code>.';
 
 // Development settings.
-$string['settings_devmode'] = 'Development mode';
-$string['settings_devmode_desc'] = 'Enable console logging for debugging. Disable in production.';
+$string['settings_devmode'] = 'Verbose debug logging';
+$string['settings_devmode_desc'] = 'Logs request details at DEBUG_DEVELOPER level. Never enable on a production site.';
 
 // Error messages.
 $string['error_config_missing_orgid'] = 'Skilland Organization ID is not configured. Please set it in plugin settings.';
 $string['error_config_missing_apikey'] = 'Skilland API Key is not configured. Please set it in plugin settings.';
 $string['error_config_missing_endpoint'] = 'GraphQL endpoint is not configured. Please set it in plugin settings.';
 $string['error_config_invalid_credentials'] = 'Invalid API credentials. Please check your Organization ID and API Key in plugin settings.';
+$string['error_sso_secret_too_short'] = 'The SSO shared secret must be at least 32 bytes long. Generate one with openssl rand -base64 32.';
+$string['error_sso_secret_known_dev'] = 'This SSO shared secret was published as a development default and cannot be used. Generate a new one with openssl rand -base64 32.';
+$string['error_url_https_required'] = 'This URL must use https://.';
 $string['error_graphql_http'] = 'HTTP error when calling Skilland API: {$a}';
 $string['error_graphql_invalid_json'] = 'Invalid JSON response from Skilland API';
 $string['error_graphql'] = 'GraphQL error: {$a}';

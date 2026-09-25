@@ -39,9 +39,8 @@ if ($ADMIN->fulltree) {
         get_string('customfield_status', 'mod_skilland'),
         $description));
 
-    // Development mode toggle.
-    // Use custom class to handle dynamic UI behavior (pre-filling/locking fields).
-    $settings->add(new \mod_skilland\admin_setting_dev_mode('mod_skilland/devmode',
+    // Verbose debug logging toggle.
+    $settings->add(new admin_setting_configcheckbox('mod_skilland/devmode',
         get_string('settings_devmode', 'mod_skilland'),
         get_string('settings_devmode_desc', 'mod_skilland'), 0));
 
@@ -56,19 +55,19 @@ if ($ADMIN->fulltree) {
         get_string('settings_orgid_desc', 'mod_skilland'), '', PARAM_TEXT));
 
     // GraphQL endpoint setting.
-    $settings->add(new admin_setting_configtext('mod_skilland/graphql_endpoint',
+    $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/graphql_endpoint',
         get_string('settings_graphql_endpoint', 'mod_skilland'),
         get_string('settings_graphql_endpoint_desc', 'mod_skilland'),
-        'https://api.skilland.ai/graphql', PARAM_URL));
+        'https://api.skilland.ai/graphql'));
 
     // Frontend URL setting (for SSO redirects).
-    $settings->add(new admin_setting_configtext('mod_skilland/frontend_url',
+    $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),
         get_string('settings_frontend_url_desc', 'mod_skilland'),
-        'https://app.skilland.ai', PARAM_URL));
+        'https://app.skilland.ai'));
 
     // SSO shared secret setting.
-    $settings->add(new admin_setting_configpasswordunmask('mod_skilland/sso_secret',
+    $settings->add(new \mod_skilland\admin_setting_sso_secret('mod_skilland/sso_secret',
         get_string('settings_sso_secret', 'mod_skilland'),
         get_string('settings_sso_secret_desc', 'mod_skilland'), ''));
 }

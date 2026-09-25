@@ -343,7 +343,7 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
         'variables' => $variables
     ];
     $jsonpayload = json_encode($payload);
-    logger::debug('GraphQL', 'Payload: ' . substr($jsonpayload, 0, 200) . '...');
+    logger::debug('GraphQL', 'Variables: ' . implode(', ', array_keys((array) $variables)));
 
     // Initialize curl.
     // Disable proxy for internal/localhost connections.
@@ -587,7 +587,7 @@ GRAPHQL;
 
         return $data['moodleUserCourses'];
     } catch (moodle_exception $e) {
-        logger::warn('locallib', 'Failed to fetch user courses for ' . $useremail . ': ' . $e->getMessage());
+        logger::warn('locallib', 'Failed to fetch user courses: ' . $e->getMessage());
         return [];
     }
 }
@@ -841,7 +841,7 @@ function skilland_provision_lesson_scorm($lesson, $skilland, $course, $sectionnu
     $packageurl = $scorminfo['packageUrl'];
     $expectedhash = $scorminfo['packageHash'] ?? '';
 
-    logger::debug('SCORM', 'Downloading SCORM package from ' . $packageurl);
+    logger::debug('SCORM', 'Downloading SCORM package from ' . mod_skilland_redact_url($packageurl));
 
     $tempdir = make_temp_directory('skilland_scorm');
     $tempfile = $tempdir . '/scorm_' . $lesson->skilland_lessonid . '_' . time() . '.zip';
@@ -1081,7 +1081,7 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
     $packageurl = $scorminfo['packageUrl'];
     $expectedhash = $scorminfo['packageHash'] ?? '';
 
-    logger::debug('SCORM', 'Downloading topic SCORM package from ' . $packageurl);
+    logger::debug('SCORM', 'Downloading topic SCORM package from ' . mod_skilland_redact_url($packageurl));
 
     $tempdir = make_temp_directory('skilland_scorm');
     $tempfile = $tempdir . '/scorm_topic_' . $skilland->skilland_topicid . '_' . time() . '.zip';
@@ -1491,7 +1491,7 @@ function skilland_generate_sso_token($user, $orgid) {
     // Sign and return the token
     try {
         $token = \Firebase\JWT\JWT::encode($payload, $ssosecret, 'HS256');
-        logger::debug('SSO', 'Generated token for user ' . $user->email);
+        logger::debug('SSO', 'Generated token for user id ' . $user->id);
         return $token;
     } catch (Exception $e) {
         logger::error('SSO', 'Failed to generate token - ' . $e->getMessage());
@@ -1532,6 +1532,17 @@ function skilland_get_sso_url($token, $redirect = '/dashboard') {
     ]);
 
     return $ssourl;
+}
+
+/**
+ * Strip the query string and fragment from a URL so signed download links are not logged.
+ *
+ * @param string $url
+ * @return string
+ */
+function mod_skilland_redact_url(string $url): string {
+    $cut = strcspn($url, '?#');
+    return $cut < strlen($url) ? substr($url, 0, $cut) . '?[redacted]' : $url;
 }
 
 /**

@@ -61,17 +61,20 @@ $string['settings_frontend_url_desc'] = 'La URL de la aplicación frontend de Sk
 
 // SSO settings.
 $string['settings_sso_secret'] = 'Secreto Compartido SSO';
-$string['settings_sso_secret_desc'] = 'Secreto compartido para autenticación SSO. Debe coincidir con la variable de entorno MOODLE_SSO_SECRET en el backend de Skilland. Use una cadena aleatoria fuerte (mínimo 32 caracteres).';
+$string['settings_sso_secret_desc'] = 'Secreto compartido para autenticación SSO. Debe coincidir con la variable de entorno MOODLE_SSO_SECRET en el backend de Skilland. Use al menos 32 bytes aleatorios, por ejemplo generados con <code>openssl rand -base64 32</code>.';
 
 // Development settings.
-$string['settings_devmode'] = 'Modo desarrollo';
-$string['settings_devmode_desc'] = 'Habilitar registro en consola para depuración. Desactivar en producción.';
+$string['settings_devmode'] = 'Registro de depuración detallado';
+$string['settings_devmode_desc'] = 'Registra los detalles de las peticiones con nivel DEBUG_DEVELOPER. No lo active nunca en un sitio de producción.';
 
 // Error messages.
 $string['error_config_missing_orgid'] = 'El ID de Organización de Skilland no está configurado. Por favor, configúrelo en los ajustes del plugin.';
 $string['error_config_missing_apikey'] = 'La clave API de Skilland no está configurada. Por favor, configúrela en los ajustes del plugin.';
 $string['error_config_missing_endpoint'] = 'El endpoint de GraphQL no está configurado. Por favor, configúrelo en los ajustes del plugin.';
 $string['error_config_invalid_credentials'] = 'Credenciales de API inválidas. Por favor, verifique su ID de Organización y Clave API en los ajustes del plugin.';
+$string['error_sso_secret_too_short'] = 'El secreto compartido SSO debe tener al menos 32 bytes. Genere uno con openssl rand -base64 32.';
+$string['error_sso_secret_known_dev'] = 'Este secreto compartido SSO se publicó como valor de desarrollo y no puede usarse. Genere uno nuevo con openssl rand -base64 32.';
+$string['error_url_https_required'] = 'Esta URL debe usar https://.';
 $string['error_graphql_http'] = 'Error HTTP al llamar a la API de Skilland: {$a}';
 $string['error_graphql_invalid_json'] = 'Respuesta JSON inválida de la API de Skilland';
 $string['error_graphql'] = 'Error de GraphQL: {$a}';
