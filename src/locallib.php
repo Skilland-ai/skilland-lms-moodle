@@ -1417,7 +1417,8 @@ function mod_skilland_require_https(string $url, string $what): void {
  *
  * Allowed hosts are the GraphQL endpoint host and the patterns in the package_hosts setting
  * (comma-separated, case-insensitive; "*.example.com" matches subdomains of example.com only).
- * IP literals are refused unless the development flag is set.
+ * IP literals and local hosts (see mod_skilland_is_local_host()) are refused unless the
+ * development flag is set, even when the endpoint or the setting names them.
  *
  * @param string $packageurl
  * @param string $endpoint
@@ -1438,11 +1439,12 @@ function mod_skilland_package_host_allowed(string $packageurl, string $endpoint)
     }
 
     $dev = mod_skilland_dev_network_allowed();
+    if (mod_skilland_is_local_host($host)) {
+        // Local and internal targets only in development, whatever the endpoint or package_hosts say.
+        return $dev;
+    }
     if (filter_var($host, FILTER_VALIDATE_IP) !== false && !$dev) {
         return false;
-    }
-    if ($dev && mod_skilland_is_local_host($host)) {
-        return true;
     }
 
     $endpointhost = $normalize((string) parse_url($endpoint, PHP_URL_HOST));
