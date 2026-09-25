@@ -13,6 +13,9 @@ if (!defined('PARAM_TEXT')) {
 if (!defined('PARAM_RAW')) {
     define('PARAM_RAW', 'raw');
 }
+if (!defined('PARAM_URL')) {
+    define('PARAM_URL', 'url');
+}
 if (!defined('SQL_PARAMS_NAMED')) {
     define('SQL_PARAMS_NAMED', 1);
 }
@@ -220,6 +223,37 @@ if (!function_exists('get_course')) {
 if (!function_exists('course_delete_module')) {
     function course_delete_module($cmid) {
         // No-op for tests.
+    }
+}
+
+// Admin setting base classes used by mod_skilland\admin_setting_* classes.
+if (!class_exists('admin_setting_configtext')) {
+    class admin_setting_configtext {
+        public $name;
+        public $visiblename;
+        public $description;
+        public $defaultsetting;
+        public $paramtype;
+
+        public function __construct($name, $visiblename, $description, $defaultsetting, $paramtype = PARAM_RAW, $size = null) {
+            $this->name = $name;
+            $this->visiblename = $visiblename;
+            $this->description = $description;
+            $this->defaultsetting = $defaultsetting;
+            $this->paramtype = $paramtype;
+        }
+
+        public function validate($data) {
+            return true;
+        }
+    }
+}
+
+if (!class_exists('admin_setting_configpasswordunmask')) {
+    class admin_setting_configpasswordunmask extends admin_setting_configtext {
+        public function __construct($name, $visiblename, $description, $defaultsetting) {
+            parent::__construct($name, $visiblename, $description, $defaultsetting, PARAM_RAW);
+        }
     }
 }
 
