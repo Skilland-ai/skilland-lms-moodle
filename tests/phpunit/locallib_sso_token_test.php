@@ -137,4 +137,25 @@ class locallib_sso_token_test extends TestCase {
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertEquals('María García', $decoded->name);
     }
+
+    public function test_generate_token_debug_log_carries_user_id_not_email(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'sso_secret' => $this->ssoSecret,
+            'devmode' => true,
+        ];
+
+        skilland_generate_sso_token($this->makeUser(['id' => 42]), 'org1');
+
+        $messages = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+        $this->assertStringContainsString('Generated token for user id 42', $messages);
+        $this->assertStringNotContainsString('teacher@school.com', $messages);
+    }
+
+    public function test_redact_url_strips_query_and_fragment(): void {
+        $this->assertSame(
+            'https://bucket.s3.amazonaws.com/pkg.zip?[redacted]',
+            mod_skilland_redact_url('https://bucket.s3.amazonaws.com/pkg.zip?X-Amz-Signature=abc#frag')
+        );
+        $this->assertSame('https://example.com/pkg.zip', mod_skilland_redact_url('https://example.com/pkg.zip'));
+    }
 }
