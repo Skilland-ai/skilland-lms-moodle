@@ -16,6 +16,9 @@ if (!defined('PARAM_RAW')) {
 if (!defined('PARAM_URL')) {
     define('PARAM_URL', 'url');
 }
+if (!defined('PARAM_CLEANHTML')) {
+    define('PARAM_CLEANHTML', 'cleanhtml');
+}
 if (!defined('SQL_PARAMS_NAMED')) {
     define('SQL_PARAMS_NAMED', 1);
 }
@@ -154,6 +157,14 @@ if (!class_exists('moodle_url')) {
 }
 
 // Simple function stubs.
+if (!function_exists('clean_text')) {
+    // Minimal stand-in for Moodle's HTML Purifier: drops script blocks and on* handlers.
+    function clean_text($text, $format = FORMAT_HTML) {
+        $text = preg_replace('#<script\b[^>]*>.*?</script>#is', '', (string)$text);
+        return preg_replace('#\s+on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $text);
+    }
+}
+
 if (!function_exists('format_string')) {
     function format_string($string) {
         return $string;
