@@ -35,9 +35,19 @@ This starts:
    | **Organization ID** | (from backend) | Your organization ID |
    | **GraphQL Endpoint** | `http://localhost:8000/graphql` | Backend API endpoint |
    | **Frontend URL** | `http://localhost:3000` | Frontend URL for SSO redirects |
-   | **SSO Shared Secret** | `H6kV/79RMH1sDYFFGHLIuAdZPy6N3n1YS6usjzaxu1Q=` | Matches `MOODLE_SSO_SECRET` in docker-compose.yml |
+   | **SSO Shared Secret** | `<generate with openssl rand -base64 32>` | Must equal `MOODLE_SSO_SECRET` in the monorepo `.env` |
 
 3. Click **Save changes**
+
+   On the monorepo dev stack (`./start.sh --plugin`) you do not type these by hand: the
+   Moodle container reads `MOODLE_SSO_SECRET` (plus the optional `SKILLAND_GRAPHQL_ENDPOINT`
+   and `SKILLAND_FRONTEND_URL`) from the monorepo `.env` and `00_development/config.php`
+   forces them as plugin settings. `http://` URLs are accepted only there, because that
+   config sets `$CFG->mod_skilland_allow_http = true`; everywhere else the endpoint and
+   frontend URL must use `https://`.
+
+   The secret must be at least 32 bytes. The plugin rejects shorter values and any secret
+   that was ever published as a development default.
 
 ### 3. Get Your Organization ID and API Key
 
@@ -113,28 +123,24 @@ If you see "Invalid API key or organization":
 
 If SSO login fails with "Invalid SSO token":
 
-1. Verify `MOODLE_SSO_SECRET` in docker-compose.yml matches the plugin setting
+1. Verify `MOODLE_SSO_SECRET` in the monorepo `.env` matches the plugin setting
 2. Check that the secret is the same in both places (case-sensitive)
-3. The default secret in docker-compose.yml is: `H6kV/79RMH1sDYFFGHLIuAdZPy6N3n1YS6usjzaxu1Q=`
+3. After changing `.env`, recreate the Moodle and web containers so both read the new value
 
 ## Environment Configuration
 
-### Backend (docker-compose.yml)
+### SSO shared secret
 
-Key environment variables:
-```yaml
-MOODLE_SSO_SECRET: H6kV/79RMH1sDYFFGHLIuAdZPy6N3n1YS6usjzaxu1Q=
-JWT_SECRET: C0d3_5k177z_Is_D4_B3st
-MONGODB_URI: mongodb://skilland:skilland@mongo:27017/skilland
+There is no default secret. It lives only in the monorepo `.env` as `MOODLE_SSO_SECRET`,
+which both compose files read (the web app to verify tokens, the Moodle container to
+sign them). `./start.sh --plugin` generates one when it is missing. To set it yourself:
+
+```bash
+MOODLE_SSO_SECRET=<generate with openssl rand -base64 32>
 ```
 
-### Frontend (docker-compose.yml)
-
-Key environment variables:
-```yaml
-VITE_GRAPHQL_URL: http://localhost:8000/graphql
-VITE_API_URL: http://localhost:8000/api
-```
+Production sites set their own secret in the plugin settings and in the SkilLand
+deployment; never reuse a development value.
 
 ### Moodle Plugin
 
