@@ -158,4 +158,20 @@ class locallib_sso_token_test extends TestCase {
         );
         $this->assertSame('https://example.com/pkg.zip', mod_skilland_redact_url('https://example.com/pkg.zip'));
     }
+
+    public function test_generate_token_debug_log_never_carries_the_secret(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'sso_secret' => $this->ssoSecret,
+            'devmode' => true,
+        ];
+
+        skilland_generate_sso_token($this->makeUser(), 'org1');
+
+        $messages = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+        $this->assertStringNotContainsString($this->ssoSecret, $messages);
+    }
+
+    public function test_redact_url_strips_fragment_only_url(): void {
+        $this->assertSame('https://example.com/pkg.zip?[redacted]', mod_skilland_redact_url('https://example.com/pkg.zip#token=abc'));
+    }
 }
