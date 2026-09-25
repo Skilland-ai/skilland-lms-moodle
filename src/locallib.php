@@ -253,7 +253,7 @@ function skilland_ensure_course_customfield() {
         $description = get_string('customfield_skilland_course_id_desc', 'mod_skilland');
         $field->set('description', $description);
         $field->set('descriptionformat', FORMAT_HTML);
-        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,"ispassword":"0","link":"","locked":"0","visibility":"2"}');
+        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,"ispassword":"0","link":"","locked":"1","visibility":"2"}');
         $field->save();
 
         return $field;
@@ -295,6 +295,69 @@ function skilland_get_course_customfield_value($courseid) {
 }
 
 /**
+ * Resolve the Skilland course (skill) mapped to a Moodle course.
+ *
+ * The locked course custom field is authoritative; the legacy `skilland_course`
+ * table is the fallback for courses mapped before the custom field existed.
+ *
+ * @param int $moodlecourseid Moodle course ID
+ * @return string|null The mapped Skilland course ID, or null when the course is not mapped
+ */
+function skilland_get_mapped_courseid(int $moodlecourseid): ?string {
+    $value = skilland_get_course_customfield_value($moodlecourseid);
+    if (!empty($value)) {
+        return (string)$value;
+    }
+
+    $legacy = skilland_get_skilland_courseid($moodlecourseid);
+    return !empty($legacy) ? (string)$legacy : null;
+}
+
+/**
+ * Require that a Skilland course ID is the one mapped to a Moodle course.
+ *
+ * A teacher holds capabilities in their own Moodle course only, so any Skilland
+ * course ID a request names must be the one that course is mapped to.
+ *
+ * @param int $moodlecourseid Moodle course ID
+ * @param string $courseid Skilland course ID supplied by the request
+ * @return string The mapped Skilland course ID
+ * @throws moodle_exception When the course is not mapped or is mapped to another skill
+ */
+function skilland_require_mapped_course(int $moodlecourseid, string $courseid): string {
+    $mapped = skilland_get_mapped_courseid($moodlecourseid);
+    if ($mapped === null) {
+        throw new moodle_exception('error_course_not_mapped', 'mod_skilland');
+    }
+    if (!hash_equals($mapped, $courseid)) {
+        throw new moodle_exception('error_course_not_mapped_to_skill', 'mod_skilland');
+    }
+    return $mapped;
+}
+
+/**
+ * Check whether a Skilland topic belongs to a Skilland course.
+ *
+ * @param string $topicid Skilland topic ID
+ * @param string $skillandcourseid Skilland course ID
+ * @return bool True when the course lists the topic
+ * @throws moodle_exception If the Skilland API call fails
+ */
+function skilland_topic_belongs_to_course(string $topicid, string $skillandcourseid): bool {
+    if ($topicid === '' || $skillandcourseid === '') {
+        return false;
+    }
+
+    $course = mod_skilland_fetch_topics($skillandcourseid);
+    foreach ($course['topics'] ?? [] as $topic) {
+        if (isset($topic['id']) && (string)$topic['id'] === $topicid) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Execute a GraphQL query against Skilland's GraphQL endpoint.
  *
  * @param string $query The GraphQL query string
@@ -332,6 +395,8 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
         throw new moodle_exception('error_config_missing_endpoint', 'mod_skilland');
     }
 
+    mod_skilland_require_https($endpoint, 'endpoint');
+
     // Build JSON payload.
     // Ensure variables is always an object (associative array in PHP), not an array.
     // If variables is an empty array, convert to empty object for JSON encoding.
@@ -345,35 +410,11 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     $jsonpayload = json_encode($payload);
     logger::debug('GraphQL', 'Variables: ' . implode(', ', array_keys((array) $variables)));
 
-    // Initialize curl.
-    // Disable proxy for internal/localhost connections.
-    // Parse the endpoint to extract host for proxy bypass.
-    $parsedurl = parse_url($endpoint);
-    $host = $parsedurl['host'] ?? '';
-
-    // Create curl instance with ignoresecurity to allow internal IPs and Docker service names.
-    // This bypasses Moodle's URL blocking security feature for internal services.
-    $curl = new \curl(['ignoresecurity' => true]);
-
-    // Set curl options for better error reporting and connectivity.
-    // Note: Moodle's curl class requires option names as strings, not constants.
-    $curloptions = [
+    $curl = mod_skilland_make_curl($endpoint);
+    $curl->setopt([
         'CURLOPT_CONNECTTIMEOUT' => 10,
         'CURLOPT_TIMEOUT' => 30,
-        'CURLOPT_FOLLOWLOCATION' => true,
-        'CURLOPT_MAXREDIRS' => 5,
-    ];
-
-    // Check if host is local/internal or Docker network IP.
-    $isLocal = mod_skilland_is_local_host($host);
-
-    if ($isLocal) {
-        // Force bypass proxy for local/internal addresses and Docker services.
-        $curloptions['CURLOPT_PROXY'] = '';
-        $curloptions['CURLOPT_NOPROXY'] = '*';
-    }
-
-    $curl->setopt($curloptions);
+    ]);
 
     $headers = [
         'Content-Type: application/json',
@@ -404,6 +445,11 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     logger::debug('GraphQL', 'CURL errno: ' . $errno);
     logger::debug('GraphQL', 'CURL error: ' . $curlerror);
     logger::debug('GraphQL', 'CURL info dump: ' . print_r($info, true));
+
+    if ($httpcode >= 300 && $httpcode < 400) {
+        logger::error('GraphQL', 'Refusing redirect (HTTP ' . $httpcode . ') from ' . mod_skilland_redact_url($endpoint));
+        throw new moodle_exception('error_http_redirect', 'mod_skilland', '', $httpcode);
+    }
 
     if ($httpcode < 200 || $httpcode >= 300) {
         if ($errno) {
@@ -799,244 +845,6 @@ GRAPHQL;
 }
 
 /**
- * Provision a SCORM activity for a lesson by downloading from Skilland.
- *
- * This function:
- * 1. Fetches the SCORM package info from Skilland API
- * 2. Downloads the SCORM zip file
- * 3. Verifies the package hash
- * 4. Creates a new SCORM activity in Moodle
- * 5. Updates the lesson record with the new SCORM cmid
- *
- * @param stdClass $lesson The skilland_lesson record
- * @param stdClass $skilland The skilland activity record
- * @param stdClass $course The Moodle course record
- * @param int $sectionnum The section number to add the SCORM to
- * @return int The new SCORM course module ID
- * @throws moodle_exception If provisioning fails
- */
-function skilland_provision_lesson_scorm($lesson, $skilland, $course, $sectionnum = 0) {
-    global $DB, $CFG, $USER;
-
-    require_once($CFG->dirroot . '/course/lib.php');
-    require_once($CFG->dirroot . '/mod/scorm/lib.php');
-    require_once($CFG->dirroot . '/mod/scorm/locallib.php');
-    require_once($CFG->libdir . '/filelib.php');
-
-    // Step 1: Fetch SCORM package info from Skilland.
-    logger::debug('SCORM', 'Provisioning SCORM for lesson ' . $lesson->skilland_lessonid);
-
-    try {
-        $scorminfo = mod_skilland_fetch_lesson_scorm($lesson->skilland_lessonid);
-    } catch (moodle_exception $e) {
-        logger::error('SCORM', 'Failed to fetch SCORM info - ' . $e->getMessage());
-        throw $e;
-    }
-
-    if (empty($scorminfo['packageUrl'])) {
-        throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
-    }
-
-    // Step 2: Download the SCORM package to temp directory.
-    $packageurl = $scorminfo['packageUrl'];
-    $expectedhash = $scorminfo['packageHash'] ?? '';
-
-    logger::debug('SCORM', 'Downloading SCORM package from ' . mod_skilland_redact_url($packageurl));
-
-    $tempdir = make_temp_directory('skilland_scorm');
-    $tempfile = $tempdir . '/scorm_' . $lesson->skilland_lessonid . '_' . time() . '.zip';
-
-    // Use Moodle's curl to download the file.
-    $curl = new \curl(['ignoresecurity' => true]);
-    $curloptions = [
-        'CURLOPT_CONNECTTIMEOUT' => 30,
-        'CURLOPT_TIMEOUT' => 120,
-        'CURLOPT_FOLLOWLOCATION' => true,
-    ];
-    $curl->setopt($curloptions);
-
-    $fp = fopen($tempfile, 'w');
-    if (!$fp) {
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Could not create temp file');
-    }
-
-    $curl->download_one($packageurl, null, ['file' => $fp]);
-    fclose($fp);
-
-    $httpcode = $curl->get_info()['http_code'] ?? 0;
-    if ($httpcode < 200 || $httpcode >= 300) {
-        @unlink($tempfile);
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'HTTP ' . $httpcode);
-    }
-
-    if (!file_exists($tempfile) || filesize($tempfile) == 0) {
-        @unlink($tempfile);
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Empty file');
-    }
-
-    logger::debug('SCORM', 'Downloaded SCORM package to ' . $tempfile . ' (' . filesize($tempfile) . ' bytes)');
-
-    // Step 3: Verify the package hash (if provided).
-    if (!empty($expectedhash)) {
-        // Hash format is "sha256:HEXHASH"
-        $hashparts = explode(':', $expectedhash, 2);
-        $algorithm = count($hashparts) === 2 ? $hashparts[0] : 'sha256';
-        $expected = count($hashparts) === 2 ? $hashparts[1] : $expectedhash;
-
-        $actualhash = hash_file($algorithm, $tempfile);
-        if (strcasecmp($actualhash, $expected) !== 0) {
-            @unlink($tempfile);
-            logger::error('SCORM', 'Hash mismatch - expected ' . $expected . ', got ' . $actualhash);
-            throw new moodle_exception('error_scorm_hash_mismatch', 'mod_skilland');
-        }
-        logger::debug('SCORM', 'Package hash verified successfully');
-    }
-
-    // Step 4: Create the SCORM activity in Moodle.
-    $scormname = $lesson->title;
-
-    // Get the SCORM module.
-    $module = $DB->get_record('modules', ['name' => 'scorm'], '*', MUST_EXIST);
-
-    // Get the section.
-    $section = $DB->get_record('course_sections', [
-        'course' => $course->id,
-        'section' => $sectionnum
-    ], '*', MUST_EXIST);
-
-    // Create the course_modules record.
-    $cm = new stdClass();
-    $cm->course = $course->id;
-    $cm->module = $module->id;
-    $cm->instance = 0; // Will be updated after creating scorm record.
-    $cm->section = $section->id;
-    $cm->idnumber = '';
-    $cm->added = time();
-    $cm->visible = 1;  // Available to students but not shown on course page (stealth mode).
-    $cm->visibleoncoursepage = 0;  // Not shown on course page.
-    $cm->groupmode = 0;
-    $cm->groupingid = 0;
-    $cm->completion = 0;
-    $cm->deletioninprogress = 0;
-
-    $cmid = $DB->insert_record('course_modules', $cm);
-    logger::debug('SCORM', 'Created course_modules record with id ' . $cmid);
-
-    // Create the SCORM instance record.
-    $scorm = new stdClass();
-    $scorm->course = $course->id;
-    $scorm->name = $scormname;
-    $scorm->intro = '';
-    $scorm->introformat = FORMAT_HTML;
-    $scorm->scormtype = SCORM_TYPE_LOCAL;
-    $scorm->reference = '';
-    $scorm->version = 'SCORM_1.2';
-    $scorm->maxgrade = 100;
-    $scorm->grademethod = GRADESCOES;
-    $scorm->whatgrade = HIGHESTATTEMPT;
-    $scorm->maxattempt = 0;
-    $scorm->forcecompleted = 0;
-    $scorm->forcenewattempt = 0;
-    $scorm->lastattemptlock = 0;
-    $scorm->displayattemptstatus = 1;
-    $scorm->displaycoursestructure = 0;
-    $scorm->updatefreq = SCORM_UPDATE_NEVER;
-    $scorm->skipview = 2;
-    $scorm->hidebrowse = 1;
-    $scorm->hidetoc = SCORM_TOC_SIDE;
-    $scorm->nav = SCORM_NAV_UNDER_CONTENT;
-    $scorm->navpositionleft = -100;
-    $scorm->navpositiontop = -100;
-    $scorm->auto = 0;
-    $scorm->popup = 0;
-    $scorm->width = 100;
-    $scorm->height = 500;
-    $scorm->timeopen = 0;
-    $scorm->timeclose = 0;
-    $scorm->displayactivityname = 1;
-    $scorm->autocommit = 0;
-    $scorm->masteryoverride = 1;
-    $scorm->sha1hash = '';
-    $scorm->revision = 0;
-    $scorm->launch = 0;
-    $scorm->timemodified = time();
-
-    $scormid = $DB->insert_record('scorm', $scorm);
-    $scorm->id = $scormid; // Update the object with the new ID.
-    logger::debug('SCORM', 'Created scorm record with id ' . $scormid);
-
-    // Update course_modules with the instance id.
-    $DB->set_field('course_modules', 'instance', $scormid, ['id' => $cmid]);
-
-    // Add the SCORM to the section sequence.
-    // Even with visibleoncoursepage=0 (stealth mode), activity MUST be in sequence
-    // for Moodle's course_modinfo->get_cm() to work (required by SCORM player).
-    $sequence = $section->sequence;
-    if (!empty($sequence)) {
-        $sequence .= ',' . $cmid;
-    } else {
-        $sequence = $cmid;
-    }
-    $DB->set_field('course_sections', 'sequence', $sequence, ['id' => $section->id]);
-
-    // Rebuild the course cache.
-    rebuild_course_cache($course->id, true);
-
-    $context = context_module::instance($cmid);
-
-    logger::debug('SCORM', 'Created SCORM activity with cmid ' . $cmid . ' (stealth mode)');
-
-    // Step 5: Upload the SCORM package to the new activity.
-    $fs = get_file_storage();
-
-    // Create file record.
-    $filerecord = [
-        'contextid' => $context->id,
-        'component' => 'mod_scorm',
-        'filearea' => 'package',
-        'itemid' => 0,
-        'filepath' => '/',
-        'filename' => 'scorm_package.zip',
-        'userid' => $USER->id,
-    ];
-
-    // Delete any existing package file.
-    $fs->delete_area_files($context->id, 'mod_scorm', 'package', 0);
-
-    // Store the new package.
-    $storedfile = $fs->create_file_from_pathname($filerecord, $tempfile);
-    @unlink($tempfile);
-
-    if (!$storedfile) {
-        throw new moodle_exception('error_scorm_upload_failed', 'mod_skilland');
-    }
-
-    logger::debug('SCORM', 'Uploaded SCORM package to file storage');
-
-    // Step 6: Parse the SCORM package.
-    // Update the scorm object with the necessary properties.
-    $scorm->reference = $storedfile->get_filename();
-    $scorm->cmid = $cmid;
-
-    // This function parses the manifest and creates SCOs.
-    scorm_parse($scorm, true);
-
-    // Update the SCORM record with the reference.
-    $DB->update_record('scorm', $scorm);
-
-    logger::debug('SCORM', 'Parsed SCORM package successfully');
-
-    // Step 7: Update the lesson record with the new SCORM cmid.
-    $lesson->scormcmid = $cmid;
-    $lesson->snapshotcreatedat = !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time();
-    $DB->update_record('skilland_lesson', $lesson);
-
-    logger::debug('SCORM', 'Updated lesson record with scormcmid ' . $cmid);
-
-    return $cmid;
-}
-
-/**
  * Provision a topic-level SCORM package containing all lessons as SCOs.
  *
  * This function:
@@ -1083,38 +891,9 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
 
     logger::debug('SCORM', 'Downloading topic SCORM package from ' . mod_skilland_redact_url($packageurl));
 
-    $tempdir = make_temp_directory('skilland_scorm');
-    $tempfile = $tempdir . '/scorm_topic_' . $skilland->skilland_topicid . '_' . time() . '.zip';
+    $tempfile = mod_skilland_download_package($packageurl);
 
-    // Use Moodle's curl to download the file.
-    $curl = new \curl(['ignoresecurity' => true]);
-    $curloptions = [
-        'CURLOPT_CONNECTTIMEOUT' => 30,
-        'CURLOPT_TIMEOUT' => 180,  // Longer timeout for larger topic packages.
-        'CURLOPT_FOLLOWLOCATION' => true,
-    ];
-    $curl->setopt($curloptions);
-
-    $fp = fopen($tempfile, 'w');
-    if (!$fp) {
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Could not create temp file');
-    }
-
-    $curl->download_one($packageurl, null, ['file' => $fp]);
-    fclose($fp);
-
-    $httpcode = $curl->get_info()['http_code'] ?? 0;
-    if ($httpcode < 200 || $httpcode >= 300) {
-        @unlink($tempfile);
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'HTTP ' . $httpcode);
-    }
-
-    if (!file_exists($tempfile) || filesize($tempfile) == 0) {
-        @unlink($tempfile);
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Empty file');
-    }
-
-    logger::debug('SCORM', 'Downloaded topic SCORM package to ' . $tempfile . ' (' . filesize($tempfile) . ' bytes)');
+    logger::debug('SCORM', 'Downloaded topic SCORM package (' . filesize($tempfile) . ' bytes)');
 
     // Step 3: Verify the package hash (if provided).
     if (!empty($expectedhash)) {
@@ -1546,30 +1325,230 @@ function mod_skilland_redact_url(string $url): string {
 }
 
 /**
- * Check if a hostname is local/internal (Docker, private IP, localhost).
+ * Check if a hostname is local/internal: a known Docker service name, or a
+ * loopback, private, link-local or reserved IP literal.
  *
- * Extracted from mod_skilland_graphql() for testability.
+ * Names are matched exactly (case-insensitive); there is no prefix or substring matching.
  *
  * @param string $host The hostname to check.
  * @return bool True if the host is local/internal.
  */
 function mod_skilland_is_local_host(string $host): bool {
-    $localhosts = [
-        'localhost',
-        '127.0.0.1',
-        'host.docker.internal',
-        '192.168.65.254',
-        'skilland-back',
-        'skillanduniverse-skilland-back-1',
-        'skilland-back',
+    $host = strtolower(trim($host));
+    if (strlen($host) > 1 && $host[0] === '[' && substr($host, -1) === ']') {
+        $host = substr($host, 1, -1);
+    }
+    if ($host === '') {
+        return false;
+    }
+
+    $localnames = ['localhost', 'host.docker.internal', 'skilland-back', 'skilland-web', 'hocuspocus', 'postgres'];
+    if (in_array($host, $localnames, true)) {
+        return true;
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP) === false) {
+        return false;
+    }
+
+    return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+}
+
+/**
+ * Whether the local development relaxations are on ($CFG->mod_skilland_allow_http in config.php).
+ *
+ * @return bool
+ */
+function mod_skilland_dev_network_allowed(): bool {
+    global $CFG;
+    return !empty($CFG->mod_skilland_allow_http);
+}
+
+/**
+ * Build a curl client for an outbound Skilland request.
+ *
+ * Moodle's curl security (blocked hosts/ports) stays on, except for local hosts when the
+ * development flag is set. Redirects are never followed, so credentials cannot be replayed
+ * to another host.
+ *
+ * @param string $url The URL the client will call.
+ * @return \curl
+ */
+function mod_skilland_make_curl(string $url): \curl {
+    global $CFG;
+    require_once($CFG->libdir . '/filelib.php');
+
+    $host = (string) parse_url($url, PHP_URL_HOST);
+    $options = [
+        'CURLOPT_FOLLOWLOCATION' => false,
+        'CURLOPT_MAXREDIRS' => 0,
     ];
 
-    return in_array($host, $localhosts) ||
-           strpos($host, '192.168.') === 0 ||
-           strpos($host, '172.') === 0 ||
-           strpos($host, '10.') === 0 ||
-           strpos($host, 'skilland') !== false ||
-           strpos($host, 'skilland') !== false;
+    if (mod_skilland_dev_network_allowed() && mod_skilland_is_local_host($host)) {
+        $curl = new \curl(['ignoresecurity' => true]);
+        $options['CURLOPT_PROXY'] = '';
+        $options['CURLOPT_NOPROXY'] = '*';
+    } else {
+        $curl = new \curl();
+    }
+
+    $curl->setopt($options);
+    return $curl;
+}
+
+/**
+ * Require an https:// URL unless the development flag is set.
+ *
+ * @param string $url
+ * @param string $what Short label of the URL for the error message.
+ * @throws moodle_exception error_insecure_url
+ */
+function mod_skilland_require_https(string $url, string $what): void {
+    if (mod_skilland_dev_network_allowed()) {
+        return;
+    }
+    if (strtolower((string) parse_url(trim($url), PHP_URL_SCHEME)) !== 'https') {
+        throw new moodle_exception('error_insecure_url', 'mod_skilland', '', $what);
+    }
+}
+
+/**
+ * Whether a SCORM package may be downloaded from this URL's host.
+ *
+ * Allowed hosts are the GraphQL endpoint host and the patterns in the package_hosts setting
+ * (comma-separated, case-insensitive; "*.example.com" matches subdomains of example.com only).
+ * IP literals and local hosts (see mod_skilland_is_local_host()) are refused unless the
+ * development flag is set, even when the endpoint or the setting names them.
+ *
+ * @param string $packageurl
+ * @param string $endpoint
+ * @return bool
+ */
+function mod_skilland_package_host_allowed(string $packageurl, string $endpoint): bool {
+    $normalize = function (string $host): string {
+        $host = rtrim(strtolower(trim($host)), '.');
+        if (strlen($host) > 1 && $host[0] === '[' && substr($host, -1) === ']') {
+            $host = substr($host, 1, -1);
+        }
+        return $host;
+    };
+
+    $host = $normalize((string) parse_url($packageurl, PHP_URL_HOST));
+    if ($host === '') {
+        return false;
+    }
+
+    $dev = mod_skilland_dev_network_allowed();
+    if (mod_skilland_is_local_host($host)) {
+        // Local and internal targets only in development, whatever the endpoint or package_hosts say.
+        return $dev;
+    }
+    if (filter_var($host, FILTER_VALIDATE_IP) !== false && !$dev) {
+        return false;
+    }
+
+    $endpointhost = $normalize((string) parse_url($endpoint, PHP_URL_HOST));
+    if ($endpointhost !== '' && $host === $endpointhost) {
+        return true;
+    }
+
+    $patterns = get_config('mod_skilland', 'package_hosts');
+    if ($patterns === null || $patterns === false) {
+        $patterns = '*.skilland.ai, *.amazonaws.com';
+    }
+
+    foreach (explode(',', (string) $patterns) as $pattern) {
+        $pattern = $normalize($pattern);
+        if ($pattern === '') {
+            continue;
+        }
+        if (strpos($pattern, '*.') === 0) {
+            $suffix = substr($pattern, 1);
+            if (strlen($host) > strlen($suffix) && substr($host, -strlen($suffix)) === $suffix) {
+                return true;
+            }
+        } else if ($host === $pattern) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Download a SCORM package to a temp file after validating its URL, size and format.
+ *
+ * @param string $packageurl
+ * @return string Path of the downloaded zip; the caller deletes it.
+ * @throws moodle_exception On any failed check; the temp file is removed first.
+ */
+function mod_skilland_download_package(string $packageurl): string {
+    mod_skilland_require_https($packageurl, 'package');
+
+    $endpoint = (string) (get_config('mod_skilland', 'graphql_endpoint') ?? '');
+    if (!mod_skilland_package_host_allowed($packageurl, $endpoint)) {
+        $host = (string) parse_url($packageurl, PHP_URL_HOST);
+        throw new moodle_exception('error_package_host_not_allowed', 'mod_skilland', '', $host);
+    }
+
+    $maxmb = (int) get_config('mod_skilland', 'package_max_mb');
+    if ($maxmb <= 0) {
+        $maxmb = 200;
+    }
+    $maxbytes = $maxmb * 1024 * 1024;
+
+    $tempfile = tempnam(make_temp_directory('skilland_scorm'), 'skl');
+    if ($tempfile === false) {
+        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Could not create temp file');
+    }
+
+    $fail = function (string $code, $a = null) use ($tempfile): void {
+        @unlink($tempfile);
+        throw new moodle_exception($code, 'mod_skilland', '', $a);
+    };
+
+    $fp = fopen($tempfile, 'w');
+    if (!$fp) {
+        $fail('error_scorm_download_failed', 'Could not create temp file');
+    }
+
+    $curl = mod_skilland_make_curl($packageurl);
+    $curl->setopt([
+        'CURLOPT_CONNECTTIMEOUT' => 30,
+        'CURLOPT_TIMEOUT' => 180,
+        'CURLOPT_MAXFILESIZE' => $maxbytes,
+    ]);
+    $curl->download_one($packageurl, null, ['file' => $fp]);
+    fclose($fp);
+    clearstatcache(true, $tempfile);
+
+    $httpcode = (int) ($curl->get_info()['http_code'] ?? 0);
+    if ($httpcode >= 300 && $httpcode < 400) {
+        $fail('error_http_redirect', $httpcode);
+    }
+    if ($httpcode < 200 || $httpcode >= 300 || $curl->get_errno()) {
+        $fail('error_scorm_download_failed', 'HTTP ' . $httpcode);
+    }
+
+    $size = file_exists($tempfile) ? filesize($tempfile) : 0;
+    if (!$size) {
+        $fail('error_scorm_download_failed', 'Empty file');
+    }
+    if ($size > $maxbytes) {
+        $fail('error_package_too_large', $maxmb);
+    }
+
+    $magic = (string) file_get_contents($tempfile, false, null, 0, 4);
+    if ($magic !== "PK\x03\x04") {
+        $fail('error_package_not_zip');
+    }
+    $zip = new \ZipArchive();
+    if ($zip->open($tempfile) !== true) {
+        $fail('error_package_not_zip');
+    }
+    $zip->close();
+
+    return $tempfile;
 }
 
 /**

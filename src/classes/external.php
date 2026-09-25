@@ -26,7 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->libdir . '/externallib.php');
-require_once($CFG->dirroot . '/mod/skilland/locallib.php');
+require_once(__DIR__ . '/../locallib.php');
 
 use mod_skilland\logger;
 
@@ -65,7 +65,7 @@ class mod_skilland_external extends external_api {
 
         // Check capability in course context.
         $context = context_course::instance($moodlecourseid);
-        require_capability('moodle/course:update', $context);
+        require_capability('mod/skilland:accessstudio', $context);
 
         logger::debug('AJAX', 'fetch_courses_ajax called');
 
@@ -208,7 +208,7 @@ class mod_skilland_external extends external_api {
 
         // Check capability in course context.
         $context = context_course::instance($moodlecourseid);
-        require_capability('moodle/course:update', $context);
+        require_capability('mod/skilland:accessstudio', $context);
 
         logger::debug('AJAX', 'create_course_ajax called for moodle course ' . $moodlecourseid);
 
@@ -279,7 +279,7 @@ class mod_skilland_external extends external_api {
         return new external_single_structure([
             'skillid' => new external_value(PARAM_TEXT, 'Skilland skill/course ID'),
             'name' => new external_value(PARAM_TEXT, 'Course name'),
-            'redirect_url' => new external_value(PARAM_RAW, 'SSO redirect URL to Skilland'),
+            'redirect_url' => new external_value(PARAM_URL, 'SSO redirect URL to Skilland'),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),
         ]);
     }
@@ -307,6 +307,9 @@ class mod_skilland_external extends external_api {
         $context = context_course::instance($moodlecourseid);
         require_capability('moodle/course:update', $context);
 
+        // The requested Skilland course must be the one this Moodle course is mapped to.
+        $courseid = skilland_require_mapped_course($moodlecourseid, $courseid);
+
         logger::debug('AJAX', 'fetch_topics_ajax called with courseid: ' . $courseid);
 
         try {
@@ -322,7 +325,7 @@ class mod_skilland_external extends external_api {
                     'id' => $topic['id'],
                     'name' => $topic['name'] ?? '',
                     'code' => $topic['code'] ?? '',
-                    'description' => $topic['description'] ?? '',
+                    'description' => clean_text($topic['description'] ?? '', FORMAT_HTML),
                 ];
             }
 
@@ -361,7 +364,7 @@ class mod_skilland_external extends external_api {
      */
     public static function fetch_topics_ajax_parameters() {
         return new external_function_parameters([
-            'courseid' => new external_value(PARAM_TEXT, 'Skilland course ID', VALUE_REQUIRED),
+            'courseid' => new external_value(PARAM_ALPHANUMEXT, 'Skilland course ID', VALUE_REQUIRED),
             'moodlecourseid' => new external_value(PARAM_INT, 'Moodle course ID', VALUE_REQUIRED),
         ]);
     }
@@ -383,7 +386,7 @@ class mod_skilland_external extends external_api {
                     'id' => new external_value(PARAM_TEXT, 'Topic ID'),
                     'name' => new external_value(PARAM_TEXT, 'Topic name'),
                     'code' => new external_value(PARAM_TEXT, 'Topic code', VALUE_OPTIONAL),
-                    'description' => new external_value(PARAM_RAW, 'Topic description', VALUE_OPTIONAL),
+                    'description' => new external_value(PARAM_CLEANHTML, 'Topic description', VALUE_OPTIONAL),
                 ])
             ),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),
@@ -412,6 +415,15 @@ class mod_skilland_external extends external_api {
         // Check capability in course context.
         $context = context_course::instance($moodlecourseid);
         require_capability('moodle/course:update', $context);
+
+        // The requested topic must belong to the Skilland course this Moodle course is mapped to.
+        $skillandcourseid = skilland_get_mapped_courseid($moodlecourseid);
+        if ($skillandcourseid === null) {
+            throw new moodle_exception('error_course_not_mapped', 'mod_skilland');
+        }
+        if (!skilland_topic_belongs_to_course($topicid, $skillandcourseid)) {
+            throw new moodle_exception('error_course_not_mapped_to_skill', 'mod_skilland');
+        }
 
         logger::debug('AJAX', 'fetch_lessons_ajax called with topicid: ' . $topicid);
 
@@ -455,7 +467,7 @@ class mod_skilland_external extends external_api {
      */
     public static function fetch_lessons_ajax_parameters() {
         return new external_function_parameters([
-            'topicid' => new external_value(PARAM_TEXT, 'Skilland topic ID', VALUE_REQUIRED),
+            'topicid' => new external_value(PARAM_ALPHANUMEXT, 'Skilland topic ID', VALUE_REQUIRED),
             'moodlecourseid' => new external_value(PARAM_INT, 'Moodle course ID', VALUE_REQUIRED),
         ]);
     }
@@ -474,101 +486,6 @@ class mod_skilland_external extends external_api {
                     'updatedAt' => new external_value(PARAM_TEXT, 'Last update timestamp'),
                 ])
             ),
-            'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),
-        ]);
-    }
-
-    /**
-     * Provision a SCORM activity for a lesson.
-     *
-     * @param int $lessonid The skilland_lesson record ID
-     * @param int $cmid The course module ID of the skilland activity
-     * @return array
-     */
-    public static function provision_lesson_scorm_ajax(int $lessonid, int $cmid) {
-        global $DB;
-
-        self::require_enabled();
-
-        // Validate parameters.
-        $params = self::validate_parameters(self::provision_lesson_scorm_ajax_parameters(), [
-            'lessonid' => $lessonid,
-            'cmid' => $cmid,
-        ]);
-
-        $lessonid = $params['lessonid'];
-        $cmid = $params['cmid'];
-
-        // Get the course module and context.
-        $cm = get_coursemodule_from_id('skilland', $cmid, 0, false, MUST_EXIST);
-        $context = context_module::instance($cm->id);
-
-        // Check capability.
-        require_capability('moodle/course:manageactivities', $context);
-
-        logger::debug('AJAX', 'provision_lesson_scorm_ajax called for lesson ' . $lessonid . ', cm ' . $cmid);
-
-        try {
-            // Get the lesson record.
-            $lesson = $DB->get_record('skilland_lesson', ['id' => $lessonid], '*', MUST_EXIST);
-
-            // Get the skilland activity record.
-            $skilland = $DB->get_record('skilland', ['id' => $lesson->skillandid], '*', MUST_EXIST);
-
-            // Get the course.
-            $course = get_course($cm->course);
-
-            // Get the section number for the skilland activity.
-            $sectionnum = $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
-
-            // Call the provisioning function.
-            $scormcmid = skilland_provision_lesson_scorm($lesson, $skilland, $course, $sectionnum);
-
-            logger::debug('AJAX', 'Successfully provisioned SCORM, cmid = ' . $scormcmid);
-
-            return [
-                'success' => true,
-                'scormcmid' => $scormcmid,
-                'error' => null,
-            ];
-        } catch (moodle_exception $e) {
-            logger::error('AJAX', 'provision_lesson_scorm error: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'scormcmid' => 0,
-                'error' => $e->getMessage(),
-            ];
-        } catch (Exception $e) {
-            logger::error('AJAX', 'provision_lesson_scorm error: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'scormcmid' => 0,
-                'error' => $e->getMessage(),
-            ];
-        }
-    }
-
-    /**
-     * Returns description of method parameters.
-     *
-     * @return external_function_parameters
-     */
-    public static function provision_lesson_scorm_ajax_parameters() {
-        return new external_function_parameters([
-            'lessonid' => new external_value(PARAM_INT, 'Skilland lesson record ID', VALUE_REQUIRED),
-            'cmid' => new external_value(PARAM_INT, 'Course module ID of the skilland activity', VALUE_REQUIRED),
-        ]);
-    }
-
-    /**
-     * Returns description of method result value.
-     *
-     * @return external_single_structure
-     */
-    public static function provision_lesson_scorm_ajax_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'Whether provisioning succeeded'),
-            'scormcmid' => new external_value(PARAM_INT, 'The new SCORM course module ID'),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),
         ]);
     }
@@ -599,7 +516,7 @@ class mod_skilland_external extends external_api {
         $context = context_module::instance($cm->id);
 
         // Check capability.
-        require_capability('moodle/course:manageactivities', $context);
+        require_capability('mod/skilland:provision', $context);
 
         logger::debug('AJAX', 'provision_topic_scorm_ajax called for skilland ' . $skillandid . ', cm ' . $cmid);
 
@@ -698,7 +615,7 @@ class mod_skilland_external extends external_api {
         $context = context_module::instance($cm->id);
 
         // Check capability.
-        require_capability('moodle/course:manageactivities', $context);
+        require_capability('mod/skilland:provision', $context);
 
         logger::debug('AJAX', 'update_topic_scorm_ajax called for skilland ' . $skillandid . ', cm ' . $cmid);
 
@@ -795,8 +712,8 @@ class mod_skilland_external extends external_api {
         $cm = get_coursemodule_from_instance('skilland', $skilland->id, 0, false, MUST_EXIST);
         $context = \context_module::instance($cm->id);
 
-        // Require view capability at minimum.
-        require_capability('mod/skilland:addinstance', $context);
+        // Same capability that shows the update checker in view.php.
+        require_capability('mod/skilland:provision', $context);
 
         if (empty($skilland->skilland_topicid)) {
             return [

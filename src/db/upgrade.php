@@ -129,6 +129,34 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026020206, 'skilland');
     }
 
+    // For version 2026092522 (SKL-661): lock the Skilland Course ID custom field so only
+    // users with moodle/course:changelockedcustomfields can remap a course, and drop the
+    // legacy per-lesson SCORM column.
+    if ($oldversion < 2026092522) {
+        require_once($CFG->dirroot . '/mod/skilland/locallib.php');
+
+        $field = skilland_get_course_customfield();
+        if ($field) {
+            $configdata = json_decode((string)$field->get('configdata'), true);
+            if (!is_array($configdata)) {
+                $configdata = [];
+            }
+            if (($configdata['locked'] ?? '0') !== '1') {
+                $configdata['locked'] = '1';
+                $field->set('configdata', json_encode($configdata));
+                $field->save();
+            }
+        }
+
+        $table = new xmldb_table('skilland_lesson');
+        $lessonfield = new xmldb_field('scormcmid');
+        if ($dbman->field_exists($table, $lessonfield)) {
+            $dbman->drop_field($table, $lessonfield);
+        }
+
+        upgrade_mod_savepoint(true, 2026092522, 'skilland');
+    }
+
     return true;
 }
 

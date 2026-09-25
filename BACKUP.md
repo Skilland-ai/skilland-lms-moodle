@@ -23,6 +23,7 @@ The backup implementation is located in `src/backup/moodle2/` and follows standa
     - The list of lessons selected for the topic.
     - Visibility state and ordering.
     - SCO identifiers for SCORM navigation deep-linking.
+    - The legacy per-lesson `scormcmid` column was dropped in 0.9.4-beta (SKL-661); restoring an older backup ignores it.
 
 ### Restore Process & Caveats
 

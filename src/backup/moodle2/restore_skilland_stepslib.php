@@ -95,10 +95,8 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         $data = (object)$data;
         $data->skillandid = $this->get_new_parentid('skilland');
 
-        // Map deprecated scormcmid if it exists on lesson level
-        if (!empty($data->scormcmid)) {
-            $data->scormcmid = $this->get_mappingid('course_module', $data->scormcmid);
-        }
+        // Backups taken before SKL-661 still carry the dropped lesson-level scormcmid.
+        unset($data->scormcmid);
 
         // Handle SCO ID mapping - use sco_identifier as fallback
         if (!empty($data->scoid)) {

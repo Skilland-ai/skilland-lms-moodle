@@ -23,7 +23,7 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         $lessons = new backup_nested_element('lessons');
 
         $lesson = new backup_nested_element('lesson', array('id'), array(
-            'skilland_lessonid', 'title', 'orderindex', 'scormcmid',
+            'skilland_lessonid', 'title', 'orderindex',
             'scoid', 'sco_identifier', 'snapshotid', 'snapshotcreatedat',
             'updatedat', 'visible'
         ));

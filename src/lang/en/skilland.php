@@ -5,7 +5,8 @@ $string['modulename']   = 'Skilland content';
 $string['modulenameplural'] = 'Skilland contents';
 $string['skilland:addinstance'] = 'Add a new Skilland content activity';
 $string['skilland:view'] = 'View Skilland content';
-$string['skilland:submit'] = 'Submit to Skilland activities';
+$string['skilland:provision'] = 'Provision and update SkilLand content in an activity';
+$string['skilland:accessstudio'] = 'Open SkilLand Studio and link courses';
 $string['pluginadministration'] = 'Skilland content administration';
 
 // Settings.
@@ -55,6 +56,10 @@ $string['edit_course_settings'] = 'Edit in course settings';
 // GraphQL settings.
 $string['settings_graphql_endpoint'] = 'GraphQL Endpoint';
 $string['settings_graphql_endpoint_desc'] = 'The URL of the Skilland GraphQL API endpoint.';
+$string['settings_package_hosts'] = 'SCORM package hosts';
+$string['settings_package_hosts_desc'] = 'Comma-separated hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host. "*.example.com" matches subdomains of example.com only.';
+$string['settings_package_max_mb'] = 'Maximum SCORM package size (MB)';
+$string['settings_package_max_mb_desc'] = 'Downloads larger than this are aborted.';
 $string['settings_frontend_url'] = 'Frontend URL';
 $string['settings_frontend_url_desc'] = 'The URL of the Skilland frontend application (for SSO redirects). If not set, will use the GraphQL endpoint URL.';
 
@@ -74,6 +79,11 @@ $string['error_config_invalid_credentials'] = 'Invalid API credentials. Please c
 $string['error_sso_secret_too_short'] = 'The SSO shared secret must be at least 32 bytes long. Generate one with openssl rand -base64 32.';
 $string['error_sso_secret_known_dev'] = 'This SSO shared secret was published as a development default and cannot be used. Generate a new one with openssl rand -base64 32.';
 $string['error_url_https_required'] = 'This URL must use https://.';
+$string['error_insecure_url'] = 'The Skilland {$a} URL must use https://.';
+$string['error_http_redirect'] = 'The Skilland server answered with a redirect (HTTP {$a}), which is not followed. Check the configured URL.';
+$string['error_package_host_not_allowed'] = 'SCORM packages may not be downloaded from {$a}. Add the host to the SCORM package hosts setting if it is trusted.';
+$string['error_package_too_large'] = 'The SCORM package is larger than the {$a} MB limit.';
+$string['error_package_not_zip'] = 'The downloaded SCORM package is not a valid zip file.';
 $string['error_graphql_http'] = 'HTTP error when calling Skilland API: {$a}';
 $string['error_graphql_invalid_json'] = 'Invalid JSON response from Skilland API';
 $string['error_graphql'] = 'GraphQL error: {$a}';
@@ -167,6 +177,8 @@ $string['update_available_desc'] = 'Content has been updated in Skilland. Click 
 
 // Plugin disabled.
 $string['error_plugin_disabled'] = 'The Skilland plugin is currently disabled.';
+$string['error_course_not_mapped'] = 'This Moodle course is not mapped to a Skilland course. Set the Skilland Course ID in the course settings first.';
+$string['error_course_not_mapped_to_skill'] = 'The requested Skilland content does not belong to the Skilland course mapped to this Moodle course.';
 
 // Errors.
 $string['invalidactivity'] = 'Invalid activity specified.';

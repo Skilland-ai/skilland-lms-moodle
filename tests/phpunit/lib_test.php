@@ -14,8 +14,36 @@ class lib_test extends TestCase {
         $this->db = new \FakeDatabase();
         $GLOBALS['DB'] = $this->db;
         $GLOBALS['_test_debug_messages'] = [];
-        $GLOBALS['_test_plugin_config'] = [];
+        $GLOBALS['_test_plugin_config'] = ['mod_skilland' => (object)[
+            'orgid' => 'org1',
+            'apikey' => 'key1',
+            'graphql_endpoint' => 'https://localhost:8000/graphql',
+        ]];
+        // Moodle course 10 is mapped to skill-a, whose topics are topic1 and correct.
+        $GLOBALS['_test_customfield_value'] = [10 => 'skill-a'];
+        $this->stubSkillTopics(['topic1', 'correct']);
         \mod_skilland\logger::reset_cache();
+    }
+
+    protected function tearDown(): void {
+        unset(
+            $GLOBALS['_test_curl_response'],
+            $GLOBALS['_test_customfield_value'],
+            $GLOBALS['_test_events'],
+            $GLOBALS['_test_completion_viewed'],
+            $GLOBALS['_test_completion_courses']
+        );
+        parent::tearDown();
+    }
+
+    private function stubSkillTopics(array $topicids): void {
+        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''], $topicids);
+        $GLOBALS['_test_curl_response'] = [
+            'body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill A', 'topics' => $topics]]]),
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
     }
 
     // ---------------------------------------------------------------
@@ -26,8 +54,110 @@ class lib_test extends TestCase {
         $this->assertTrue(skilland_supports(FEATURE_MOD_INTRO));
     }
 
+    public function test_supports_completion_tracks_views(): void {
+        $this->assertTrue(skilland_supports(FEATURE_COMPLETION_TRACKS_VIEWS));
+    }
+
     public function test_supports_returns_null_for_unknown_feature(): void {
         $this->assertNull(skilland_supports('some_unknown_feature'));
+    }
+
+    // ---------------------------------------------------------------
+    // skilland_view()
+    // ---------------------------------------------------------------
+
+    private function runView(): array {
+        $GLOBALS['_test_events'] = [];
+        $GLOBALS['_test_completion_viewed'] = [];
+        $skilland = (object)['id' => 7, 'name' => 'T1 - Topic'];
+        $course = (object)['id' => 10, 'fullname' => 'Course'];
+        $cm = (object)['id' => 42, 'instance' => 7, 'course' => 10];
+        $context = \context_module::instance(42);
+        skilland_view($skilland, $course, $cm, $context);
+        return [$skilland, $course, $cm, $context];
+    }
+
+    public function test_view_triggers_one_course_module_viewed_event(): void {
+        [$skilland, , , $context] = $this->runView();
+
+        $this->assertCount(1, $GLOBALS['_test_events']);
+        $event = $GLOBALS['_test_events'][0];
+        $this->assertInstanceOf(\mod_skilland\event\course_module_viewed::class, $event);
+        $this->assertSame(7, $event->objectid);
+        $this->assertSame($context, $event->context);
+        $this->assertSame('skilland', $event->objecttable);
+        $this->assertSame('r', $event->crud);
+        $this->assertSame(\core\event\base::LEVEL_PARTICIPATING, $event->edulevel);
+    }
+
+    public function test_view_adds_course_and_skilland_snapshots(): void {
+        [$skilland, $course] = $this->runView();
+
+        $event = $GLOBALS['_test_events'][0];
+        $this->assertSame($course, $event->get_record_snapshot('course', 10));
+        $this->assertSame($skilland, $event->get_record_snapshot('skilland', 7));
+    }
+
+    public function test_view_marks_module_viewed_for_completion_once(): void {
+        [, , $cm] = $this->runView();
+
+        $this->assertSame([$cm], $GLOBALS['_test_completion_viewed']);
+    }
+
+    public function test_view_builds_completion_info_for_the_viewed_course(): void {
+        [, $course] = $this->runView();
+
+        $this->assertSame([$course], $GLOBALS['_test_completion_courses']);
+    }
+
+    public function test_view_called_twice_logs_two_views_and_marks_viewed_each_time(): void {
+        $GLOBALS['_test_events'] = [];
+        $GLOBALS['_test_completion_viewed'] = [];
+        $skilland = (object)['id' => 7, 'name' => 'T1 - Topic'];
+        $course = (object)['id' => 10, 'fullname' => 'Course'];
+        $cm = (object)['id' => 42, 'instance' => 7, 'course' => 10];
+        $context = \context_module::instance(42);
+
+        skilland_view($skilland, $course, $cm, $context);
+        skilland_view($skilland, $course, $cm, $context);
+
+        // A reload is a new view: each call logs its own event.
+        $this->assertCount(2, $GLOBALS['_test_events']);
+        $this->assertNotSame($GLOBALS['_test_events'][0], $GLOBALS['_test_events'][1]);
+        foreach ($GLOBALS['_test_events'] as $event) {
+            $this->assertSame(7, $event->objectid);
+        }
+        $this->assertSame([$cm, $cm], $GLOBALS['_test_completion_viewed']);
+    }
+
+    public function test_view_accepts_cm_info_and_passes_it_to_completion(): void {
+        $GLOBALS['_test_events'] = [];
+        $GLOBALS['_test_completion_viewed'] = [];
+        $skilland = (object)['id' => 7, 'name' => 'T1 - Topic'];
+        $course = (object)['id' => 10, 'fullname' => 'Course'];
+        $cm = new \cm_info(42, 7, 10);
+        $context = \context_module::instance(42);
+
+        skilland_view($skilland, $course, $cm, $context);
+
+        $this->assertCount(1, $GLOBALS['_test_events']);
+        $this->assertSame($context, $GLOBALS['_test_events'][0]->context);
+        $this->assertSame([$cm], $GLOBALS['_test_completion_viewed']);
+        $this->assertInstanceOf(\cm_info::class, $GLOBALS['_test_completion_viewed'][0]);
+    }
+
+    public function test_view_does_not_touch_the_database(): void {
+        $this->db->reset();
+        $this->runView();
+
+        $this->assertSame([], $this->db->get_calls());
+    }
+
+    public function test_viewed_event_maps_objectid_to_skilland_table(): void {
+        $this->assertSame(
+            ['db' => 'skilland', 'restore' => 'skilland'],
+            \mod_skilland\event\course_module_viewed::get_objectid_mapping()
+        );
     }
 
     // ---------------------------------------------------------------
@@ -188,6 +318,7 @@ class lib_test extends TestCase {
     public function test_add_instance_sets_timestamps(): void {
         $before = time();
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 3;
 
@@ -202,6 +333,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_prefers_saved_topicid(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'wrong';
         $data->skilland_topicid_saved = 'correct';
         $data->topic_orderindex = 1;
@@ -214,6 +346,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_defaults_topic_orderindex_to_1(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
 
         skilland_add_instance($data);
@@ -224,6 +357,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_removes_form_only_fields(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
         $data->skilland_courseid = 'should-be-removed';
         $data->skilland_courseid_readonly = 'also-removed';
@@ -306,6 +440,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_processes_selected_lessons(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
         $data->selected_lessons = json_encode([
@@ -329,6 +464,7 @@ class lib_test extends TestCase {
     public function test_update_instance_sets_timemodified(): void {
         $before = time();
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 5;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -342,6 +478,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_sets_id_from_instance(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 42;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -354,6 +491,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_prefers_saved_topicid(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'wrong';
         $data->skilland_topicid_saved = 'correct';
@@ -367,6 +505,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_defaults_topic_orderindex_to_1(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
 
@@ -378,6 +517,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_removes_form_only_fields(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
         $data->skilland_courseid = 'remove-me';
@@ -395,6 +535,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_processes_selected_lessons(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -417,6 +558,7 @@ class lib_test extends TestCase {
         // by verifying the lesson processing depends on the result.
         // When update_record returns true, lessons are processed.
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -512,5 +654,164 @@ class lib_test extends TestCase {
         $result = skilland_get_coursemodule_info($cm);
 
         $this->assertEquals('Topic Twelve', $result->name);
+    }
+
+    // ---------------------------------------------------------------
+    // Topic must belong to the course's mapped skill (SKL-661)
+    // ---------------------------------------------------------------
+
+    public function test_add_instance_rejects_foreign_saved_topicid(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic1';
+        $data->skilland_topicid_saved = 'topic-of-another-skill';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped_to_skill', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_add_instance_rejects_unmapped_course(): void {
+        $data = new \stdClass();
+        $data->course = 99;
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_update_instance_rejects_foreign_saved_topicid(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 1;
+        $data->skilland_topicid = 'topic1';
+        $data->skilland_topicid_saved = 'topic-of-another-skill';
+
+        try {
+            skilland_update_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped_to_skill', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('update_record'));
+    }
+
+    public function test_update_instance_rejects_empty_topicid(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 1;
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_update_instance($data);
+    }
+
+    public function test_add_instance_rejects_foreign_select_topicid_without_saved(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic-of-another-skill';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped_to_skill', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_add_instance_rejects_missing_course(): void {
+        $data = new \stdClass();
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_add_instance_rejects_topic_when_skill_has_no_topics(): void {
+        $this->stubSkillTopics([]);
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic1';
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_add_instance($data);
+    }
+
+    public function test_add_instance_uses_table_mapping_when_custom_field_empty(): void {
+        $GLOBALS['_test_customfield_value'][10] = '';
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic1';
+
+        skilland_add_instance($data);
+
+        $this->assertCount(1, $this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_update_instance_accepts_same_valid_saved_topic(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 7;
+        $data->skilland_topicid = 'topic1';
+        $data->skilland_topicid_saved = 'topic1';
+
+        $this->assertTrue(skilland_update_instance($data));
+
+        $updates = $this->db->get_calls_for('update_record');
+        $this->assertCount(1, $updates);
+        $this->assertSame('topic1', $updates[0]['data']->skilland_topicid);
+        $this->assertObjectNotHasProperty('skilland_topicid_saved', $updates[0]['data']);
+    }
+
+    public function test_update_instance_rejects_unmapped_course(): void {
+        $data = new \stdClass();
+        $data->course = 99;
+        $data->instance = 1;
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_update_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('update_record'));
+    }
+
+    public function test_update_instance_throws_when_topic_check_api_fails(): void {
+        $GLOBALS['_test_curl_response'] = ['body' => 'boom', 'http_code' => 500, 'errno' => 0, 'error' => ''];
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 1;
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_update_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertNotSame('', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('update_record'));
     }
 }

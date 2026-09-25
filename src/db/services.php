@@ -63,15 +63,6 @@ $functions = [
         'ajax' => true,
         'loginrequired' => true,
     ],
-    'mod_skilland_provision_lesson_scorm_ajax' => [
-        'classname' => 'mod_skilland_external',
-        'methodname' => 'provision_lesson_scorm_ajax',
-        'classpath' => 'mod/skilland/classes/external.php',
-        'description' => 'DEPRECATED: Provision a SCORM activity for a single lesson',
-        'type' => 'write',
-        'ajax' => true,
-        'loginrequired' => true,
-    ],
     'mod_skilland_provision_topic_scorm_ajax' => [
         'classname' => 'mod_skilland_external',
         'methodname' => 'provision_topic_scorm_ajax',

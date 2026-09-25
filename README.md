@@ -89,6 +89,8 @@ Go to **Site administration → Plugins → Activity modules → Skilland conten
   - For local development: `http://localhost:3000`
   - This is used for SSO redirects when teachers click "Edit Lessons in Skilland"
 - **SSO Shared Secret**: The shared secret for SSO authentication (must match the backend `MOODLE_SSO_SECRET`).
+- **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only.
+- **Maximum SCORM package size (MB)**: Downloads larger than this are aborted (default: `200`).
 
 ### 2. Course Setup (Teacher/Admin)
 Before adding activities, you must link the course:
@@ -100,6 +102,17 @@ Before adding activities, you must link the course:
 5. Save changes.
 
 > **Note**: If you don't see this field, ask your administrator to create the "Skilland Course ID" custom course field.
+
+### 3. Capabilities
+
+| Capability | Context | Gates |
+|------------|---------|-------|
+| `mod/skilland:addinstance` | Course | Adding a Skilland activity to a course |
+| `mod/skilland:view` | Activity | Opening a Skilland activity (`view.php`) |
+| `mod/skilland:provision` | Activity | Provisioning and updating an activity's SCORM content, and the update checker |
+| `mod/skilland:accessstudio` | Course | Opening SkilLand Studio (SSO), the course navigation link, and listing or creating linked SkilLand courses |
+
+When the plugin is first installed or upgraded, `mod/skilland:provision` copies its role permissions from `moodle/course:manageactivities` and `mod/skilland:accessstudio` copies them from `moodle/course:update`, so existing teacher and manager roles keep the access they had.
 
 ---
 

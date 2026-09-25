@@ -6,7 +6,8 @@ $string['modulename']   = 'Contenido Skilland';
 $string['modulenameplural'] = 'Contenidos Skilland';
 $string['skilland:addinstance'] = 'Añadir una nueva actividad de contenido Skilland';
 $string['skilland:view'] = 'Ver contenido Skilland';
-$string['skilland:submit'] = 'Enviar a actividades Skilland';
+$string['skilland:provision'] = 'Preparar y actualizar el contenido de SkilLand en una actividad';
+$string['skilland:accessstudio'] = 'Abrir SkilLand Studio y vincular cursos';
 $string['pluginadministration'] = 'Administración de contenido Skilland';
 
 // Settings.
@@ -56,6 +57,10 @@ $string['edit_course_settings'] = 'Editar en configuración del curso';
 // GraphQL settings.
 $string['settings_graphql_endpoint'] = 'Endpoint de GraphQL';
 $string['settings_graphql_endpoint_desc'] = 'La URL del endpoint de la API GraphQL de Skilland.';
+$string['settings_package_hosts'] = 'Hosts de paquetes SCORM';
+$string['settings_package_hosts_desc'] = 'Hosts separados por comas desde los que se pueden descargar paquetes SCORM, además del host del endpoint GraphQL. "*.example.com" solo coincide con subdominios de example.com.';
+$string['settings_package_max_mb'] = 'Tamaño máximo del paquete SCORM (MB)';
+$string['settings_package_max_mb_desc'] = 'Las descargas que superen este tamaño se cancelan.';
 $string['settings_frontend_url'] = 'URL del Frontend';
 $string['settings_frontend_url_desc'] = 'La URL de la aplicación frontend de Skilland (para redirecciones SSO). Si no está configurada, se usará la URL del endpoint GraphQL.';
 
@@ -75,6 +80,11 @@ $string['error_config_invalid_credentials'] = 'Credenciales de API inválidas. P
 $string['error_sso_secret_too_short'] = 'El secreto compartido SSO debe tener al menos 32 bytes. Genere uno con openssl rand -base64 32.';
 $string['error_sso_secret_known_dev'] = 'Este secreto compartido SSO se publicó como valor de desarrollo y no puede usarse. Genere uno nuevo con openssl rand -base64 32.';
 $string['error_url_https_required'] = 'Esta URL debe usar https://.';
+$string['error_insecure_url'] = 'La URL de {$a} de Skilland debe usar https://.';
+$string['error_http_redirect'] = 'El servidor de Skilland respondió con una redirección (HTTP {$a}), que no se sigue. Revisa la URL configurada.';
+$string['error_package_host_not_allowed'] = 'No se pueden descargar paquetes SCORM desde {$a}. Añade el host al ajuste de hosts de paquetes SCORM si es de confianza.';
+$string['error_package_too_large'] = 'El paquete SCORM supera el límite de {$a} MB.';
+$string['error_package_not_zip'] = 'El paquete SCORM descargado no es un archivo zip válido.';
 $string['error_graphql_http'] = 'Error HTTP al llamar a la API de Skilland: {$a}';
 $string['error_graphql_invalid_json'] = 'Respuesta JSON inválida de la API de Skilland';
 $string['error_graphql'] = 'Error de GraphQL: {$a}';
@@ -168,6 +178,8 @@ $string['update_available_desc'] = 'El contenido ha sido actualizado en Skilland
 
 // Plugin disabled.
 $string['error_plugin_disabled'] = 'El plugin de Skilland está desactivado.';
+$string['error_course_not_mapped'] = 'Este curso de Moodle no está vinculado a un curso de Skilland. Configura primero el ID de Curso de Skilland en los ajustes del curso.';
+$string['error_course_not_mapped_to_skill'] = 'El contenido de Skilland solicitado no pertenece al curso de Skilland vinculado a este curso de Moodle.';
 
 // Errors.
 $string['invalidactivity'] = 'Actividad especificada inválida.';

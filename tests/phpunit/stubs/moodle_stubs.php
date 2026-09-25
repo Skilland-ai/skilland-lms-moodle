@@ -4,6 +4,9 @@
 if (!defined('FEATURE_MOD_INTRO')) {
     define('FEATURE_MOD_INTRO', 'mod_intro');
 }
+if (!defined('FEATURE_COMPLETION_TRACKS_VIEWS')) {
+    define('FEATURE_COMPLETION_TRACKS_VIEWS', 'completion_tracks_views');
+}
 if (!defined('PARAM_INT')) {
     define('PARAM_INT', 'int');
 }
@@ -15,6 +18,15 @@ if (!defined('PARAM_RAW')) {
 }
 if (!defined('PARAM_URL')) {
     define('PARAM_URL', 'url');
+}
+if (!defined('PARAM_CLEANHTML')) {
+    define('PARAM_CLEANHTML', 'cleanhtml');
+}
+if (!defined('PARAM_ALPHANUMEXT')) {
+    define('PARAM_ALPHANUMEXT', 'alphanumext');
+}
+if (!defined('PARAM_BOOL')) {
+    define('PARAM_BOOL', 'bool');
 }
 if (!defined('SQL_PARAMS_NAMED')) {
     define('SQL_PARAMS_NAMED', 1);
@@ -154,6 +166,14 @@ if (!class_exists('moodle_url')) {
 }
 
 // Simple function stubs.
+if (!function_exists('clean_text')) {
+    // Minimal stand-in for Moodle's HTML Purifier: drops script blocks and on* handlers.
+    function clean_text($text, $format = FORMAT_HTML) {
+        $text = preg_replace('#<script\b[^>]*>.*?</script>#is', '', (string)$text);
+        return preg_replace('#\s+on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $text);
+    }
+}
+
 if (!function_exists('format_string')) {
     function format_string($string) {
         return $string;
@@ -257,7 +277,125 @@ if (!class_exists('admin_setting_configpasswordunmask')) {
     }
 }
 
+if (!class_exists('invalid_parameter_exception')) {
+    class invalid_parameter_exception extends \moodle_exception {
+        public function __construct($debuginfo = null) {
+            parent::__construct('invalidparameter', 'debug', '', null, $debuginfo);
+        }
+    }
+}
+
+if (!class_exists('required_capability_exception')) {
+    class required_capability_exception extends \moodle_exception {
+        public function __construct($context, $capability, $errormessage = 'nopermissions', $stringfile = '') {
+            parent::__construct($errormessage, $stringfile, '', $capability);
+        }
+    }
+}
+
+// Context stubs — instance() returns a lightweight object carrying the id.
+if (!class_exists('context_course')) {
+    class context_course {
+        public $instanceid;
+
+        public static function instance($courseid) {
+            $ctx = new self();
+            $ctx->instanceid = (int)$courseid;
+            return $ctx;
+        }
+    }
+}
+
+if (!class_exists('context_module')) {
+    class context_module {
+        public $instanceid;
+
+        public static function instance($cmid) {
+            $ctx = new self();
+            $ctx->instanceid = (int)$cmid;
+            return $ctx;
+        }
+    }
+}
+
+// cm_info stub — the course module object Moodle passes around after get_fast_modinfo().
+if (!class_exists('cm_info')) {
+    class cm_info {
+        public $id;
+        public $instance;
+        public $course;
+
+        public function __construct($id, $instance, $course) {
+            $this->id = $id;
+            $this->instance = $instance;
+            $this->course = $course;
+        }
+    }
+}
+
+if (!class_exists('context_system')) {
+    class context_system {
+        public static function instance() {
+            return new self();
+        }
+    }
+}
+
+// Capability stubs — every capability is granted unless listed in
+// $GLOBALS['_test_denied_capabilities'], or unless $GLOBALS['_test_capability_course_ids']
+// is set and the course context's instance id is not in it (a teacher of those courses only).
+if (!function_exists('has_capability')) {
+    function has_capability($capability, $context, $user = null) {
+        if (in_array($capability, $GLOBALS['_test_denied_capabilities'] ?? [], true)) {
+            return false;
+        }
+        if (isset($GLOBALS['_test_capability_course_ids']) && $context instanceof \context_course) {
+            return in_array($context->instanceid, $GLOBALS['_test_capability_course_ids'], true);
+        }
+        return true;
+    }
+}
+
+if (!function_exists('require_capability')) {
+    function require_capability($capability, $context, $userid = null) {
+        if (!has_capability($capability, $context, $userid)) {
+            throw new \required_capability_exception($context, $capability);
+        }
+    }
+}
+
+// Course custom field handler stub (namespaced, so it lives in its own file).
+if (!class_exists('core_customfield\\handler')) {
+    require_once __DIR__ . '/customfield_stub.php';
+}
+
 // Scheduled task base class loaded from separate file (namespaces can't be in if blocks).
 if (!class_exists('core\task\scheduled_task')) {
     require_once __DIR__ . '/scheduled_task_stub.php';
+}
+
+// Event base classes loaded from a separate file (namespaces can't be in if blocks).
+if (!class_exists('core\\event\\base')) {
+    require_once __DIR__ . '/event_stub.php';
+}
+
+if (!function_exists('make_temp_directory')) {
+    function make_temp_directory(string $directory, bool $exceptiononerror = true) {
+        $dir = sys_get_temp_dir() . '/moodle_test_temp/' . $directory;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        return $dir;
+    }
+}
+
+if (!function_exists('set_config')) {
+    function set_config(string $name, $value, ?string $plugin = null): bool {
+        $plugin = $plugin ?? 'core';
+        if (!isset($GLOBALS['_test_plugin_config'][$plugin])) {
+            $GLOBALS['_test_plugin_config'][$plugin] = new \stdClass();
+        }
+        $GLOBALS['_test_plugin_config'][$plugin]->$name = $value;
+        return true;
+    }
 }

@@ -99,8 +99,6 @@
                        COMMENT="Lesson title as imported from Skilland"/>
                 <FIELD NAME="orderindex" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
                        COMMENT="Ordering of lessons within the topic"/>
-                <FIELD NAME="scormcmid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
-                       COMMENT="DEPRECATED: Legacy per-lesson SCORM cmid. Use skilland.scormcmid for topic SCORM."/>
 
                 <!-- SCO mapping for topic-level SCORM -->
                 <FIELD NAME="scoid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
