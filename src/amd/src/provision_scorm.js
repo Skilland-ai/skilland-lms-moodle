@@ -2,7 +2,7 @@
  * SCORM provisioning module for Skilland.
  *
  * Handles the provision button click and AJAX call to create SCORM activities.
- * Supports both topic-level (new) and lesson-level (legacy) provisioning.
+ * Provisions one topic-level SCORM package per activity.
  *
  * @module     mod_skilland/provision_scorm
  * @copyright  2024
@@ -34,8 +34,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
      * Initialize the provision button handler.
      *
      * @param {Object} config Configuration object
-     * @param {number} [config.skillandid] The skilland activity ID (for topic-level provisioning)
-     * @param {number} [config.lessonid] The lesson ID (for legacy lesson-level provisioning)
+     * @param {number} config.skillandid The skilland activity ID
      * @param {number} config.cmid The course module ID
      * @param {boolean} [config.debug] Whether to enable debug logging
      */
@@ -44,10 +43,9 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
         log('Skilland provision_scorm init called with config:', config);
 
         var skillandId = config.skillandid ? parseInt(config.skillandid, 10) : 0;
-        var lessonId = config.lessonid ? parseInt(config.lessonid, 10) : 0;
         var cmId = parseInt(config.cmid, 10);
 
-        log('Skilland provision_scorm: skillandId=' + skillandId + ', lessonId=' + lessonId + ', cmId=' + cmId);
+        log('Skilland provision_scorm: skillandId=' + skillandId + ', cmId=' + cmId);
 
         // Bind click handler to provision button.
         $('#skilland-provision-btn').on('click', function(e) {
@@ -55,11 +53,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
             log('Skilland provision_scorm: Provision button clicked');
 
             if (skillandId > 0) {
-                // Topic-level provisioning (new).
                 provisionTopicContent(skillandId, cmId);
-            } else if (lessonId > 0) {
-                // Lesson-level provisioning (legacy).
-                provisionLessonContent(lessonId, cmId);
             } else {
                 showError('No valid ID provided for provisioning');
             }
@@ -102,62 +96,6 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
                         });
 
                         // Reload the page after a short delay to show the lessons.
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1000);
-                    });
-                } else {
-                    // Error from the server.
-                    showError(response.error || 'Unknown error occurred');
-                    $button.prop('disabled', false).removeClass('d-none');
-                    $loading.addClass('d-none');
-                }
-            })
-            .fail(function(error) {
-                // AJAX error.
-                var errorMsg = error.message || error.error || 'Network error occurred';
-                showError(errorMsg);
-                $button.prop('disabled', false).removeClass('d-none');
-                $loading.addClass('d-none');
-            });
-    };
-
-    /**
-     * Provision lesson-level SCORM content (legacy).
-     *
-     * @param {number} lessonId The lesson record ID
-     * @param {number} cmId The course module ID
-     */
-    var provisionLessonContent = function(lessonId, cmId) {
-        var $button = $('#skilland-provision-btn');
-        var $loading = $('#skilland-provision-loading');
-        var $error = $('#skilland-provision-error');
-
-        // Disable button and show loading.
-        $button.prop('disabled', true).addClass('d-none');
-        $loading.removeClass('d-none');
-        $error.addClass('d-none').text('');
-
-        // Make the AJAX call for lesson-level provisioning.
-        var request = {
-            methodname: 'mod_skilland_provision_lesson_scorm_ajax',
-            args: {
-                lessonid: lessonId,
-                cmid: cmId
-            }
-        };
-
-        Ajax.call([request])[0]
-            .done(function(response) {
-                if (response.success) {
-                    // Success! Show success message and reload the page.
-                    Str.get_string('provision_success', 'mod_skilland').done(function(successMsg) {
-                        Notification.addNotification({
-                            message: successMsg,
-                            type: 'success'
-                        });
-
-                        // Reload the page after a short delay to show the SCORM launch button.
                         setTimeout(function() {
                             window.location.reload();
                         }, 1000);
