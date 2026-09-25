@@ -89,6 +89,8 @@ Go to **Site administration → Plugins → Activity modules → Skilland conten
   - For local development: `http://localhost:3000`
   - This is used for SSO redirects when teachers click "Edit Lessons in Skilland"
 - **SSO Shared Secret**: The shared secret for SSO authentication (must match the backend `MOODLE_SSO_SECRET`).
+- **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only.
+- **Maximum SCORM package size (MB)**: Downloads larger than this are aborted (default: `200`).
 
 ### 2. Course Setup (Teacher/Admin)
 Before adding activities, you must link the course:

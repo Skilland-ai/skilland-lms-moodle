@@ -395,6 +395,8 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
         throw new moodle_exception('error_config_missing_endpoint', 'mod_skilland');
     }
 
+    mod_skilland_require_https($endpoint, 'endpoint');
+
     // Build JSON payload.
     // Ensure variables is always an object (associative array in PHP), not an array.
     // If variables is an empty array, convert to empty object for JSON encoding.
@@ -408,35 +410,11 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     $jsonpayload = json_encode($payload);
     logger::debug('GraphQL', 'Variables: ' . implode(', ', array_keys((array) $variables)));
 
-    // Initialize curl.
-    // Disable proxy for internal/localhost connections.
-    // Parse the endpoint to extract host for proxy bypass.
-    $parsedurl = parse_url($endpoint);
-    $host = $parsedurl['host'] ?? '';
-
-    // Create curl instance with ignoresecurity to allow internal IPs and Docker service names.
-    // This bypasses Moodle's URL blocking security feature for internal services.
-    $curl = new \curl(['ignoresecurity' => true]);
-
-    // Set curl options for better error reporting and connectivity.
-    // Note: Moodle's curl class requires option names as strings, not constants.
-    $curloptions = [
+    $curl = mod_skilland_make_curl($endpoint);
+    $curl->setopt([
         'CURLOPT_CONNECTTIMEOUT' => 10,
         'CURLOPT_TIMEOUT' => 30,
-        'CURLOPT_FOLLOWLOCATION' => true,
-        'CURLOPT_MAXREDIRS' => 5,
-    ];
-
-    // Check if host is local/internal or Docker network IP.
-    $isLocal = mod_skilland_is_local_host($host);
-
-    if ($isLocal) {
-        // Force bypass proxy for local/internal addresses and Docker services.
-        $curloptions['CURLOPT_PROXY'] = '';
-        $curloptions['CURLOPT_NOPROXY'] = '*';
-    }
-
-    $curl->setopt($curloptions);
+    ]);
 
     $headers = [
         'Content-Type: application/json',
@@ -467,6 +445,11 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     logger::debug('GraphQL', 'CURL errno: ' . $errno);
     logger::debug('GraphQL', 'CURL error: ' . $curlerror);
     logger::debug('GraphQL', 'CURL info dump: ' . print_r($info, true));
+
+    if ($httpcode >= 300 && $httpcode < 400) {
+        logger::error('GraphQL', 'Refusing redirect (HTTP ' . $httpcode . ') from ' . mod_skilland_redact_url($endpoint));
+        throw new moodle_exception('error_http_redirect', 'mod_skilland', '', $httpcode);
+    }
 
     if ($httpcode < 200 || $httpcode >= 300) {
         if ($errno) {
@@ -908,38 +891,9 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
 
     logger::debug('SCORM', 'Downloading topic SCORM package from ' . mod_skilland_redact_url($packageurl));
 
-    $tempdir = make_temp_directory('skilland_scorm');
-    $tempfile = $tempdir . '/scorm_topic_' . $skilland->skilland_topicid . '_' . time() . '.zip';
+    $tempfile = mod_skilland_download_package($packageurl);
 
-    // Use Moodle's curl to download the file.
-    $curl = new \curl(['ignoresecurity' => true]);
-    $curloptions = [
-        'CURLOPT_CONNECTTIMEOUT' => 30,
-        'CURLOPT_TIMEOUT' => 180,  // Longer timeout for larger topic packages.
-        'CURLOPT_FOLLOWLOCATION' => true,
-    ];
-    $curl->setopt($curloptions);
-
-    $fp = fopen($tempfile, 'w');
-    if (!$fp) {
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Could not create temp file');
-    }
-
-    $curl->download_one($packageurl, null, ['file' => $fp]);
-    fclose($fp);
-
-    $httpcode = $curl->get_info()['http_code'] ?? 0;
-    if ($httpcode < 200 || $httpcode >= 300) {
-        @unlink($tempfile);
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'HTTP ' . $httpcode);
-    }
-
-    if (!file_exists($tempfile) || filesize($tempfile) == 0) {
-        @unlink($tempfile);
-        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Empty file');
-    }
-
-    logger::debug('SCORM', 'Downloaded topic SCORM package to ' . $tempfile . ' (' . filesize($tempfile) . ' bytes)');
+    logger::debug('SCORM', 'Downloaded topic SCORM package (' . filesize($tempfile) . ' bytes)');
 
     // Step 3: Verify the package hash (if provided).
     if (!empty($expectedhash)) {
@@ -1371,30 +1325,228 @@ function mod_skilland_redact_url(string $url): string {
 }
 
 /**
- * Check if a hostname is local/internal (Docker, private IP, localhost).
+ * Check if a hostname is local/internal: a known Docker service name, or a
+ * loopback, private, link-local or reserved IP literal.
  *
- * Extracted from mod_skilland_graphql() for testability.
+ * Names are matched exactly (case-insensitive); there is no prefix or substring matching.
  *
  * @param string $host The hostname to check.
  * @return bool True if the host is local/internal.
  */
 function mod_skilland_is_local_host(string $host): bool {
-    $localhosts = [
-        'localhost',
-        '127.0.0.1',
-        'host.docker.internal',
-        '192.168.65.254',
-        'skilland-back',
-        'skillanduniverse-skilland-back-1',
-        'skilland-back',
+    $host = strtolower(trim($host));
+    if (strlen($host) > 1 && $host[0] === '[' && substr($host, -1) === ']') {
+        $host = substr($host, 1, -1);
+    }
+    if ($host === '') {
+        return false;
+    }
+
+    $localnames = ['localhost', 'host.docker.internal', 'skilland-back', 'skilland-web', 'hocuspocus', 'postgres'];
+    if (in_array($host, $localnames, true)) {
+        return true;
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP) === false) {
+        return false;
+    }
+
+    return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+}
+
+/**
+ * Whether the local development relaxations are on ($CFG->mod_skilland_allow_http in config.php).
+ *
+ * @return bool
+ */
+function mod_skilland_dev_network_allowed(): bool {
+    global $CFG;
+    return !empty($CFG->mod_skilland_allow_http);
+}
+
+/**
+ * Build a curl client for an outbound Skilland request.
+ *
+ * Moodle's curl security (blocked hosts/ports) stays on, except for local hosts when the
+ * development flag is set. Redirects are never followed, so credentials cannot be replayed
+ * to another host.
+ *
+ * @param string $url The URL the client will call.
+ * @return \curl
+ */
+function mod_skilland_make_curl(string $url): \curl {
+    global $CFG;
+    require_once($CFG->libdir . '/filelib.php');
+
+    $host = (string) parse_url($url, PHP_URL_HOST);
+    $options = [
+        'CURLOPT_FOLLOWLOCATION' => false,
+        'CURLOPT_MAXREDIRS' => 0,
     ];
 
-    return in_array($host, $localhosts) ||
-           strpos($host, '192.168.') === 0 ||
-           strpos($host, '172.') === 0 ||
-           strpos($host, '10.') === 0 ||
-           strpos($host, 'skilland') !== false ||
-           strpos($host, 'skilland') !== false;
+    if (mod_skilland_dev_network_allowed() && mod_skilland_is_local_host($host)) {
+        $curl = new \curl(['ignoresecurity' => true]);
+        $options['CURLOPT_PROXY'] = '';
+        $options['CURLOPT_NOPROXY'] = '*';
+    } else {
+        $curl = new \curl();
+    }
+
+    $curl->setopt($options);
+    return $curl;
+}
+
+/**
+ * Require an https:// URL unless the development flag is set.
+ *
+ * @param string $url
+ * @param string $what Short label of the URL for the error message.
+ * @throws moodle_exception error_insecure_url
+ */
+function mod_skilland_require_https(string $url, string $what): void {
+    if (mod_skilland_dev_network_allowed()) {
+        return;
+    }
+    if (strtolower((string) parse_url(trim($url), PHP_URL_SCHEME)) !== 'https') {
+        throw new moodle_exception('error_insecure_url', 'mod_skilland', '', $what);
+    }
+}
+
+/**
+ * Whether a SCORM package may be downloaded from this URL's host.
+ *
+ * Allowed hosts are the GraphQL endpoint host and the patterns in the package_hosts setting
+ * (comma-separated, case-insensitive; "*.example.com" matches subdomains of example.com only).
+ * IP literals are refused unless the development flag is set.
+ *
+ * @param string $packageurl
+ * @param string $endpoint
+ * @return bool
+ */
+function mod_skilland_package_host_allowed(string $packageurl, string $endpoint): bool {
+    $normalize = function (string $host): string {
+        $host = rtrim(strtolower(trim($host)), '.');
+        if (strlen($host) > 1 && $host[0] === '[' && substr($host, -1) === ']') {
+            $host = substr($host, 1, -1);
+        }
+        return $host;
+    };
+
+    $host = $normalize((string) parse_url($packageurl, PHP_URL_HOST));
+    if ($host === '') {
+        return false;
+    }
+
+    $dev = mod_skilland_dev_network_allowed();
+    if (filter_var($host, FILTER_VALIDATE_IP) !== false && !$dev) {
+        return false;
+    }
+    if ($dev && mod_skilland_is_local_host($host)) {
+        return true;
+    }
+
+    $endpointhost = $normalize((string) parse_url($endpoint, PHP_URL_HOST));
+    if ($endpointhost !== '' && $host === $endpointhost) {
+        return true;
+    }
+
+    $patterns = get_config('mod_skilland', 'package_hosts');
+    if ($patterns === null || $patterns === false) {
+        $patterns = '*.skilland.ai, *.amazonaws.com';
+    }
+
+    foreach (explode(',', (string) $patterns) as $pattern) {
+        $pattern = $normalize($pattern);
+        if ($pattern === '') {
+            continue;
+        }
+        if (strpos($pattern, '*.') === 0) {
+            $suffix = substr($pattern, 1);
+            if (strlen($host) > strlen($suffix) && substr($host, -strlen($suffix)) === $suffix) {
+                return true;
+            }
+        } else if ($host === $pattern) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Download a SCORM package to a temp file after validating its URL, size and format.
+ *
+ * @param string $packageurl
+ * @return string Path of the downloaded zip; the caller deletes it.
+ * @throws moodle_exception On any failed check; the temp file is removed first.
+ */
+function mod_skilland_download_package(string $packageurl): string {
+    mod_skilland_require_https($packageurl, 'package');
+
+    $endpoint = (string) (get_config('mod_skilland', 'graphql_endpoint') ?? '');
+    if (!mod_skilland_package_host_allowed($packageurl, $endpoint)) {
+        $host = (string) parse_url($packageurl, PHP_URL_HOST);
+        throw new moodle_exception('error_package_host_not_allowed', 'mod_skilland', '', $host);
+    }
+
+    $maxmb = (int) get_config('mod_skilland', 'package_max_mb');
+    if ($maxmb <= 0) {
+        $maxmb = 200;
+    }
+    $maxbytes = $maxmb * 1024 * 1024;
+
+    $tempfile = tempnam(make_temp_directory('skilland_scorm'), 'skl');
+    if ($tempfile === false) {
+        throw new moodle_exception('error_scorm_download_failed', 'mod_skilland', '', 'Could not create temp file');
+    }
+
+    $fail = function (string $code, $a = null) use ($tempfile): void {
+        @unlink($tempfile);
+        throw new moodle_exception($code, 'mod_skilland', '', $a);
+    };
+
+    $fp = fopen($tempfile, 'w');
+    if (!$fp) {
+        $fail('error_scorm_download_failed', 'Could not create temp file');
+    }
+
+    $curl = mod_skilland_make_curl($packageurl);
+    $curl->setopt([
+        'CURLOPT_CONNECTTIMEOUT' => 30,
+        'CURLOPT_TIMEOUT' => 180,
+        'CURLOPT_MAXFILESIZE' => $maxbytes,
+    ]);
+    $curl->download_one($packageurl, null, ['file' => $fp]);
+    fclose($fp);
+    clearstatcache(true, $tempfile);
+
+    $httpcode = (int) ($curl->get_info()['http_code'] ?? 0);
+    if ($httpcode >= 300 && $httpcode < 400) {
+        $fail('error_http_redirect', $httpcode);
+    }
+    if ($httpcode < 200 || $httpcode >= 300 || $curl->get_errno()) {
+        $fail('error_scorm_download_failed', 'HTTP ' . $httpcode);
+    }
+
+    $size = file_exists($tempfile) ? filesize($tempfile) : 0;
+    if (!$size) {
+        $fail('error_scorm_download_failed', 'Empty file');
+    }
+    if ($size > $maxbytes) {
+        $fail('error_package_too_large', $maxmb);
+    }
+
+    $magic = (string) file_get_contents($tempfile, false, null, 0, 4);
+    if ($magic !== "PK\x03\x04") {
+        $fail('error_package_not_zip');
+    }
+    $zip = new \ZipArchive();
+    if ($zip->open($tempfile) !== true) {
+        $fail('error_package_not_zip');
+    }
+    $zip->close();
+
+    return $tempfile;
 }
 
 /**

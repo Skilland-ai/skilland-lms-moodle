@@ -46,6 +46,13 @@ This starts:
    config sets `$CFG->mod_skilland_allow_http = true`; everywhere else the endpoint and
    frontend URL must use `https://`.
 
+   Outbound requests keep Moodle's curl security (blocked hosts and ports) on and never
+   follow redirects. A local `http://` or Docker endpoint (`localhost`, `host.docker.internal`,
+   `skilland-back`, private IPs) is reachable only with `$CFG->mod_skilland_allow_http`, which
+   `00_development/config.php` sets. SCORM packages must come from the GraphQL endpoint host or
+   a host listed in the **SCORM package hosts** setting (`mod_skilland/package_hosts`), and are
+   rejected above `mod_skilland/package_max_mb` or when they are not a zip.
+
    The secret must be at least 32 bytes. The plugin rejects shorter values and any secret
    that was ever published as a development default.
 
