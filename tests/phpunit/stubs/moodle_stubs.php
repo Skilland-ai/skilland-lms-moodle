@@ -318,6 +318,21 @@ if (!class_exists('context_module')) {
     }
 }
 
+// cm_info stub — the course module object Moodle passes around after get_fast_modinfo().
+if (!class_exists('cm_info')) {
+    class cm_info {
+        public $id;
+        public $instance;
+        public $course;
+
+        public function __construct($id, $instance, $course) {
+            $this->id = $id;
+            $this->instance = $instance;
+            $this->course = $course;
+        }
+    }
+}
+
 if (!class_exists('context_system')) {
     class context_system {
         public static function instance() {

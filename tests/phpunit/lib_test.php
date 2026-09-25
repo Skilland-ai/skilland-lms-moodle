@@ -30,7 +30,8 @@ class lib_test extends TestCase {
             $GLOBALS['_test_curl_response'],
             $GLOBALS['_test_customfield_value'],
             $GLOBALS['_test_events'],
-            $GLOBALS['_test_completion_viewed']
+            $GLOBALS['_test_completion_viewed'],
+            $GLOBALS['_test_completion_courses']
         );
         parent::tearDown();
     }
@@ -101,6 +102,55 @@ class lib_test extends TestCase {
         [, , $cm] = $this->runView();
 
         $this->assertSame([$cm], $GLOBALS['_test_completion_viewed']);
+    }
+
+    public function test_view_builds_completion_info_for_the_viewed_course(): void {
+        [, $course] = $this->runView();
+
+        $this->assertSame([$course], $GLOBALS['_test_completion_courses']);
+    }
+
+    public function test_view_called_twice_logs_two_views_and_marks_viewed_each_time(): void {
+        $GLOBALS['_test_events'] = [];
+        $GLOBALS['_test_completion_viewed'] = [];
+        $skilland = (object)['id' => 7, 'name' => 'T1 - Topic'];
+        $course = (object)['id' => 10, 'fullname' => 'Course'];
+        $cm = (object)['id' => 42, 'instance' => 7, 'course' => 10];
+        $context = \context_module::instance(42);
+
+        skilland_view($skilland, $course, $cm, $context);
+        skilland_view($skilland, $course, $cm, $context);
+
+        // A reload is a new view: each call logs its own event.
+        $this->assertCount(2, $GLOBALS['_test_events']);
+        $this->assertNotSame($GLOBALS['_test_events'][0], $GLOBALS['_test_events'][1]);
+        foreach ($GLOBALS['_test_events'] as $event) {
+            $this->assertSame(7, $event->objectid);
+        }
+        $this->assertSame([$cm, $cm], $GLOBALS['_test_completion_viewed']);
+    }
+
+    public function test_view_accepts_cm_info_and_passes_it_to_completion(): void {
+        $GLOBALS['_test_events'] = [];
+        $GLOBALS['_test_completion_viewed'] = [];
+        $skilland = (object)['id' => 7, 'name' => 'T1 - Topic'];
+        $course = (object)['id' => 10, 'fullname' => 'Course'];
+        $cm = new \cm_info(42, 7, 10);
+        $context = \context_module::instance(42);
+
+        skilland_view($skilland, $course, $cm, $context);
+
+        $this->assertCount(1, $GLOBALS['_test_events']);
+        $this->assertSame($context, $GLOBALS['_test_events'][0]->context);
+        $this->assertSame([$cm], $GLOBALS['_test_completion_viewed']);
+        $this->assertInstanceOf(\cm_info::class, $GLOBALS['_test_completion_viewed'][0]);
+    }
+
+    public function test_view_does_not_touch_the_database(): void {
+        $this->db->reset();
+        $this->runView();
+
+        $this->assertSame([], $this->db->get_calls());
     }
 
     public function test_viewed_event_maps_objectid_to_skilland_table(): void {

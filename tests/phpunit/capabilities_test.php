@@ -80,6 +80,102 @@ class capabilities_test extends TestCase {
         $this->assertSame(['editingteacher' => CAP_ALLOW, 'manager' => CAP_ALLOW], $cap['archetypes']);
     }
 
+    public function test_access_declares_exactly_the_four_plugin_capabilities(): void {
+        $this->assertSame(
+            ['mod/skilland:addinstance', 'mod/skilland:view', 'mod/skilland:provision', 'mod/skilland:accessstudio'],
+            array_keys(self::$capabilities)
+        );
+    }
+
+    public function test_every_capability_declares_captype_contextlevel_and_archetypes(): void {
+        foreach (self::$capabilities as $name => $cap) {
+            $this->assertContains($cap['captype'] ?? null, ['read', 'write'], "$name captype");
+            $this->assertContains($cap['contextlevel'] ?? null, [CONTEXT_COURSE, CONTEXT_MODULE], "$name contextlevel");
+            $this->assertIsArray($cap['archetypes'] ?? null, "$name archetypes");
+            $this->assertNotEmpty($cap['archetypes'], "$name archetypes");
+            foreach ($cap['archetypes'] as $role => $permission) {
+                $this->assertSame(CAP_ALLOW, $permission, "$name archetype $role");
+            }
+        }
+    }
+
+    public function test_addinstance_capability_is_unchanged(): void {
+        $cap = self::$capabilities['mod/skilland:addinstance'];
+        $this->assertSame('write', $cap['captype']);
+        $this->assertSame(CONTEXT_COURSE, $cap['contextlevel']);
+        $this->assertSame(RISK_XSS, $cap['riskbitmask']);
+        $this->assertSame('moodle/course:manageactivities', $cap['clonepermissionsfrom']);
+        $this->assertSame(['editingteacher' => CAP_ALLOW, 'manager' => CAP_ALLOW], $cap['archetypes']);
+    }
+
+    public function test_view_capability_is_read_only_and_open_to_every_learning_role(): void {
+        $cap = self::$capabilities['mod/skilland:view'];
+        $this->assertArrayNotHasKey('riskbitmask', $cap);
+        $this->assertArrayNotHasKey('clonepermissionsfrom', $cap);
+        foreach (['guest', 'student', 'teacher', 'editingteacher', 'manager'] as $role) {
+            $this->assertSame(CAP_ALLOW, $cap['archetypes'][$role] ?? null, "view archetype $role");
+        }
+    }
+
+    public function test_studio_and_provision_capabilities_are_not_granted_to_students(): void {
+        foreach (['mod/skilland:provision', 'mod/skilland:accessstudio', 'mod/skilland:addinstance'] as $name) {
+            $archetypes = self::$capabilities[$name]['archetypes'];
+            $this->assertArrayNotHasKey('student', $archetypes, $name);
+            $this->assertArrayNotHasKey('guest', $archetypes, $name);
+            $this->assertArrayNotHasKey('user', $archetypes, $name);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Lang strings and README
+    // ---------------------------------------------------------------
+
+    private function langStrings(string $lang): array {
+        $string = [];
+        require self::$srcDir . '/lang/' . $lang . '/skilland.php';
+        return $string;
+    }
+
+    public static function lang_provider(): array {
+        return ['en' => ['en'], 'es' => ['es']];
+    }
+
+    /**
+     * @dataProvider lang_provider
+     */
+    public function test_every_capability_has_a_lang_string(string $lang): void {
+        $strings = $this->langStrings($lang);
+        foreach (array_keys(self::$capabilities) as $name) {
+            $key = substr($name, strlen('mod/'));
+            $this->assertArrayHasKey($key, $strings, "$lang is missing '$key'");
+            $this->assertNotSame('', trim($strings[$key]), "$lang '$key' is empty");
+        }
+    }
+
+    /**
+     * @dataProvider lang_provider
+     */
+    public function test_no_orphan_capability_lang_strings(string $lang): void {
+        $strings = $this->langStrings($lang);
+        $this->assertArrayNotHasKey('skilland:submit', $strings);
+        foreach (array_keys($strings) as $key) {
+            if (preg_match('/^skilland:\w+$/', $key)) {
+                $this->assertArrayHasKey('mod/' . $key, self::$capabilities, "$lang has orphan string '$key'");
+            }
+        }
+    }
+
+    public function test_readme_documents_every_capability(): void {
+        $readme = file_get_contents(self::$srcDir . '/../README.md');
+        $start = strpos($readme, '### 3. Capabilities');
+        $this->assertNotFalse($start, 'README has no Capabilities section');
+        $section = substr($readme, $start, 2000);
+        foreach (array_keys(self::$capabilities) as $name) {
+            $this->assertStringContainsString('`' . $name . '`', $section);
+        }
+        $this->assertStringNotContainsString('mod/skilland:submit', $readme);
+    }
+
     // ---------------------------------------------------------------
     // view.php
     // ---------------------------------------------------------------
@@ -98,6 +194,16 @@ class capabilities_test extends TestCase {
         $this->assertGreaterThan($login, $require);
         $this->assertGreaterThan($require, $view);
         $this->assertLessThan($play, $view);
+    }
+
+    public function test_view_requires_view_capability_exactly_once_before_any_output(): void {
+        $source = $this->src('view.php');
+        $this->assertSame(1, substr_count($source, "require_capability('mod/skilland:view', \$context);"));
+        $this->assertSame(1, substr_count($source, 'skilland_view('));
+        $require = strpos($source, "require_capability('mod/skilland:view', \$context);");
+        $header = strpos($source, '$OUTPUT->header()');
+        $this->assertNotFalse($header);
+        $this->assertLessThan($header, $require);
     }
 
     public function test_view_gates_provisioning_on_provision_capability(): void {
