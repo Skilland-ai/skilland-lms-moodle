@@ -14,8 +14,30 @@ class lib_test extends TestCase {
         $this->db = new \FakeDatabase();
         $GLOBALS['DB'] = $this->db;
         $GLOBALS['_test_debug_messages'] = [];
-        $GLOBALS['_test_plugin_config'] = [];
+        $GLOBALS['_test_plugin_config'] = ['mod_skilland' => (object)[
+            'orgid' => 'org1',
+            'apikey' => 'key1',
+            'graphql_endpoint' => 'http://localhost:8000/graphql',
+        ]];
+        // Moodle course 10 is mapped to skill-a, whose topics are topic1 and correct.
+        $GLOBALS['_test_customfield_value'] = [10 => 'skill-a'];
+        $this->stubSkillTopics(['topic1', 'correct']);
         \mod_skilland\logger::reset_cache();
+    }
+
+    protected function tearDown(): void {
+        unset($GLOBALS['_test_curl_response'], $GLOBALS['_test_customfield_value']);
+        parent::tearDown();
+    }
+
+    private function stubSkillTopics(array $topicids): void {
+        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''], $topicids);
+        $GLOBALS['_test_curl_response'] = [
+            'body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill A', 'topics' => $topics]]]),
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
     }
 
     // ---------------------------------------------------------------
@@ -188,6 +210,7 @@ class lib_test extends TestCase {
     public function test_add_instance_sets_timestamps(): void {
         $before = time();
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 3;
 
@@ -202,6 +225,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_prefers_saved_topicid(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'wrong';
         $data->skilland_topicid_saved = 'correct';
         $data->topic_orderindex = 1;
@@ -214,6 +238,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_defaults_topic_orderindex_to_1(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
 
         skilland_add_instance($data);
@@ -224,6 +249,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_removes_form_only_fields(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
         $data->skilland_courseid = 'should-be-removed';
         $data->skilland_courseid_readonly = 'also-removed';
@@ -306,6 +332,7 @@ class lib_test extends TestCase {
 
     public function test_add_instance_processes_selected_lessons(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
         $data->selected_lessons = json_encode([
@@ -329,6 +356,7 @@ class lib_test extends TestCase {
     public function test_update_instance_sets_timemodified(): void {
         $before = time();
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 5;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -342,6 +370,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_sets_id_from_instance(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 42;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -354,6 +383,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_prefers_saved_topicid(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'wrong';
         $data->skilland_topicid_saved = 'correct';
@@ -367,6 +397,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_defaults_topic_orderindex_to_1(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
 
@@ -378,6 +409,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_removes_form_only_fields(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
         $data->skilland_courseid = 'remove-me';
@@ -395,6 +427,7 @@ class lib_test extends TestCase {
 
     public function test_update_instance_processes_selected_lessons(): void {
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -417,6 +450,7 @@ class lib_test extends TestCase {
         // by verifying the lesson processing depends on the result.
         // When update_record returns true, lessons are processed.
         $data = new \stdClass();
+        $data->course = 10;
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
@@ -512,5 +546,65 @@ class lib_test extends TestCase {
         $result = skilland_get_coursemodule_info($cm);
 
         $this->assertEquals('Topic Twelve', $result->name);
+    }
+
+    // ---------------------------------------------------------------
+    // Topic must belong to the course's mapped skill (SKL-661)
+    // ---------------------------------------------------------------
+
+    public function test_add_instance_rejects_foreign_saved_topicid(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->skilland_topicid = 'topic1';
+        $data->skilland_topicid_saved = 'topic-of-another-skill';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped_to_skill', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_add_instance_rejects_unmapped_course(): void {
+        $data = new \stdClass();
+        $data->course = 99;
+        $data->skilland_topicid = 'topic1';
+
+        try {
+            skilland_add_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+    }
+
+    public function test_update_instance_rejects_foreign_saved_topicid(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 1;
+        $data->skilland_topicid = 'topic1';
+        $data->skilland_topicid_saved = 'topic-of-another-skill';
+
+        try {
+            skilland_update_instance($data);
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped_to_skill', $e->errorcode);
+        }
+        $this->assertEmpty($this->db->get_calls_for('update_record'));
+    }
+
+    public function test_update_instance_rejects_empty_topicid(): void {
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 1;
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_update_instance($data);
     }
 }

@@ -267,6 +267,9 @@ class integrity_test extends TestCase {
             $this->assertContains($col, self::$dbColumns['skilland_lesson'],
                 "Column '$col' missing from skilland_lesson table in install.xml");
         }
+        // SKL-661 dropped the legacy per-lesson SCORM column.
+        $this->assertNotContains('scormcmid', self::$dbColumns['skilland_lesson'],
+            "Legacy column 'scormcmid' must not come back on skilland_lesson");
     }
 
     // ---------------------------------------------------------------

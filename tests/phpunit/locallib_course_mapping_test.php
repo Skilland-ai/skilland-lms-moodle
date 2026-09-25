@@ -15,7 +15,29 @@ class locallib_course_mapping_test extends TestCase {
         $GLOBALS['DB'] = $this->db;
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
+        $GLOBALS['_test_customfield_value'] = [];
+        unset($GLOBALS['_test_curl_response']);
         \mod_skilland\logger::reset_cache();
+    }
+
+    protected function tearDown(): void {
+        unset($GLOBALS['_test_curl_response'], $GLOBALS['_test_customfield_value']);
+        parent::tearDown();
+    }
+
+    private function stubTopics(string $courseid, array $topicids): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'orgid' => 'org1',
+            'apikey' => 'key1',
+            'graphql_endpoint' => 'http://localhost:8000/graphql',
+        ];
+        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''], $topicids);
+        $GLOBALS['_test_curl_response'] = [
+            'body' => json_encode(['data' => ['course' => ['id' => $courseid, 'name' => 'C', 'topics' => $topics]]]),
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
     }
 
     // ---------------------------------------------------------------
@@ -160,5 +182,99 @@ class locallib_course_mapping_test extends TestCase {
         $this->assertCount(1, $deletes);
         $this->assertEquals('skilland_course', $deletes[0]['table']);
         $this->assertEquals(['course' => 10], $deletes[0]['conditions']);
+    }
+
+    // ---------------------------------------------------------------
+    // skilland_get_mapped_courseid() (SKL-661)
+    // ---------------------------------------------------------------
+
+    public function test_get_mapped_courseid_prefers_custom_field(): void {
+        $GLOBALS['_test_customfield_value'][10] = 'skill-field';
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+
+        $this->assertSame('skill-field', skilland_get_mapped_courseid(10));
+    }
+
+    public function test_get_mapped_courseid_falls_back_to_table(): void {
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+
+        $this->assertSame('skill-table', skilland_get_mapped_courseid(10));
+    }
+
+    public function test_get_mapped_courseid_returns_null_when_unmapped(): void {
+        $this->assertNull(skilland_get_mapped_courseid(999));
+    }
+
+    // ---------------------------------------------------------------
+    // skilland_require_mapped_course() (SKL-661)
+    // ---------------------------------------------------------------
+
+    public function test_require_mapped_course_passes_on_match(): void {
+        $GLOBALS['_test_customfield_value'][10] = 'skill-a';
+
+        $this->assertSame('skill-a', skilland_require_mapped_course(10, 'skill-a'));
+    }
+
+    public function test_require_mapped_course_throws_on_mismatch(): void {
+        $GLOBALS['_test_customfield_value'][10] = 'skill-a';
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_require_mapped_course(10, 'skill-b');
+    }
+
+    public function test_require_mapped_course_throws_when_unmapped(): void {
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/^error_course_not_mapped$/');
+
+        skilland_require_mapped_course(10, 'skill-a');
+    }
+
+    public function test_require_mapped_course_uses_custom_field_over_table(): void {
+        $GLOBALS['_test_customfield_value'][10] = 'skill-field';
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+
+        skilland_require_mapped_course(10, 'skill-table');
+    }
+
+    public function test_require_mapped_course_uses_table_when_no_custom_field(): void {
+        $this->db->seed('skilland_course', [
+            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
+        ]);
+
+        $this->assertSame('skill-table', skilland_require_mapped_course(10, 'skill-table'));
+    }
+
+    // ---------------------------------------------------------------
+    // skilland_topic_belongs_to_course() (SKL-661)
+    // ---------------------------------------------------------------
+
+    public function test_topic_belongs_to_course_true_for_listed_topic(): void {
+        $this->stubTopics('skill-a', ['topic-1', 'topic-2']);
+
+        $this->assertTrue(skilland_topic_belongs_to_course('topic-2', 'skill-a'));
+    }
+
+    public function test_topic_belongs_to_course_false_for_foreign_topic(): void {
+        $this->stubTopics('skill-a', ['topic-1', 'topic-2']);
+
+        $this->assertFalse(skilland_topic_belongs_to_course('topic-foreign', 'skill-a'));
+    }
+
+    public function test_topic_belongs_to_course_false_for_empty_ids(): void {
+        $this->stubTopics('skill-a', ['topic-1']);
+
+        $this->assertFalse(skilland_topic_belongs_to_course('', 'skill-a'));
+        $this->assertFalse(skilland_topic_belongs_to_course('topic-1', ''));
     }
 }

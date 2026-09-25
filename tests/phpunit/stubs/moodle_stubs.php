@@ -19,6 +19,12 @@ if (!defined('PARAM_URL')) {
 if (!defined('PARAM_CLEANHTML')) {
     define('PARAM_CLEANHTML', 'cleanhtml');
 }
+if (!defined('PARAM_ALPHANUMEXT')) {
+    define('PARAM_ALPHANUMEXT', 'alphanumext');
+}
+if (!defined('PARAM_BOOL')) {
+    define('PARAM_BOOL', 'bool');
+}
 if (!defined('SQL_PARAMS_NAMED')) {
     define('SQL_PARAMS_NAMED', 1);
 }
@@ -266,6 +272,76 @@ if (!class_exists('admin_setting_configpasswordunmask')) {
             parent::__construct($name, $visiblename, $description, $defaultsetting, PARAM_RAW);
         }
     }
+}
+
+if (!class_exists('invalid_parameter_exception')) {
+    class invalid_parameter_exception extends \moodle_exception {
+        public function __construct($debuginfo = null) {
+            parent::__construct('invalidparameter', 'debug', '', null, $debuginfo);
+        }
+    }
+}
+
+if (!class_exists('required_capability_exception')) {
+    class required_capability_exception extends \moodle_exception {
+        public function __construct($context, $capability, $errormessage = 'nopermissions', $stringfile = '') {
+            parent::__construct($errormessage, $stringfile, '', $capability);
+        }
+    }
+}
+
+// Context stubs — instance() returns a lightweight object carrying the id.
+if (!class_exists('context_course')) {
+    class context_course {
+        public $instanceid;
+
+        public static function instance($courseid) {
+            $ctx = new self();
+            $ctx->instanceid = (int)$courseid;
+            return $ctx;
+        }
+    }
+}
+
+if (!class_exists('context_module')) {
+    class context_module {
+        public $instanceid;
+
+        public static function instance($cmid) {
+            $ctx = new self();
+            $ctx->instanceid = (int)$cmid;
+            return $ctx;
+        }
+    }
+}
+
+if (!class_exists('context_system')) {
+    class context_system {
+        public static function instance() {
+            return new self();
+        }
+    }
+}
+
+// Capability stubs — every capability is granted unless listed in
+// $GLOBALS['_test_denied_capabilities'].
+if (!function_exists('has_capability')) {
+    function has_capability($capability, $context, $user = null) {
+        return !in_array($capability, $GLOBALS['_test_denied_capabilities'] ?? [], true);
+    }
+}
+
+if (!function_exists('require_capability')) {
+    function require_capability($capability, $context, $userid = null) {
+        if (!has_capability($capability, $context, $userid)) {
+            throw new \required_capability_exception($context, $capability);
+        }
+    }
+}
+
+// Course custom field handler stub (namespaced, so it lives in its own file).
+if (!class_exists('core_customfield\\handler')) {
+    require_once __DIR__ . '/customfield_stub.php';
 }
 
 // Scheduled task base class loaded from separate file (namespaces can't be in if blocks).
