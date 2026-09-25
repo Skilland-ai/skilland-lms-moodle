@@ -29,7 +29,7 @@ class locallib_course_mapping_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'orgid' => 'org1',
             'apikey' => 'key1',
-            'graphql_endpoint' => 'http://localhost:8000/graphql',
+            'graphql_endpoint' => 'https://localhost:8000/graphql',
         ];
         $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''], $topicids);
         $GLOBALS['_test_curl_response'] = [

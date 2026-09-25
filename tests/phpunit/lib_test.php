@@ -17,7 +17,7 @@ class lib_test extends TestCase {
         $GLOBALS['_test_plugin_config'] = ['mod_skilland' => (object)[
             'orgid' => 'org1',
             'apikey' => 'key1',
-            'graphql_endpoint' => 'http://localhost:8000/graphql',
+            'graphql_endpoint' => 'https://localhost:8000/graphql',
         ]];
         // Moodle course 10 is mapped to skill-a, whose topics are topic1 and correct.
         $GLOBALS['_test_customfield_value'] = [10 => 'skill-a'];

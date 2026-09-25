@@ -378,3 +378,24 @@ if (!class_exists('core\task\scheduled_task')) {
 if (!class_exists('core\\event\\base')) {
     require_once __DIR__ . '/event_stub.php';
 }
+
+if (!function_exists('make_temp_directory')) {
+    function make_temp_directory(string $directory, bool $exceptiononerror = true) {
+        $dir = sys_get_temp_dir() . '/moodle_test_temp/' . $directory;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        return $dir;
+    }
+}
+
+if (!function_exists('set_config')) {
+    function set_config(string $name, $value, ?string $plugin = null): bool {
+        $plugin = $plugin ?? 'core';
+        if (!isset($GLOBALS['_test_plugin_config'][$plugin])) {
+            $GLOBALS['_test_plugin_config'][$plugin] = new \stdClass();
+        }
+        $GLOBALS['_test_plugin_config'][$plugin]->$name = $value;
+        return true;
+    }
+}

@@ -23,7 +23,7 @@ class locallib_graphql_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'orgid' => 'org1',
             'apikey' => 'key1',
-            'graphql_endpoint' => 'http://localhost:8000/graphql',
+            'graphql_endpoint' => 'https://localhost:8000/graphql',
         ];
     }
 
@@ -35,7 +35,7 @@ class locallib_graphql_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'orgid' => '',
             'apikey' => 'key',
-            'graphql_endpoint' => 'http://localhost:8000/graphql',
+            'graphql_endpoint' => 'https://localhost:8000/graphql',
         ];
 
         $this->expectException(\moodle_exception::class);
@@ -48,7 +48,7 @@ class locallib_graphql_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'orgid' => 'org1',
             'apikey' => '',
-            'graphql_endpoint' => 'http://localhost:8000/graphql',
+            'graphql_endpoint' => 'https://localhost:8000/graphql',
         ];
 
         $this->expectException(\moodle_exception::class);
@@ -74,41 +74,47 @@ class locallib_graphql_test extends TestCase {
     // mod_skilland_is_local_host() — extracted pure function
     // ---------------------------------------------------------------
 
-    public function test_localhost_is_local(): void {
-        $this->assertTrue(mod_skilland_is_local_host('localhost'));
+    /**
+     * @dataProvider local_hosts
+     */
+    public function test_local_hosts_are_local(string $host): void {
+        $this->assertTrue(mod_skilland_is_local_host($host));
     }
 
-    public function test_127_0_0_1_is_local(): void {
-        $this->assertTrue(mod_skilland_is_local_host('127.0.0.1'));
+    public static function local_hosts(): array {
+        return [
+            'localhost' => ['localhost'],
+            'localhost uppercase' => ['LOCALHOST'],
+            'host.docker.internal' => ['host.docker.internal'],
+            'docker service' => ['skilland-back'],
+            'loopback' => ['127.0.0.1'],
+            'ipv6 loopback' => ['::1'],
+            'ipv6 loopback bracketed' => ['[::1]'],
+            '172.16/12 start' => ['172.16.0.1'],
+            '172.17 docker bridge' => ['172.17.0.2'],
+            '10/8' => ['10.0.0.5'],
+            '192.168/16' => ['192.168.1.100'],
+            'link-local metadata' => ['169.254.169.254'],
+        ];
     }
 
-    public function test_host_docker_internal_is_local(): void {
-        $this->assertTrue(mod_skilland_is_local_host('host.docker.internal'));
+    /**
+     * @dataProvider public_hosts
+     */
+    public function test_public_hosts_are_not_local(string $host): void {
+        $this->assertFalse(mod_skilland_is_local_host($host));
     }
 
-    public function test_private_192_168_is_local(): void {
-        $this->assertTrue(mod_skilland_is_local_host('192.168.1.100'));
-    }
-
-    public function test_private_172_is_local(): void {
-        $this->assertTrue(mod_skilland_is_local_host('172.17.0.2'));
-    }
-
-    public function test_private_10_is_local(): void {
-        $this->assertTrue(mod_skilland_is_local_host('10.0.0.5'));
-    }
-
-    public function test_docker_service_name_with_skilland_is_local(): void {
-        $this->assertTrue(mod_skilland_is_local_host('skilland-back'));
-    }
-
-    public function test_public_hostname_with_skilland_is_treated_as_local(): void {
-        // api.skilland.com contains 'skilland' — intentionally matched for Docker service names.
-        $this->assertTrue(mod_skilland_is_local_host('api.skilland.com'));
-    }
-
-    public function test_public_hostname_without_skilland_is_not_local(): void {
-        $this->assertFalse(mod_skilland_is_local_host('api.example.com'));
+    public static function public_hosts(): array {
+        return [
+            'skilland production' => ['api.skilland.ai'],
+            'public hostname containing skilland' => ['evil-skilland.com'],
+            'public 172 outside 172.16/12' => ['172.217.0.1'],
+            'public dns' => ['8.8.8.8'],
+            'public hostname' => ['api.example.com'],
+            'prefix look-alike' => ['10.evil.com'],
+            'empty' => [''],
+        ];
     }
 
     // ---------------------------------------------------------------

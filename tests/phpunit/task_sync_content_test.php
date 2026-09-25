@@ -63,7 +63,7 @@ class task_sync_content_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'apikey' => 'key',
             'orgid' => 'org',
-            'graphql_endpoint' => 'http://localhost/graphql',
+            'graphql_endpoint' => 'https://localhost/graphql',
         ];
 
         $task = $this->makeTask();
@@ -95,7 +95,7 @@ class task_sync_content_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'apikey' => 'key',
             'orgid' => 'org',
-            'graphql_endpoint' => 'http://localhost/graphql',
+            'graphql_endpoint' => 'https://localhost/graphql',
         ];
 
         // get_records_select will return empty by default.
@@ -405,7 +405,7 @@ class task_sync_content_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'apikey' => 'key',
             'orgid' => 'org',
-            'graphql_endpoint' => 'http://localhost/graphql',
+            'graphql_endpoint' => 'https://localhost/graphql',
         ];
 
         // Seed two activities — the task iterates both even if one fails.

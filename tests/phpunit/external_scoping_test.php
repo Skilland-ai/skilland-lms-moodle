@@ -27,7 +27,7 @@ class external_scoping_test extends TestCase {
         $GLOBALS['_test_plugin_config'] = ['mod_skilland' => (object)[
             'orgid' => 'org1',
             'apikey' => 'key1',
-            'graphql_endpoint' => 'http://localhost:8000/graphql',
+            'graphql_endpoint' => 'https://localhost:8000/graphql',
         ]];
         // Course A (id 10) is mapped to skill-a, course B (id 20) to skill-b.
         $GLOBALS['_test_customfield_value'] = [10 => 'skill-a', 20 => 'skill-b'];
