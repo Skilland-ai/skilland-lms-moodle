@@ -6,7 +6,8 @@ $string['modulename']   = 'Contenido Skilland';
 $string['modulenameplural'] = 'Contenidos Skilland';
 $string['skilland:addinstance'] = 'Añadir una nueva actividad de contenido Skilland';
 $string['skilland:view'] = 'Ver contenido Skilland';
-$string['skilland:submit'] = 'Enviar a actividades Skilland';
+$string['skilland:provision'] = 'Preparar y actualizar el contenido de SkilLand en una actividad';
+$string['skilland:accessstudio'] = 'Abrir SkilLand Studio y vincular cursos';
 $string['pluginadministration'] = 'Administración de contenido Skilland';
 
 // Settings.

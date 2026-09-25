@@ -65,7 +65,7 @@ class mod_skilland_external extends external_api {
 
         // Check capability in course context.
         $context = context_course::instance($moodlecourseid);
-        require_capability('moodle/course:update', $context);
+        require_capability('mod/skilland:accessstudio', $context);
 
         logger::debug('AJAX', 'fetch_courses_ajax called');
 
@@ -208,7 +208,7 @@ class mod_skilland_external extends external_api {
 
         // Check capability in course context.
         $context = context_course::instance($moodlecourseid);
-        require_capability('moodle/course:update', $context);
+        require_capability('mod/skilland:accessstudio', $context);
 
         logger::debug('AJAX', 'create_course_ajax called for moodle course ' . $moodlecourseid);
 
@@ -516,7 +516,7 @@ class mod_skilland_external extends external_api {
         $context = context_module::instance($cm->id);
 
         // Check capability.
-        require_capability('moodle/course:manageactivities', $context);
+        require_capability('mod/skilland:provision', $context);
 
         logger::debug('AJAX', 'provision_topic_scorm_ajax called for skilland ' . $skillandid . ', cm ' . $cmid);
 
@@ -615,7 +615,7 @@ class mod_skilland_external extends external_api {
         $context = context_module::instance($cm->id);
 
         // Check capability.
-        require_capability('moodle/course:manageactivities', $context);
+        require_capability('mod/skilland:provision', $context);
 
         logger::debug('AJAX', 'update_topic_scorm_ajax called for skilland ' . $skillandid . ', cm ' . $cmid);
 
@@ -712,8 +712,8 @@ class mod_skilland_external extends external_api {
         $cm = get_coursemodule_from_instance('skilland', $skilland->id, 0, false, MUST_EXIST);
         $context = \context_module::instance($cm->id);
 
-        // Require view capability at minimum.
-        require_capability('mod/skilland:addinstance', $context);
+        // Same capability that shows the update checker in view.php.
+        require_capability('mod/skilland:provision', $context);
 
         if (empty($skilland->skilland_topicid)) {
             return [

@@ -45,7 +45,7 @@ if (!empty($courseid)) {
     $course  = get_course($courseid); // Throws dml_missing_record_exception if not found.
     $context = context_course::instance($courseid);
     require_login($course);
-    require_capability('mod/skilland:addinstance', $context);
+    require_capability('mod/skilland:accessstudio', $context);
 
     // Resolve the Skilland skill ID from the Moodle course mapping.
     $skillandcourseid = skilland_get_course_customfield_value($courseid);

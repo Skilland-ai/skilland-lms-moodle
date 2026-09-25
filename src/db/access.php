@@ -50,13 +50,26 @@ $capabilities = [
         ]
     ],
 
-    // Ability to submit to skilland activities.
-    'mod/skilland:submit' => [
-        'riskbitmask' => RISK_SPAM,
+    // Ability to provision and update SkilLand SCORM content in an activity.
+    'mod/skilland:provision' => [
+        'riskbitmask' => RISK_XSS,
         'captype' => 'write',
         'contextlevel' => CONTEXT_MODULE,
         'archetypes' => [
-            'student' => CAP_ALLOW
-        ]
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        ],
+        'clonepermissionsfrom' => 'moodle/course:manageactivities'
+    ],
+
+    // Ability to open SkilLand Studio (SSO) and link or create SkilLand courses.
+    'mod/skilland:accessstudio' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => [
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        ],
+        'clonepermissionsfrom' => 'moodle/course:update'
     ],
 ];

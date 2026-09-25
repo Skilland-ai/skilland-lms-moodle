@@ -101,6 +101,17 @@ Before adding activities, you must link the course:
 
 > **Note**: If you don't see this field, ask your administrator to create the "Skilland Course ID" custom course field.
 
+### 3. Capabilities
+
+| Capability | Context | Gates |
+|------------|---------|-------|
+| `mod/skilland:addinstance` | Course | Adding a Skilland activity to a course |
+| `mod/skilland:view` | Activity | Opening a Skilland activity (`view.php`) |
+| `mod/skilland:provision` | Activity | Provisioning and updating an activity's SCORM content, and the update checker |
+| `mod/skilland:accessstudio` | Course | Opening SkilLand Studio (SSO), the course navigation link, and listing or creating linked SkilLand courses |
+
+When the plugin is first installed or upgraded, `mod/skilland:provision` copies its role permissions from `moodle/course:manageactivities` and `mod/skilland:accessstudio` copies them from `moodle/course:update`, so existing teacher and manager roles keep the access they had.
+
 ---
 
 ## 📖 Usage

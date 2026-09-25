@@ -11,9 +11,35 @@ function skilland_supports($feature) {
     switch ($feature) {
         case FEATURE_MOD_INTRO:
             return true;
+        case FEATURE_COMPLETION_TRACKS_VIEWS:
+            return true;
         default:
             return null;
     }
+}
+
+/**
+ * Logs the activity view and marks it viewed for view-based completion.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param stdClass $course The course record.
+ * @param stdClass|cm_info $cm The course module.
+ * @param context_module $context The module context.
+ */
+function skilland_view(stdClass $skilland, stdClass $course, $cm, context_module $context): void {
+    global $CFG;
+
+    $event = \mod_skilland\event\course_module_viewed::create([
+        'context' => $context,
+        'objectid' => $skilland->id,
+    ]);
+    $event->add_record_snapshot('course', $course);
+    $event->add_record_snapshot('skilland', $skilland);
+    $event->trigger();
+
+    require_once($CFG->libdir . '/completionlib.php');
+    $completion = new completion_info($course);
+    $completion->set_module_viewed($cm);
 }
 
 /**
@@ -275,7 +301,7 @@ function mod_skilland_extend_navigation_course(
         return;
     }
 
-    if (!has_capability('mod/skilland:addinstance', $context)) {
+    if (!has_capability('mod/skilland:accessstudio', $context)) {
         return;
     }
 

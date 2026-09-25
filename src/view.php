@@ -36,6 +36,8 @@ $skilland = $DB->get_record('skilland', ['id' => $cm->instance], '*', MUST_EXIST
 $context = context_module::instance($cm->id);
 
 require_login($course, true, $cm);
+require_capability('mod/skilland:view', $context);
+skilland_view($skilland, $course, $cm, $context);
 
 // Get topic order index for lesson labeling (L1.1, L1.2, etc.).
 $topicorderindex = isset($skilland->topic_orderindex) ? $skilland->topic_orderindex : 1;
@@ -85,7 +87,7 @@ if (!empty($skilland->intro)) {
 // Check if SCORM is provisioned for this topic.
 if (empty($skilland->scormcmid)) {
     // SCORM not yet provisioned - show provision button for teachers.
-    $canprovision = has_capability('moodle/course:manageactivities', $context);
+    $canprovision = has_capability('mod/skilland:provision', $context);
     if ($canprovision) {
         echo skilland_render_provision_view($skilland, $cm);
     } else {
@@ -95,8 +97,8 @@ if (empty($skilland->scormcmid)) {
         );
     }
 } else {
-    // If autoupdate is enabled and user can manage activities, load the update checker.
-    $canmanage = has_capability('moodle/course:manageactivities', $context);
+    // If autoupdate is enabled and user can provision content, load the update checker.
+    $canmanage = has_capability('mod/skilland:provision', $context);
     if (!empty($skilland->autoupdate) && $canmanage && !empty($skilland->skilland_topicid)) {
         $PAGE->requires->js_call_amd('mod_skilland/check_updates', 'init', [[
             'skillandid' => (int)$skilland->id,
