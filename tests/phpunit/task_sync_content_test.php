@@ -651,4 +651,95 @@ class task_sync_content_test extends TestCase {
         $complete = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'Sync complete'));
         $this->assertNotEmpty($complete);
     }
+
+    // ---------------------------------------------------------------
+    // execute() — a \Throwable from one activity never aborts the run (SKL-659)
+    // ---------------------------------------------------------------
+
+    public function test_execute_isolates_a_type_error_to_its_activity(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => 'key',
+            'orgid' => 'org',
+            'graphql_endpoint' => 'https://localhost/graphql',
+        ];
+        $this->db->seed('skilland', [
+            (object)['id' => 1, 'autoupdate' => 1, 'scormcmid' => 100, 'skilland_topicid' => 'topic1',
+                'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
+            (object)['id' => 2, 'autoupdate' => 1, 'scormcmid' => 200, 'skilland_topicid' => 'topic2',
+                'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
+            (object)['id' => 3, 'autoupdate' => 1, 'scormcmid' => 300, 'skilland_topicid' => 'topic3',
+                'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
+        ]);
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+        $processed = [];
+        $GLOBALS['_test_update_topic_scorm'] = function ($skilland) use (&$processed) {
+            if ((int) $skilland->id === 2) {
+                throw new \TypeError('Cannot access offset of type array');
+            }
+            $processed[] = (int) $skilland->id;
+            return 500 + (int) $skilland->id;
+        };
+
+        $this->makeTask()->execute();
+
+        $this->assertSame([1, 3], $processed);
+        $complete = array_values(array_filter($GLOBALS['_test_debug_messages'],
+            fn($m) => str_contains($m['message'], 'Sync complete')));
+        $this->assertNotEmpty($complete);
+        $this->assertStringContainsString('2 updated, 0 skipped, 1 errors', $complete[0]['message']);
+        $errors = array_values(array_filter($GLOBALS['_test_debug_messages'],
+            fn($m) => str_contains($m['message'], 'Error checking activity 2')));
+        $this->assertCount(1, $errors);
+        $this->assertStringContainsString('TypeError', $errors[0]['message']);
+    }
+
+    public function test_a_type_error_in_the_backfill_still_lets_the_api_check_run(): void {
+        $this->db = new class extends \FakeDatabase {
+            public function get_records(string $table, array $conditions = [], string $sort = '', string $fields = '*') {
+                if ($table === 'skilland_progress') {
+                    throw new \TypeError('backfill blew up');
+                }
+                return parent::get_records($table, $conditions, $sort, $fields);
+            }
+        };
+        $GLOBALS['DB'] = $this->db;
+        $this->db->seed('modules', [(object)['id' => 1, 'name' => 'skilland', 'visible' => 1]]);
+        $this->seedTrackedActivity();
+        $this->db->set_records_sql_handler(fn() => [
+            1 => (object)['id' => 1, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'completed'],
+        ]);
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $this->makeTask()->execute();
+
+        $messages = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+        $this->assertStringContainsString('Progress backfill failed for activity 1: TypeError: backfill blew up', $messages);
+        $this->assertStringContainsString('Could not get hash info', $messages, 'The API check still ran');
+    }
+
+    public function test_a_failing_backfill_query_still_lets_the_api_check_run(): void {
+        $this->seedTrackedActivity();
+        $db = new class extends \FakeDatabase {
+            public function get_records_select(string $table, string $select, ?array $params = null, string $sort = '',
+                    string $fields = '*') {
+                if ($select === 'scormcmid IS NOT NULL') {
+                    throw new \Error('backfill query failed');
+                }
+                return parent::get_records_select($table, $select, $params, $sort, $fields);
+            }
+        };
+        $db->seed('modules', [(object)['id' => 1, 'name' => 'skilland', 'visible' => 1]]);
+        $db->seed('skilland', $this->db->get_records('skilland'));
+        $GLOBALS['DB'] = $db;
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $this->makeTask()->execute();
+
+        $messages = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+        $this->assertStringContainsString('Progress backfill failed: Error: backfill query failed', $messages);
+        $this->assertStringContainsString('Could not get hash info', $messages);
+        $this->assertStringContainsString('Sync complete', $messages);
+    }
 }
