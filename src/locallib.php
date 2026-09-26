@@ -1027,8 +1027,9 @@ function skilland_create_topic_scorm_module(stdClass $skilland, stdClass $course
     $moduleinfo->scormtype = SCORM_TYPE_LOCAL;
     $moduleinfo->packagefile = $draftitemid;
     $moduleinfo->version = 'SCORM_1.2';
-    $moduleinfo->maxgrade = 100;
-    $moduleinfo->grademethod = GRADESCOES;
+    // The SkilLand activity owns the grade (SKL-668): the hidden SCORM keeps no grade item.
+    $moduleinfo->maxgrade = 0;
+    $moduleinfo->grademethod = GRADEHIGHEST;
     $moduleinfo->whatgrade = HIGHESTATTEMPT;
     $moduleinfo->maxattempt = 0;
     $moduleinfo->forcecompleted = 0;
@@ -1554,6 +1555,232 @@ function skilland_resolve_lesson_scos(int $skillandid): array {
     } finally {
         $lock->release();
     }
+}
+
+/**
+ * SCORM lesson statuses, ranked: the progress store only ever moves a lesson up this ladder.
+ *
+ * @param string|null $status A normalised status (see skilland_normalise_scorm_status()).
+ * @return int 0 not started, 1 in progress, 2 failed, 3 completed or passed.
+ */
+function skilland_progress_status_rank(?string $status): int {
+    switch ((string) $status) {
+        case 'completed':
+        case 'passed':
+            return 3;
+        case 'failed':
+            return 2;
+        case 'incomplete':
+        case 'browsed':
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+/**
+ * Normalise a SCORM status track value: lower case, and "not attempted" / "unknown" / empty as
+ * not_started.
+ *
+ * @param string $value The raw cmi.core.lesson_status / cmi.completion_status value.
+ * @return string
+ */
+function skilland_normalise_scorm_status(string $value): string {
+    $status = strtolower(trim($value));
+    if ($status === '' || $status === 'not attempted' || $status === 'unknown') {
+        return 'not_started';
+    }
+    return core_text::substr($status, 0, 20);
+}
+
+/**
+ * Read lesson status and raw score from the tracks of the activity's current topic SCORM.
+ *
+ * One query per SCORM for every requested user. Each user's latest attempt that reported a value
+ * wins, per SCO and per kind (status, score). SCOs map to lessons through skilland_lesson.scoid.
+ * Needs the Moodle 4.3+ scorm_attempt / scorm_scoes_value tables; returns [] without them, when
+ * the SCORM is gone, or when no lesson has a SCO.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int[]|null $userids Users to read, or null for every user with tracks.
+ * @return array [userid => [lesson row id => ['status' => ?string, 'score' => ?float]]]
+ */
+function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null): array {
+    global $DB;
+
+    require_once(__DIR__ . '/lib.php');
+
+    if ($userids !== null && !$userids) {
+        return [];
+    }
+    $dbman = $DB->get_manager();
+    if (!$dbman->table_exists('scorm_scoes_value') || !$dbman->table_exists('scorm_attempt')) {
+        return [];
+    }
+    $scormcm = skilland_get_linked_scorm_cm($skilland);
+    if (!$scormcm) {
+        return [];
+    }
+
+    $scotolesson = [];
+    foreach ($DB->get_records('skilland_lesson', ['skillandid' => $skilland->id], '', 'id, scoid') as $lesson) {
+        if (!empty($lesson->scoid)) {
+            $scotolesson[(int) $lesson->scoid] = (int) $lesson->id;
+        }
+    }
+    if (!$scotolesson) {
+        return [];
+    }
+
+    $statuselements = ['cmi.core.lesson_status', 'cmi.completion_status'];
+    $scoreelements = ['cmi.core.score.raw', 'cmi.score.raw'];
+
+    [$scosql, $params] = $DB->get_in_or_equal(array_keys($scotolesson), SQL_PARAMS_NAMED, 'sco');
+    [$elementsql, $elementparams] = $DB->get_in_or_equal(array_merge($statuselements, $scoreelements),
+        SQL_PARAMS_NAMED, 'el');
+    $params += $elementparams;
+    $params['scormid'] = (int) $scormcm->instance;
+    $usersql = '';
+    if ($userids !== null) {
+        [$insql, $userparams] = $DB->get_in_or_equal(array_map('intval', $userids), SQL_PARAMS_NAMED, 'usr');
+        $usersql = "AND a.userid $insql";
+        $params += $userparams;
+    }
+
+    $sql = "SELECT ssv.id, a.userid, a.attempt, ssv.scoid, e.element, ssv.value
+              FROM {scorm_attempt} a
+              JOIN {scorm_scoes_value} ssv ON ssv.attemptid = a.id
+              JOIN {scorm_element} e ON e.id = ssv.elementid
+             WHERE a.scormid = :scormid
+                   AND ssv.scoid $scosql
+                   AND e.element $elementsql
+                   $usersql
+          ORDER BY a.userid ASC, a.attempt DESC, ssv.timemodified DESC, ssv.id DESC";
+    try {
+        $tracks = $DB->get_records_sql($sql, $params);
+    } catch (\Throwable $e) {
+        logger::error('Progress', 'Reading SCORM tracks of skilland id ' . $skilland->id . ' failed - ' .
+            $e->getMessage());
+        return [];
+    }
+
+    $progress = [];
+    foreach ($tracks as $track) {
+        $lessonid = $scotolesson[(int) $track->scoid] ?? null;
+        if ($lessonid === null) {
+            continue;
+        }
+        $userid = (int) $track->userid;
+        if (!isset($progress[$userid][$lessonid])) {
+            $progress[$userid][$lessonid] = ['status' => null, 'score' => null];
+        }
+        $entry =& $progress[$userid][$lessonid];
+        if (in_array($track->element, $statuselements, true)) {
+            if ($entry['status'] === null) {
+                $entry['status'] = skilland_normalise_scorm_status((string) $track->value);
+            }
+        } else if ($entry['score'] === null && is_numeric($track->value)) {
+            $entry['score'] = (float) $track->value;
+        }
+        unset($entry);
+    }
+
+    return $progress;
+}
+
+/**
+ * Merge a user's current SCORM tracks into the progress store, monotonically.
+ *
+ * Rows are keyed by the skilland_lesson row, so they survive re-provisioning (new SCORM, new
+ * SCO ids, empty tracks). A status only moves up (see skilland_progress_status_rank()) and the
+ * score keeps its maximum.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int $userid The learner.
+ * @param array|null $tracks That user's entry of skilland_read_scorm_progress(), or null to read it.
+ * @return bool Whether any row was inserted or changed.
+ */
+function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $tracks = null): bool {
+    global $DB;
+
+    if ($tracks === null) {
+        $tracks = skilland_read_scorm_progress($skilland, [$userid])[$userid] ?? [];
+    }
+    if (!$tracks) {
+        return false;
+    }
+
+    $existing = $DB->get_records('skilland_progress', ['skillandid' => $skilland->id, 'userid' => $userid], '',
+        'lessonid, id, status, score');
+    $changed = false;
+    $now = time();
+
+    foreach ($tracks as $lessonid => $track) {
+        $status = $track['status'] ?? null;
+        $score = $track['score'] ?? null;
+
+        $row = $existing[$lessonid] ?? null;
+        if ($row) {
+            $update = (object) ['id' => $row->id];
+            if ($status !== null && skilland_progress_status_rank($status) > skilland_progress_status_rank($row->status)) {
+                $update->status = $status;
+            }
+            if ($score !== null && ($row->score === null || $row->score === '' || $score > (float) $row->score)) {
+                $update->score = $score;
+            }
+            if (count((array) $update) > 1) {
+                $update->timemodified = $now;
+                $DB->update_record('skilland_progress', $update);
+                $changed = true;
+            }
+            continue;
+        }
+
+        if ($status === null && $score === null) {
+            continue;
+        }
+        try {
+            $DB->insert_record('skilland_progress', (object) [
+                'skillandid' => (int) $skilland->id,
+                'lessonid' => (int) $lessonid,
+                'userid' => $userid,
+                'status' => $status ?? 'not_started',
+                'score' => $score,
+                'timemodified' => $now,
+            ]);
+            $changed = true;
+        } catch (\dml_exception $e) {
+            // A concurrent refresh inserted the row first; the next refresh merges into it.
+            logger::warn('Progress', 'Could not store progress of lesson ' . $lessonid . ' for user ' . $userid .
+                ' - ' . $e->getMessage());
+        }
+    }
+
+    return $changed;
+}
+
+/**
+ * A user's stored lesson progress for an activity.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @param int $userid The learner.
+ * @return array [lesson row id => ['status' => string, 'score' => string|null]]; lessons without a
+ *         row are absent (not started).
+ */
+function skilland_get_user_progress(int $skillandid, int $userid): array {
+    global $DB;
+
+    $progress = [];
+    $rows = $DB->get_records('skilland_progress', ['skillandid' => $skillandid, 'userid' => $userid], '',
+        'lessonid, status, score');
+    foreach ($rows as $row) {
+        $score = null;
+        if ($row->score !== null && $row->score !== '') {
+            $score = rtrim(rtrim(sprintf('%.5F', (float) $row->score), '0'), '.');
+        }
+        $progress[(int) $row->lessonid] = ['status' => (string) $row->status, 'score' => $score];
+    }
+    return $progress;
 }
 
 /**

@@ -21,6 +21,7 @@ use mod_skilland\logger;
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../../locallib.php');
+require_once(__DIR__ . '/../../lib.php');
 
 /**
  * Scheduled task to sync Skilland content for activities with auto-update enabled.
@@ -57,6 +58,9 @@ class sync_content extends \core\task\scheduled_task {
             logger::info('SyncContent', 'Plugin is disabled — skipping sync');
             return;
         }
+
+        // Local progress backfill first: no network, so it runs whatever the API does (SKL-668).
+        $this->backfill_all_progress();
 
         // Check that plugin is configured.
         $config = get_config('mod_skilland');
@@ -99,6 +103,48 @@ class sync_content extends \core\task\scheduled_task {
         }
 
         logger::info('SyncContent', "Sync complete: {$updated} updated, {$skipped} skipped, {$errors} errors");
+    }
+
+    /**
+     * Backfill the progress store of every provisioned activity from its current SCORM tracks.
+     */
+    private function backfill_all_progress(): void {
+        global $DB;
+
+        $provisioned = $DB->get_records_select('skilland', 'scormcmid IS NOT NULL', null, 'id ASC');
+        foreach ($provisioned as $skilland) {
+            try {
+                $this->backfill_progress($skilland);
+            } catch (\Throwable $e) {
+                logger::error('SyncContent', 'Progress backfill failed for activity ' . $skilland->id . ': ' .
+                    $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Merge the tracks of every learner of the activity's current SCORM into the progress store and
+     * recompute completion and grade for the learners whose progress changed.
+     *
+     * @param \stdClass $skilland The skilland activity record.
+     * @return int Number of learners whose progress changed.
+     */
+    private function backfill_progress($skilland): int {
+        if (empty($skilland->scormcmid)) {
+            return 0;
+        }
+
+        $changed = 0;
+        foreach (skilland_read_scorm_progress($skilland) as $userid => $tracks) {
+            if (skilland_refresh_progress($skilland, (int) $userid, $tracks)) {
+                skilland_recompute_user($skilland, (int) $userid);
+                $changed++;
+            }
+        }
+        if ($changed) {
+            logger::info('SyncContent', 'Backfilled progress of ' . $changed . ' learner(s) on activity ' . $skilland->id);
+        }
+        return $changed;
     }
 
     /**

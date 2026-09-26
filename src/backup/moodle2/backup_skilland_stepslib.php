@@ -16,7 +16,7 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
             'name', 'intro', 'introformat', 'skilland_topicid',
             'snapshotid', 'snapshotcreatedat', 'lastsynced',
             'autoupdate', 'lockafterfirstaccess', 'hidelabels',
-            'scormcmid', 'scorm_provisioned', 'timecreated', 'timemodified',
+            'scormcmid', 'scorm_provisioned', 'completionlessons', 'grade', 'timecreated', 'timemodified',
             'skilland_courseid', 'skilland_orgid' // From skilland_course join
         ));
 

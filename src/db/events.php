@@ -29,4 +29,14 @@ $observers = [
         'callback' => '\mod_skilland\observer::course_module_deleted',
         'internal' => false,
     ],
+    [
+        'eventname' => '\mod_scorm\event\status_submitted',
+        'callback' => '\mod_skilland\observer::scorm_tracking_submitted',
+        'internal' => false,
+    ],
+    [
+        'eventname' => '\mod_scorm\event\scoreraw_submitted',
+        'callback' => '\mod_skilland\observer::scorm_tracking_submitted',
+        'internal' => false,
+    ],
 ];

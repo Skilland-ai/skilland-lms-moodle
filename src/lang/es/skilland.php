@@ -194,3 +194,10 @@ $string['error_lessons_not_in_topic'] = 'Las lecciones seleccionadas no pertenec
 // Errors.
 $string['invalidactivity'] = 'Actividad especificada inválida.';
 $string['error_missing_parameters'] = 'Faltan parámetros requeridos para la redirección SSO.';
+
+// Finalización y calificaciones (SKL-668).
+$string['completionlessons'] = 'Completar todas las lecciones';
+$string['completionlessons_desc'] = 'El alumnado debe completar o aprobar todas las lecciones visibles';
+$string['completionlessons_help'] = 'Si se activa, la actividad se marca como completada cuando el alumno ha completado o aprobado todas las lecciones visibles. Las lecciones ocultas no cuentan, y una actividad sin lecciones visibles nunca se completa. El progreso se conserva cuando se reconstruye el paquete SCORM.';
+$string['completiondetail:lessons'] = 'Completar todas las lecciones';
+$string['error_grade_scale_unsupported'] = 'No se admiten escalas. Elige una calificación por puntos o Ninguna.';

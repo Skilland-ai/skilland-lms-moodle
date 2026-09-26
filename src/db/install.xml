@@ -48,6 +48,12 @@
                 <FIELD NAME="scomappings" TYPE="text" NOTNULL="false" SEQUENCE="false"
                        COMMENT="JSON map of Skilland lesson id to SCO identifier for the provisioned package"/>
 
+                <!-- Completion and grades (SKL-668) -->
+                <FIELD NAME="completionlessons" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="If 1, the activity is complete once every visible lesson is completed or passed"/>
+                <FIELD NAME="grade" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="Maximum grade of the activity; 0 means the activity is not graded"/>
+
                 <!-- Standard timestamps -->
                 <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
                 <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
@@ -128,6 +134,36 @@
             <INDEXES>
                 <INDEX NAME="skillandid_idx" UNIQUE="false" FIELDS="skillandid"/>
                 <INDEX NAME="skilland_lesson_unique" UNIQUE="true" FIELDS="skillandid, skilland_lessonid"/>
+            </INDEXES>
+        </TABLE>
+
+        <!-- Per-learner lesson progress, kept across SCORM re-provisioning (SKL-668) -->
+        <TABLE NAME="skilland_progress" COMMENT="Best lesson status and score per learner, read from the topic SCORM tracks">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+                <FIELD NAME="skillandid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="FK to skilland.id"/>
+                <FIELD NAME="lessonid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="FK to skilland_lesson.id"/>
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"
+                       COMMENT="FK to user.id"/>
+                <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="not_started" SEQUENCE="false"
+                       COMMENT="Best lesson status reached: not_started, incomplete, browsed, failed, completed or passed"/>
+                <FIELD NAME="score" TYPE="number" LENGTH="10" NOTNULL="false" SEQUENCE="false" DECIMALS="5"
+                       COMMENT="Highest raw score the SCO reported, if any"/>
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+            </FIELDS>
+
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+                <KEY NAME="skillandid_fk" TYPE="foreign" FIELDS="skillandid" REFTABLE="skilland" REFFIELDS="id"/>
+                <KEY NAME="lessonid_fk" TYPE="foreign" FIELDS="lessonid" REFTABLE="skilland_lesson" REFFIELDS="id"/>
+                <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+            </KEYS>
+
+            <INDEXES>
+                <INDEX NAME="lessonid_userid_uix" UNIQUE="true" FIELDS="lessonid, userid"/>
+                <INDEX NAME="skillandid_userid_idx" UNIQUE="false" FIELDS="skillandid, userid"/>
             </INDEXES>
         </TABLE>
 

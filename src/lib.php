@@ -13,9 +13,15 @@ function skilland_supports($feature) {
             return true;
         case FEATURE_COMPLETION_TRACKS_VIEWS:
             return true;
-        default:
-            return null;
+        case FEATURE_COMPLETION_HAS_RULES:
+            return true;
+        case FEATURE_GRADE_HAS_GRADE:
+            return true;
     }
+    if (defined('FEATURE_MOD_PURPOSE') && $feature === FEATURE_MOD_PURPOSE) {
+        return MOD_PURPOSE_CONTENT;
+    }
+    return null;
 }
 
 /**
@@ -52,7 +58,7 @@ function skilland_view(stdClass $skilland, stdClass $course, $cm, context_module
  * @return cached_cm_info|null Module info to cache, or null on failure.
  */
 function skilland_get_coursemodule_info($coursemodule) {
-    global $DB;
+    global $CFG, $DB;
 
     $skilland = $DB->get_record('skilland', ['id' => $coursemodule->instance], '*', IGNORE_MISSING);
     if (!$skilland) {
@@ -62,6 +68,11 @@ function skilland_get_coursemodule_info($coursemodule) {
     $info = new cached_cm_info();
     if (!empty($skilland->hidelabels)) {
         $info->name = preg_replace('/^T\d+\s*-\s*/', '', $skilland->name);
+    }
+
+    require_once($CFG->libdir . '/completionlib.php');
+    if (($coursemodule->completion ?? 0) == COMPLETION_TRACKING_AUTOMATIC) {
+        $info->customdata['customcompletionrules']['completionlessons'] = (int) ($skilland->completionlessons ?? 0);
     }
 
     return $info;
@@ -114,11 +125,19 @@ function skilland_add_instance($skilland, $mform = null) {
     unset($skilland->skilland_courseid);
     unset($skilland->skilland_courseid_readonly);
 
+    $skilland->grade = (int) ($skilland->grade ?? 0);
+    $skilland->completionlessons = empty($skilland->completionlessons) ? 0 : 1;
+
     $id = $DB->insert_record('skilland', $skilland);
 
     // Process selected lessons with topic order index for proper numbering.
     if ($selected_lessons && $id) {
         skilland_process_selected_lessons($id, $selected_lessons);
+    }
+
+    if ($id && $skilland->grade > 0) {
+        $skilland->id = $id;
+        skilland_grade_item_update($skilland);
     }
 
     return $id;
@@ -167,7 +186,14 @@ function skilland_update_instance($skilland, $mform = null) {
     unset($skilland->skilland_courseid);
     unset($skilland->skilland_courseid_readonly);
 
-    $old = $DB->get_record('skilland', ['id' => $skilland->id], 'id, skilland_topicid, scormcmid', IGNORE_MISSING);
+    if (isset($skilland->grade)) {
+        $skilland->grade = (int) $skilland->grade;
+    }
+    if (isset($skilland->completionlessons)) {
+        $skilland->completionlessons = empty($skilland->completionlessons) ? 0 : 1;
+    }
+
+    $old = $DB->get_record('skilland', ['id' => $skilland->id], 'id, skilland_topicid, scormcmid, grade', IGNORE_MISSING);
     $topicchanged = $old && (string) $old->skilland_topicid !== (string) ($skilland->skilland_topicid ?? '');
     if ($topicchanged) {
         // The stored snapshot belongs to the old topic; cron must never compare the new one against it.
@@ -185,7 +211,38 @@ function skilland_update_instance($skilland, $mform = null) {
         skilland_reconcile_scorm_after_update((int) $skilland->id, $topicchanged);
     }
 
+    if ($result && isset($skilland->grade)) {
+        skilland_sync_grades_after_update((int) $skilland->id, (int) ($old->grade ?? 0));
+    }
+
     return $result;
+}
+
+/**
+ * Keep the gradebook in line with a saved maximum grade: none (0) deletes the grade item,
+ * otherwise the item is updated, and every learner is regraded when the maximum changed.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @param int $oldgrade The maximum grade before the save.
+ */
+function skilland_sync_grades_after_update(int $skillandid, int $oldgrade): void {
+    global $DB;
+
+    $skilland = $DB->get_record('skilland', ['id' => $skillandid], '*', IGNORE_MISSING);
+    if (!$skilland) {
+        return;
+    }
+    $grade = (int) ($skilland->grade ?? 0);
+    if ($grade <= 0) {
+        if ($oldgrade > 0) {
+            skilland_grade_item_delete($skilland);
+        }
+        return;
+    }
+    skilland_grade_item_update($skilland);
+    if ($grade !== $oldgrade) {
+        skilland_update_grades($skilland);
+    }
 }
 
 /**
@@ -292,6 +349,12 @@ function skilland_delete_instance($id) {
         }
     }
 
+    // Progress rows and the grade item go with the activity (SKL-668).
+    $DB->delete_records('skilland_progress', ['skillandid' => $id]);
+    if ((int) ($skilland->grade ?? 0) > 0) {
+        skilland_grade_item_delete($skilland);
+    }
+
     // Delete associated lesson records.
     $DB->delete_records('skilland_lesson', array('skillandid' => $id));
 
@@ -299,6 +362,188 @@ function skilland_delete_instance($id) {
     // Note: We intentionally do NOT delete the Skilland course mapping,
     // as it may be used by other activities in the same Moodle course.
     return $DB->delete_records('skilland', array('id' => $id));
+}
+
+/**
+ * Load the gradebook API unless it is already defined (standalone tests stub it).
+ */
+function skilland_require_gradelib(): void {
+    global $CFG;
+
+    if (!function_exists('grade_update')) {
+        require_once($CFG->libdir . '/gradelib.php');
+    }
+}
+
+/**
+ * Create or update the activity's grade item, optionally with grades.
+ *
+ * A maximum grade of 0 (none) or below means the activity is not graded: the item is deleted.
+ *
+ * @param stdClass $skilland The skilland activity record (course, id, name, grade).
+ * @param mixed $grades Grade objects or arrays, 'reset', or null to update only the item.
+ * @return int GRADE_UPDATE_OK, GRADE_UPDATE_FAILED, ...
+ */
+function skilland_grade_item_update($skilland, $grades = null) {
+    skilland_require_gradelib();
+
+    if ((int) ($skilland->grade ?? 0) <= 0) {
+        return skilland_grade_item_delete($skilland);
+    }
+
+    $params = [
+        'itemname' => $skilland->name ?? '',
+        'gradetype' => GRADE_TYPE_VALUE,
+        'grademax' => (int) $skilland->grade,
+        'grademin' => 0,
+    ];
+    if (isset($skilland->cmidnumber)) {
+        $params['idnumber'] = $skilland->cmidnumber;
+    }
+    if ($grades === 'reset') {
+        $params['reset'] = true;
+        $grades = null;
+    }
+
+    return grade_update('mod/skilland', $skilland->course, 'mod', 'skilland', $skilland->id, 0, $grades, $params);
+}
+
+/**
+ * Delete the activity's grade item.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @return int GRADE_UPDATE_OK, GRADE_UPDATE_FAILED, ...
+ */
+function skilland_grade_item_delete($skilland) {
+    skilland_require_gradelib();
+
+    return grade_update('mod/skilland', $skilland->course, 'mod', 'skilland', $skilland->id, 0, null,
+        ['deleted' => 1]);
+}
+
+/**
+ * Learners' raw grades, from the progress store.
+ *
+ * Raw grade = grade x mean / 100, the mean taken over the activity's visible lessons of: the SCO
+ * raw score clamped to 0-100 when one was reported, else 100 when the lesson is completed or
+ * passed, else 0. A learner with no progress row on a visible lesson gets no grade.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int $userid One learner, or 0 for all.
+ * @return array [userid => (object) ['userid' => int, 'rawgrade' => float]]
+ */
+function skilland_get_user_grades($skilland, $userid = 0) {
+    global $DB;
+
+    $grade = (int) ($skilland->grade ?? 0);
+    if ($grade <= 0) {
+        return [];
+    }
+
+    $visible = [];
+    foreach ($DB->get_records('skilland_lesson', ['skillandid' => $skilland->id, 'visible' => 1], '', 'id') as $lesson) {
+        $visible[(int) $lesson->id] = true;
+    }
+    if (!$visible) {
+        return [];
+    }
+
+    $conditions = ['skillandid' => $skilland->id];
+    if ($userid) {
+        $conditions['userid'] = (int) $userid;
+    }
+    $points = [];
+    foreach ($DB->get_records('skilland_progress', $conditions) as $row) {
+        if (!isset($visible[(int) $row->lessonid])) {
+            continue;
+        }
+        if ($row->score !== null && $row->score !== '') {
+            $value = max(0.0, min(100.0, (float) $row->score));
+        } else if (in_array($row->status, ['completed', 'passed'], true)) {
+            $value = 100.0;
+        } else {
+            $value = 0.0;
+        }
+        $points[(int) $row->userid][(int) $row->lessonid] = $value;
+    }
+
+    $grades = [];
+    foreach ($points as $uid => $lessons) {
+        $mean = array_sum($lessons) / count($visible);
+        $grades[$uid] = (object) ['userid' => $uid, 'rawgrade' => round($grade * $mean / 100, 5)];
+    }
+    return $grades;
+}
+
+/**
+ * Push learners' grades to the gradebook.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int $userid One learner, or 0 for all.
+ * @param bool $nullifnone Write an empty grade for a learner who has none.
+ */
+function skilland_update_grades($skilland, $userid = 0, $nullifnone = true) {
+    if ((int) ($skilland->grade ?? 0) <= 0) {
+        return;
+    }
+
+    $grades = skilland_get_user_grades($skilland, $userid);
+    if ($grades) {
+        skilland_grade_item_update($skilland, $grades);
+    } else if ($userid && $nullifnone) {
+        skilland_grade_item_update($skilland, (object) ['userid' => (int) $userid, 'rawgrade' => null]);
+    } else {
+        skilland_grade_item_update($skilland);
+    }
+}
+
+/**
+ * Recompute a learner's activity completion and grade after their progress changed.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int $userid The learner.
+ */
+function skilland_recompute_user(stdClass $skilland, int $userid): void {
+    global $CFG;
+
+    require_once($CFG->libdir . '/completionlib.php');
+
+    $cm = get_coursemodule_from_instance('skilland', $skilland->id, $skilland->course ?? 0, false, IGNORE_MISSING);
+    if ($cm) {
+        $completion = new completion_info(get_course($cm->course));
+        if ($completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC) {
+            $completion->update_state($cm, COMPLETION_UNKNOWN, $userid);
+        }
+    }
+    skilland_update_grades($skilland, $userid);
+}
+
+/**
+ * A learner's tracks changed on a SCORM: when it is an activity's topic SCORM, refresh that
+ * learner's progress store and recompute their completion and grade. Never takes the
+ * provisioning lock.
+ *
+ * @param int $scormcmid The SCORM course module id.
+ * @param int $userid The learner.
+ */
+function skilland_handle_scorm_tracking(int $scormcmid, int $userid): void {
+    global $DB;
+
+    if ($scormcmid <= 0 || $userid <= 0) {
+        return;
+    }
+
+    require_once(__DIR__ . '/locallib.php');
+
+    foreach ($DB->get_records('skilland', ['scormcmid' => $scormcmid]) as $skilland) {
+        try {
+            skilland_refresh_progress($skilland, $userid);
+            skilland_recompute_user($skilland, $userid);
+        } catch (\Throwable $e) {
+            logger::error('Progress', 'Recomputing progress of user ' . $userid . ' on skilland id ' .
+                $skilland->id . ' failed - ' . $e->getMessage());
+        }
+    }
 }
 
 /**

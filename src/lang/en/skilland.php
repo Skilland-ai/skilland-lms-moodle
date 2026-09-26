@@ -193,3 +193,10 @@ $string['error_lessons_not_in_topic'] = 'The selected lessons do not belong to t
 // Errors.
 $string['invalidactivity'] = 'Invalid activity specified.';
 $string['error_missing_parameters'] = 'Missing required parameters for SSO redirect.';
+
+// Completion and grades (SKL-668).
+$string['completionlessons'] = 'Complete all lessons';
+$string['completionlessons_desc'] = 'Learners must complete or pass every visible lesson';
+$string['completionlessons_help'] = 'If enabled, the activity is marked complete once the learner has completed or passed every visible lesson. Hidden lessons do not count, and an activity with no visible lesson is never complete. Progress is kept when the SCORM package is rebuilt.';
+$string['completiondetail:lessons'] = 'Complete all lessons';
+$string['error_grade_scale_unsupported'] = 'Scales are not supported. Choose a point grade or None.';

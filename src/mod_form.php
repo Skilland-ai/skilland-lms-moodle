@@ -405,6 +405,10 @@ class mod_skilland_mod_form extends moodleform_mod {
             get_string('hidelabels_desc', 'mod_skilland'));
         $mform->setDefault('hidelabels', 0);
 
+        // Grade (SKL-668): opt-in, "None" by default so the gradebook stays untouched.
+        $this->standard_grading_coursemodule_elements();
+        $mform->setDefault('grade', 0);
+
         // Add standard elements.
         $this->standard_coursemodule_elements();
 
@@ -1199,6 +1203,11 @@ class mod_skilland_mod_form extends moodleform_mod {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
+        // The grade is computed as points; scales are not supported.
+        if (isset($data['grade']) && (int) $data['grade'] < 0) {
+            $errors['grade'] = get_string('error_grade_scale_unsupported', 'mod_skilland');
+        }
+
         // Validate that course has Skilland Course ID custom field set.
         // This should not be needed if form is structured correctly, but keep as safety check.
         $courseid = $this->get_course()->id;
@@ -1237,6 +1246,59 @@ class mod_skilland_mod_form extends moodleform_mod {
         }
 
         return $errors;
+    }
+
+    /**
+     * Suffix Moodle 4.3+ appends to completion element names (the default completion form).
+     *
+     * @return string
+     */
+    private function completion_suffix(): string {
+        return method_exists($this, 'get_suffix') ? $this->get_suffix() : '';
+    }
+
+    /**
+     * Adds the "complete all lessons" completion rule.
+     *
+     * @return array Names of the added elements.
+     */
+    public function add_completion_rules() {
+        $mform = $this->_form;
+
+        $name = 'completionlessons' . $this->completion_suffix();
+        $mform->addElement('advcheckbox', $name, get_string('completionlessons', 'mod_skilland'),
+            get_string('completionlessons_desc', 'mod_skilland'));
+        $mform->addHelpButton($name, 'completionlessons', 'mod_skilland');
+        $mform->setDefault($name, 0);
+
+        return [$name];
+    }
+
+    /**
+     * Whether the "complete all lessons" rule is enabled in the submitted data.
+     *
+     * @param array $data Submitted data.
+     * @return bool
+     */
+    public function completion_rule_enabled($data) {
+        return !empty($data['completionlessons' . $this->completion_suffix()]);
+    }
+
+    /**
+     * Clear the completion rule when automatic completion is turned off.
+     *
+     * @param stdClass $data Submitted data.
+     */
+    public function data_postprocessing($data) {
+        parent::data_postprocessing($data);
+
+        if (!empty($data->completionunlocked)) {
+            $suffix = $this->completion_suffix();
+            $completion = $data->{'completion' . $suffix} ?? COMPLETION_TRACKING_NONE;
+            if ((int) $completion !== COMPLETION_TRACKING_AUTOMATIC) {
+                $data->{'completionlessons' . $suffix} = 0;
+            }
+        }
     }
 
     /**

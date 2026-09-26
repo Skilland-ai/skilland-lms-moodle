@@ -35,4 +35,19 @@ class observer {
                 $skilland->id);
         }
     }
+
+    /**
+     * A learner's lesson status or raw score was saved on a SCORM: when it is an activity's topic
+     * SCORM, refresh that learner's progress and recompute completion and grade (SKL-668).
+     *
+     * Never takes the provisioning lock.
+     *
+     * @param \core\event\base $event A \mod_scorm\event\status_submitted or scoreraw_submitted event.
+     */
+    public static function scorm_tracking_submitted(\core\event\base $event): void {
+        require_once(__DIR__ . '/../lib.php');
+
+        $userid = (int) ($event->relateduserid ?: $event->userid);
+        skilland_handle_scorm_tracking((int) $event->contextinstanceid, $userid);
+    }
 }
