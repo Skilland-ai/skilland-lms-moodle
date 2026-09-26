@@ -28,12 +28,4 @@ namespace mod_skilland\event;
  * The mod_skilland course module instance list viewed event.
  */
 class course_module_instance_list_viewed extends \core\event\course_module_instance_list_viewed {
-
-    /**
-     * Initialise the event data.
-     */
-    protected function init() {
-        $this->data['crud'] = 'r';
-        $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
-    }
 }
