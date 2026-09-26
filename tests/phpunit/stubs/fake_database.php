@@ -213,6 +213,40 @@ class FakeDatabase {
         return ['IN (' . implode(',', $placeholders) . ')', $params];
     }
 
+    /**
+     * Supports a select that is an AND of `field = :param`, `field IN (:a,:b,...)` and
+     * `field = NULL` (the empty get_in_or_equal()), which is all the plugin's callers build.
+     */
+    public function delete_records_select(string $table, string $select, array $params = []): bool {
+        $this->calls[] = ['method' => 'delete_records_select', 'table' => $table, 'select' => $select, 'params' => $params];
+        $predicates = [];
+        foreach (preg_split('/\s+AND\s+/i', trim($select)) as $clause) {
+            if (preg_match('/^(\w+)\s*=\s*:(\w+)$/', $clause, $m)) {
+                $predicates[] = fn($r) => isset($r->{$m[1]}) && $r->{$m[1]} == $params[$m[2]];
+            } else if (preg_match('/^(\w+)\s+IN\s*\(([^)]*)\)$/i', $clause, $m)) {
+                $values = array_map(fn($p) => $params[ltrim(trim($p), ':')], explode(',', $m[2]));
+                $predicates[] = fn($r) => isset($r->{$m[1]}) && in_array($r->{$m[1]}, $values);
+            } else if (preg_match('/^(\w+)\s*=\s*NULL$/i', $clause, $m)) {
+                $predicates[] = fn($r) => false;
+            } else {
+                throw new \coding_exception('FakeDatabase::delete_records_select cannot parse: ' . $clause);
+            }
+        }
+        foreach (($this->tables[$table] ?? []) as $key => $record) {
+            $all = true;
+            foreach ($predicates as $predicate) {
+                if (!$predicate($record)) {
+                    $all = false;
+                    break;
+                }
+            }
+            if ($all) {
+                unset($this->tables[$table][$key]);
+            }
+        }
+        return true;
+    }
+
     private function matches(object $record, array $conditions): bool {
         foreach ($conditions as $field => $value) {
             if (!isset($record->$field) || $record->$field != $value) {
