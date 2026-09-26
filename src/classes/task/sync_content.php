@@ -154,7 +154,15 @@ class sync_content extends \core\task\scheduled_task {
         $course = get_course($cm->course);
         $sectionnum = $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
 
-        $newcmid = skilland_update_topic_scorm($skilland, $course, $sectionnum);
+        try {
+            $newcmid = skilland_update_topic_scorm($skilland, $course, $sectionnum);
+        } catch (\moodle_exception $e) {
+            if ($e->errorcode === 'error_provision_in_progress') {
+                logger::info('SyncContent', 'Activity ' . $skilland->id . ' is being provisioned elsewhere — skipping');
+                return 'skipped';
+            }
+            throw $e;
+        }
 
         // Update snapshot tracking fields.
         $DB->update_record('skilland', (object)[
