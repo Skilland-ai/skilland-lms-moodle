@@ -149,6 +149,20 @@ The Skilland activity owns completion and the grade; the hidden topic SCORM has 
 - **Progress survives re-provisioning**: each learner's best status and highest score per lesson are kept in the plugin's own table, so rebuilding the SCORM (auto-update, topic change) never loses completion or grades. The `sync_content` task also backfills that table from the SCORM tracks.
 - **Moodle 4.2**: SCORM tracks live in `scorm_attempt` / `scorm_scoes_value` only from Moodle 4.3, so on 4.2 no progress is read and the completion rule never ticks.
 
+## Privacy
+
+The plugin implements Moodle's Privacy API (`classes/privacy/provider.php`), so its data shows up in *Site administration → Users → Privacy and policies → Plugin privacy registry* and in data requests.
+
+**Sent to SkilLand** (the organisation's SkilLand platform):
+
+- **Signing in to SkilLand Studio (SSO)**: the user's email, full name, the SkilLand role they get, and the Moodle courses they are enrolled in that are linked to a SkilLand course.
+- **Listing a teacher's SkilLand courses** in the activity form: the teacher's email.
+- **Creating a SkilLand course from Moodle**: the teacher's email; SkilLand creates an account for that email if none exists.
+
+**Stored in Moodle**: `skilland_progress` holds each learner's best status, highest score and last update time per lesson of a Skilland activity.
+
+Data export and deletion requests cover that local table. Data already sent to SkilLand is handled by the organisation's SkilLand administrator.
+
 ---
 
 ## 🛠️ Development
