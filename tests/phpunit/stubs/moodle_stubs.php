@@ -588,3 +588,8 @@ if (!function_exists('set_coursemodule_visible')) {
 if (!class_exists('core\\lock\\lock_config')) {
     require_once __DIR__ . '/lock_stub.php';
 }
+
+// \core\notification (namespaced, so it lives in its own file).
+if (!class_exists('core\\notification')) {
+    require_once __DIR__ . '/notification_stub.php';
+}
