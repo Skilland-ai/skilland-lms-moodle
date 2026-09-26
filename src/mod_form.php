@@ -1216,7 +1216,8 @@ class mod_skilland_mod_form extends moodleform_mod {
                     $errors['skilland_topicid'] = get_string('error_course_not_mapped_to_skill', 'mod_skilland');
                 }
             } catch (moodle_exception $e) {
-                $errors['skilland_topicid'] = $e->getMessage();
+                logger::error('Form', 'validation - topic check failed: ' . $e->getMessage());
+                $errors['skilland_topicid'] = mod_skilland_client_error_message($e);
             }
 
             // The submitted lessons must belong to the submitted topic. Against an empty lesson

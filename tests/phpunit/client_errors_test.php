@@ -184,10 +184,15 @@ class client_errors_test extends TestCase {
             $result = call_user_func_array(['\\mod_skilland\\external\\' . $class, 'execute'], $args);
         } catch (\moodle_exception $e) {
             // fetch_lessons checks the topic against the mapped course before its try block, so the
-            // failure propagates; the exception still carries only the HTTP status.
+            // failure propagates as an exception, mapped to the generic code.
             $this->assertSame('fetch_lessons', $class, $e->getMessage());
-            $this->assertSame('error_graphql_http', $e->errorcode);
-            $this->assertSame('HTTP 0', $e->a);
+            $this->assertSame('error_api_unavailable', $e->errorcode);
+            $this->assertSame('mod_skilland', $e->module);
+            foreach (['localhost', 'host.docker.internal', 'errno', 'http'] as $forbidden) {
+                $this->assertStringNotContainsStringIgnoringCase($forbidden, $e->getMessage());
+            }
+            $log = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+            $this->assertStringContainsString('Connection refused', $log);
             return;
         }
 
@@ -202,5 +207,54 @@ class client_errors_test extends TestCase {
         }
         $log = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
         $this->assertStringContainsString('Connection refused', $log);
+    }
+
+    public function test_fetch_lessons_graphql_error_text_does_not_reach_the_client(): void {
+        $GLOBALS['_test_curl_response'] = [
+            'body' => json_encode(['errors' => [['message' => 'upstream detail at http://internal:8000',
+                'extensions' => ['code' => 'SOMETHING_ELSE']]]]),
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
+
+        try {
+            \mod_skilland\external\fetch_lessons::execute('topic-a1', self::COURSE_ID);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_api_unavailable', $e->errorcode);
+            $this->assertStringNotContainsString('upstream detail', $e->getMessage());
+        }
+    }
+
+    public function test_fetch_lessons_foreign_topic_still_throws_access_denial(): void {
+        $GLOBALS['_test_curl_response'] = [
+            'body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill', 'topics' => [
+                ['id' => 'topic-a1', 'name' => 'Topic', 'code' => '', 'description' => ''],
+            ]]]]),
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/^error_course_not_mapped_to_skill$/');
+
+        \mod_skilland\external\fetch_lessons::execute('topic-b1', self::COURSE_ID);
+    }
+
+    public function test_fetch_lessons_unmapped_course_still_throws_access_denial(): void {
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/^error_course_not_mapped$/');
+
+        \mod_skilland\external\fetch_lessons::execute('topic-a1', 30);
+    }
+
+    public function test_form_validation_shows_the_client_error_message(): void {
+        $source = file_get_contents(__DIR__ . '/../../src/mod_form.php');
+
+        $this->assertStringNotContainsString("\$errors['skilland_topicid'] = \$e->getMessage()", $source);
+        $this->assertStringContainsString("\$errors['skilland_topicid'] = mod_skilland_client_error_message(\$e);",
+            $source);
     }
 }

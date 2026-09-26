@@ -852,7 +852,7 @@ GRAPHQL;
         ];
     } catch (moodle_exception $e) {
         // A user-facing error (not available, configuration) keeps its own code.
-        if ($e->module === 'mod_skilland' && in_array($e->errorcode, MOD_SKILLAND_CLIENT_ERROR_CODES, true)) {
+        if (mod_skilland_is_client_error($e)) {
             throw $e;
         }
         // Check for specific error codes in the message.
@@ -2202,6 +2202,17 @@ const MOD_SKILLAND_CLIENT_ERROR_CODES = [
 ];
 
 /**
+ * Whether an exception is an allowlisted mod_skilland error that is safe to show a client.
+ *
+ * @param \Throwable $e
+ * @return bool
+ */
+function mod_skilland_is_client_error(\Throwable $e): bool {
+    return $e instanceof moodle_exception && !($e instanceof dml_exception) && $e->module === 'mod_skilland' &&
+        in_array($e->errorcode, MOD_SKILLAND_CLIENT_ERROR_CODES, true);
+}
+
+/**
  * The message a web service may return to the browser for a caught exception.
  *
  * Only mod_skilland errors that tell the user what to fix pass through, as their language
@@ -2222,8 +2233,7 @@ const MOD_SKILLAND_CLIENT_ERROR_CODES = [
  */
 function mod_skilland_client_error_message(\Throwable $e): string {
     $message = get_string('error_api_unavailable', 'mod_skilland');
-    if ($e instanceof moodle_exception && !($e instanceof dml_exception) && $e->module === 'mod_skilland' &&
-            in_array($e->errorcode, MOD_SKILLAND_CLIENT_ERROR_CODES, true)) {
+    if (mod_skilland_is_client_error($e)) {
         $a = null;
         if ($e->errorcode === 'error_http_redirect' && is_numeric($e->a)) {
             $a = (int) $e->a;

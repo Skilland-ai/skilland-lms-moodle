@@ -77,7 +77,17 @@ class fetch_lessons extends base {
         if ($skillandcourseid === null) {
             throw new \moodle_exception('error_course_not_mapped', 'mod_skilland');
         }
-        if (!skilland_topic_belongs_to_course($topicid, $skillandcourseid)) {
+        try {
+            $belongs = skilland_topic_belongs_to_course($topicid, $skillandcourseid);
+        } catch (\Exception $e) {
+            // An API failure must not carry upstream text to the browser; user-facing codes pass.
+            if (mod_skilland_is_client_error($e)) {
+                throw $e;
+            }
+            logger::error('AJAX', 'fetch_lessons topic check error: ' . $e->getMessage());
+            throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
+        }
+        if (!$belongs) {
             throw new \moodle_exception('error_course_not_mapped_to_skill', 'mod_skilland');
         }
 
