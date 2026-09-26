@@ -87,8 +87,16 @@ Go to **Site administration → Plugins → Activity modules → Skilland conten
   - For local development: `http://localhost:8000/graphql`
 - **Frontend URL**: The URL of the Skilland frontend application (default: `https://app.skilland.ai`).
   - For local development: `http://localhost:3000`
-  - This is used for SSO redirects when teachers click "Edit Lessons in Skilland"
-- **SSO Shared Secret**: The shared secret for SSO authentication (must match the backend `MOODLE_SSO_SECRET`).
+  - This is where the SSO handoff is posted when teachers click "Edit Lessons in Skilland"
+- **SSO Shared Secret**: The shared secret for SSO authentication. SkilLand's `MOODLE_SSO_SECRET` must equal it, and it must be at least 32 bytes long (`openssl rand -base64 32`).
+
+#### SSO handoff
+
+Opening SkilLand Studio signs an HS256 JWT with the SSO shared secret and hands it over with a self-submitting form that **POSTs** `token` and `redirect` to `{Frontend URL}/sso-login`. The token never appears in a URL, so it stays out of browser history, `Referer` headers and access logs; the handoff page is sent with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Besides the user claims, every token carries:
+
+- `exp`: `iat` + 60 seconds, just long enough for the form to submit.
+- `aud`: the origin (`scheme://host[:port]`) of the Frontend URL. The SkilLand side may override the audience it expects with `MOODLE_SSO_AUDIENCE`.
+- `iss`: this Moodle site's `wwwroot`.
 - **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only.
 - **Maximum SCORM package size (MB)**: Downloads larger than this are aborted (default: `200`).
 

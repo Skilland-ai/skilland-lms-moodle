@@ -1833,6 +1833,8 @@ function skilland_get_user_progress(int $skillandid, int $userid): array {
  * @throws moodle_exception If SSO secret is not configured or JWT library is not available
  */
 function skilland_generate_sso_token($user, $orgid) {
+    global $CFG;
+
     // Check if composer autoloader exists
     $autoloadpath = __DIR__ . '/vendor/autoload.php';
     if (!file_exists($autoloadpath)) {
@@ -1875,13 +1877,17 @@ function skilland_generate_sso_token($user, $orgid) {
     $nonce = bin2hex(random_bytes(16));
 
     // Prepare token payload
+    $issuedat = time();
     $payload = [
         'email' => $user->email,
         'name' => fullname($user),
         'orgId' => $orgid,
         'role' => 'Expert', // Default role for SSO users
         'nonce' => $nonce,
-        'iat' => time(), // Issued at
+        'iat' => $issuedat,
+        'exp' => $issuedat + 60, // The token only has to survive the auto-submitted form.
+        'aud' => skilland_get_sso_audience(),
+        'iss' => $CFG->wwwroot,
         'source' => 'moodle',
         'courseAccess' => $course_access
     ];
@@ -1899,37 +1905,88 @@ function skilland_generate_sso_token($user, $orgid) {
 }
 
 /**
- * Get the Skilland frontend URL for SSO login.
+ * Get the SkilLand frontend base URL, without a trailing slash.
  *
- * This function constructs the SSO login URL with token and redirect parameters.
+ * Uses the frontend_url setting, falling back to the GraphQL endpoint minus its /graphql suffix.
  *
- * @param string $token The SSO token
- * @param string $redirect The path to redirect to after login (default: /dashboard)
- * @return string The complete SSO login URL
+ * @return string
  */
-function skilland_get_sso_url($token, $redirect = '/dashboard') {
-    // Get frontend URL from config
-    $frontendurl = get_config('mod_skilland', 'frontend_url');
-    if (empty($frontendurl)) {
-        // Fallback to extracting from GraphQL endpoint if frontend_url not configured
-        $graphqlendpoint = get_config('mod_skilland', 'graphql_endpoint');
-        if (empty($graphqlendpoint)) {
+function skilland_get_frontend_url(): string {
+    $frontendurl = (string) get_config('mod_skilland', 'frontend_url');
+    if ($frontendurl === '') {
+        $graphqlendpoint = (string) get_config('mod_skilland', 'graphql_endpoint');
+        if ($graphqlendpoint === '') {
             $graphqlendpoint = 'https://api.skilland.com/graphql';
         }
-        // Extract base URL (remove /graphql suffix if present)
         $frontendurl = preg_replace('/\/graphql$/', '', $graphqlendpoint);
     }
 
-    // Remove trailing slash if present
-    $frontendurl = rtrim($frontendurl, '/');
+    return rtrim($frontendurl, '/');
+}
 
-    // Construct SSO URL
-    $ssourl = $frontendurl . '/sso-login?' . http_build_query([
-        'token' => $token,
-        'redirect' => $redirect
-    ]);
+/**
+ * Get the audience of SSO tokens: the origin (scheme://host[:port]) of the SkilLand frontend.
+ *
+ * @return string
+ */
+function skilland_get_sso_audience(): string {
+    $parts = parse_url(skilland_get_frontend_url());
+    if (empty($parts['scheme']) || empty($parts['host'])) {
+        return skilland_get_frontend_url();
+    }
 
-    return $ssourl;
+    $origin = strtolower($parts['scheme']) . '://' . strtolower($parts['host']);
+    if (!empty($parts['port'])) {
+        $origin .= ':' . $parts['port'];
+    }
+    return $origin;
+}
+
+/**
+ * Get the SkilLand endpoint the SSO form posts to. It never carries the token.
+ *
+ * @return string
+ */
+function skilland_get_sso_endpoint(): string {
+    return skilland_get_frontend_url() . '/sso-login';
+}
+
+/**
+ * Render a standalone page that POSTs the SSO token to SkilLand.
+ *
+ * The token travels in the request body, so it never lands in a URL, browser history,
+ * a Referer header or an access log.
+ *
+ * @param string $token The signed SSO token
+ * @param string $redirect SkilLand path to open after login
+ * @return string Complete HTML document
+ */
+function skilland_render_sso_post_form(string $token, string $redirect): string {
+    $action = s(skilland_get_sso_endpoint());
+    $message = s(get_string('sso_redirecting', 'mod_skilland'));
+    $continue = s(get_string('sso_continue', 'mod_skilland'));
+    $tokenvalue = s($token);
+    $redirectvalue = s($redirect);
+
+    return <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>{$message}</title>
+</head>
+<body>
+<form id="skilland-sso" method="post" action="{$action}">
+<input type="hidden" name="token" value="{$tokenvalue}">
+<input type="hidden" name="redirect" value="{$redirectvalue}">
+<p>{$message}</p>
+<noscript><button type="submit">{$continue}</button></noscript>
+</form>
+<script>document.getElementById('skilland-sso').submit();</script>
+</body>
+</html>
+HTML;
 }
 
 /**

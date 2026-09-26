@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * SSO redirect page - generates SSO token and redirects to Skilland
+ * SSO handoff page - generates an SSO token and POSTs it to Skilland
  *
  * @package    mod_skilland
  * @copyright  2024
@@ -82,13 +82,14 @@ try {
         }
     }
 
-    // Get SSO URL
-    $ssourl = skilland_get_sso_url($token, $redirect);
+    logger::debug('SSO', 'Handing user ' . $USER->id . ' off to topic ' . $topicid);
 
-    logger::debug('SSO', 'Redirecting user ' . $USER->id . ' to topic ' . $topicid);
-
-    // Redirect to Skilland
-    redirect($ssourl);
+    // POST the token to SkilLand from a self-submitting form, so it never appears in a URL.
+    header('Cache-Control: no-store');
+    header('Referrer-Policy: no-referrer');
+    header('Content-Type: text/html; charset=utf-8');
+    echo skilland_render_sso_post_form($token, $redirect);
+    die();
 
 } catch (Exception $e) {
     logger::error('SSO', $e->getMessage());

@@ -166,6 +166,10 @@ $string['edit_in_skilland_desc'] = 'Click to open the Skilland lesson editor. Yo
 $string['edit_in_skilland_header'] = 'Edit in Skilland';
 $string['edit_in_skilland_header_desc'] = 'Edit content for course "{$a}" in Skilland platform';
 
+// SSO handoff (SKL-687).
+$string['sso_continue'] = 'Continue to SkilLand';
+$string['sso_redirecting'] = 'Signing you in to SkilLand…';
+
 // Lesson selection.
 $string['select_all'] = 'Select All';
 $string['deselect_all'] = 'Deselect All';
