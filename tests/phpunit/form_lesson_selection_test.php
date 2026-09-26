@@ -269,10 +269,15 @@ class form_lesson_selection_test extends TestCase {
     }
 
     public function test_confirm_strings_are_hex_escaped_lang_strings(): void {
+        // SKL-697: the message and action label are now composed server-side (student count,
+        // "Lock after first access" hint) into $topicchangeconfirmmessagetext /
+        // $topicchangeconfirmactionlabel before being hex-escaped, so only the title is still a
+        // literal get_string() call at the json_encode() site.
         $flags = 'JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE';
-        foreach (['topic_change_confirm_title', 'topic_change_confirm'] as $key) {
-            $this->assertStringContainsString("json_encode(get_string('$key', 'mod_skilland'), $flags)", self::$form);
-        }
+        $this->assertStringContainsString(
+            "json_encode(get_string('topic_change_confirm_title', 'mod_skilland'), $flags)", self::$form);
+        $this->assertStringContainsString("json_encode(\$topicchangeconfirmmessagetext, $flags)", self::$form);
+        $this->assertStringContainsString("json_encode(\$topicchangeconfirmactionlabel, $flags)", self::$form);
     }
 
     // ---------------------------------------------------------------
