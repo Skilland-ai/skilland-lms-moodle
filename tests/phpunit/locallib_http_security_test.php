@@ -464,8 +464,9 @@ class locallib_http_security_test extends TestCase {
     }
 
     public function test_provision_topic_scorm_still_verifies_hash_after_download(): void {
+        // SKL-663 moved the download and hash check into skilland_download_topic_scorm_package().
         $source = file_get_contents(__DIR__ . '/../../src/locallib.php');
-        $this->assertSame(1, preg_match('/function skilland_provision_topic_scorm\(.*?\n}\n/s', $source, $m));
+        $this->assertSame(1, preg_match('/function skilland_download_topic_scorm_package\(.*?\n}\n/s', $source, $m));
         $body = $m[0];
         $download = strpos($body, 'mod_skilland_download_package($packageurl)');
         $hash = strpos($body, 'hash_file($algorithm, $tempfile)');

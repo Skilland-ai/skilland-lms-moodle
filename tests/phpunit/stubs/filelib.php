@@ -3,6 +3,8 @@
 // Configurable via $GLOBALS['_test_curl_response'] for testing HTTP paths.
 // Every instance records its constructor settings, options, headers and requested URL
 // into $GLOBALS['_test_curl_last']; every request URL is appended to $GLOBALS['_test_curl_requests'].
+// $GLOBALS['_test_curl_responses'] (a list) queues one response per request, in order: each request
+// shifts the next one into $GLOBALS['_test_curl_response'].
 
 if (!class_exists('curl')) {
     class curl {
@@ -29,6 +31,9 @@ if (!class_exists('curl')) {
         }
 
         private function record(string $url): void {
+            if (!empty($GLOBALS['_test_curl_responses'])) {
+                $GLOBALS['_test_curl_response'] = array_shift($GLOBALS['_test_curl_responses']);
+            }
             $GLOBALS['_test_curl_last']['url'] = $url;
             $GLOBALS['_test_curl_requests'][] = $url;
         }

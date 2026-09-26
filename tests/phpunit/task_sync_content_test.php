@@ -19,6 +19,7 @@ class task_sync_content_test extends TestCase {
         // Reset configurable stubs.
         unset($GLOBALS['_test_topic_snapshot']);
         unset($GLOBALS['_test_update_topic_scorm']);
+        unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
         unset($GLOBALS['_test_get_coursemodule_from_id']);
         unset($GLOBALS['_test_get_coursemodule_from_instance']);
         unset($GLOBALS['_test_get_course']);
@@ -314,6 +315,31 @@ class task_sync_content_test extends TestCase {
         $updates = $this->db->get_calls_for('update_record');
         $lastUpdate = end($updates);
         $this->assertEquals('newhash', $lastUpdate['data']->snapshotid);
+    }
+
+    public function test_check_and_update_skips_when_provisioning_lock_is_busy(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'oldhash',
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_lock_available'] = false;
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('skipped', $result);
+        $this->assertSame('mod_skilland/provision_1', $GLOBALS['_test_lock_calls'][0]['key']);
+        $snapshotwrites = array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => isset($c['data']->snapshotid));
+        $this->assertEmpty($snapshotwrites, 'A skipped activity keeps its old snapshot so the next run retries');
+        unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
     }
 
     // ---------------------------------------------------------------

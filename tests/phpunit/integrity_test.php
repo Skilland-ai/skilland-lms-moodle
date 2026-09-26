@@ -304,6 +304,19 @@ class integrity_test extends TestCase {
         $this->assertObjectHasProperty('requires', $plugin, 'version.php must define $plugin->requires');
     }
 
+    public function test_version_file_declares_mod_scorm_dependency(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+
+        $this->assertObjectHasProperty('dependencies', $plugin, 'version.php must declare $plugin->dependencies');
+        $this->assertArrayHasKey('mod_scorm', $plugin->dependencies,
+            'Provisioning creates mod_scorm activities, so mod_scorm must be a declared dependency');
+        $this->assertGreaterThanOrEqual(2026092601, $plugin->version);
+    }
+
     // ---------------------------------------------------------------
     // Placeholder parameters in lang strings
     // ---------------------------------------------------------------

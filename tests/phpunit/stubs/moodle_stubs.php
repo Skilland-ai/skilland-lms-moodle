@@ -218,6 +218,14 @@ if (!function_exists('get_coursemodule_from_id')) {
         if (array_key_exists('_test_get_coursemodule_from_id', $GLOBALS)) {
             return $GLOBALS['_test_get_coursemodule_from_id'];
         }
+        // Opt-in: resolve against the course_modules rows of the fake $DB.
+        if (!empty($GLOBALS['_test_cm_from_db'])) {
+            $cm = $GLOBALS['DB']->get_record('course_modules', ['id' => $cmid]);
+            if (!$cm && $strictness === MUST_EXIST) {
+                throw new \dml_missing_record_exception('course_modules');
+            }
+            return $cm;
+        }
         return (object)['id' => $cmid, 'instance' => $cmid, 'course' => 1, 'section' => 1];
     }
 }
@@ -241,8 +249,23 @@ if (!function_exists('get_course')) {
 }
 
 if (!function_exists('course_delete_module')) {
-    function course_delete_module($cmid) {
-        // No-op for tests.
+    // Records the cmid in $GLOBALS['_test_deleted_cmids'] and removes the module rows from the fake $DB;
+    // $GLOBALS['_test_course_delete_throw'] (an exception) makes it throw after recording.
+    function course_delete_module($cmid, $async = false) {
+        $GLOBALS['_test_deleted_cmids'][] = (int)$cmid;
+        if (!empty($GLOBALS['_test_course_delete_throw'])) {
+            throw $GLOBALS['_test_course_delete_throw'];
+        }
+        $db = $GLOBALS['DB'];
+        $cm = $db->get_record('course_modules', ['id' => $cmid]);
+        if ($cm) {
+            if (!empty($cm->instance)) {
+                $db->delete_records('scorm_scoes', ['scorm' => $cm->instance]);
+                $db->delete_records('scorm', ['id' => $cm->instance]);
+            }
+            $db->delete_records('course_modules', ['id' => $cmid]);
+        }
+        return true;
     }
 }
 
@@ -398,4 +421,149 @@ if (!function_exists('set_config')) {
         $GLOBALS['_test_plugin_config'][$plugin]->$name = $value;
         return true;
     }
+}
+
+
+if (!defined('ANY_VERSION')) {
+    define('ANY_VERSION', 'any');
+}
+if (!defined('DEBUG_DEVELOPER')) {
+    define('DEBUG_DEVELOPER', 38911);
+}
+
+// mod_scorm constants (mod/scorm/lib.php and locallib.php).
+foreach ([
+    'SCORM_TYPE_LOCAL' => 'local',
+    'SCORM_UPDATE_NEVER' => '0',
+    'SCORM_TOC_DISABLED' => 3,
+    'SCORM_NAV_DISABLED' => 0,
+    'GRADESCOES' => '0',
+    'HIGHESTATTEMPT' => '0',
+] as $name => $value) {
+    if (!defined($name)) {
+        define($name, $value);
+    }
+}
+
+if (!class_exists('core_text')) {
+    class core_text {
+        public static function substr($text, $start, $len = null) {
+            return mb_substr((string)$text, $start, $len, 'UTF-8');
+        }
+
+        public static function strlen($text) {
+            return mb_strlen((string)$text, 'UTF-8');
+        }
+    }
+}
+
+if (!class_exists('context_user')) {
+    class context_user {
+        public $id;
+        public $instanceid;
+
+        public static function instance($userid) {
+            $ctx = new self();
+            $ctx->instanceid = (int)$userid;
+            $ctx->id = 1000 + (int)$userid;
+            return $ctx;
+        }
+    }
+}
+
+if (!function_exists('file_get_unused_draft_itemid')) {
+    function file_get_unused_draft_itemid() {
+        $GLOBALS['_test_draft_itemid'] = ($GLOBALS['_test_draft_itemid'] ?? 5000) + 1;
+        return $GLOBALS['_test_draft_itemid'];
+    }
+}
+
+// Minimal file storage: records every stored file in $GLOBALS['_test_stored_files'].
+if (!class_exists('FakeFileStorage')) {
+    class FakeStoredFile {
+        public $record;
+
+        public function __construct(array $record) {
+            $this->record = $record;
+        }
+
+        public function get_filename() {
+            return $this->record['filename'];
+        }
+    }
+
+    class FakeFileStorage {
+        public function create_file_from_pathname($filerecord, $pathname) {
+            $record = (array)$filerecord;
+            $record['pathname'] = $pathname;
+            $record['exists'] = file_exists($pathname);
+            $GLOBALS['_test_stored_files'][] = $record;
+            return new FakeStoredFile($record);
+        }
+
+        public function delete_area_files($contextid, $component = false, $filearea = false, $itemid = false) {
+            return true;
+        }
+    }
+}
+
+if (!function_exists('get_file_storage')) {
+    function get_file_storage() {
+        return new FakeFileStorage();
+    }
+}
+
+// create_module() fake: inserts course_modules + scorm rows into the fake $DB, seeds
+// scorm_scoes from $GLOBALS['_test_scorm_scoes'], records the moduleinfo in
+// $GLOBALS['_test_create_module_calls'] and an event in $GLOBALS['_test_events'].
+// $GLOBALS['_test_create_module_throw'] (an exception) makes it throw instead.
+if (!function_exists('create_module')) {
+    function create_module($moduleinfo) {
+        $GLOBALS['_test_create_module_calls'][] = clone $moduleinfo;
+        if (!empty($GLOBALS['_test_create_module_throw'])) {
+            throw $GLOBALS['_test_create_module_throw'];
+        }
+        $db = $GLOBALS['DB'];
+        $cmid = $db->insert_record('course_modules', (object)[
+            'course' => $moduleinfo->course,
+            'module' => 99,
+            'instance' => 0,
+            'section' => $moduleinfo->section,
+            'idnumber' => $moduleinfo->idnumber ?? '',
+            'visible' => $moduleinfo->visible,
+            'visibleoncoursepage' => $GLOBALS['_test_create_module_visibleoncoursepage']
+                ?? ($moduleinfo->visibleoncoursepage ?? 1),
+        ]);
+        $scormid = $db->insert_record('scorm', (object)[
+            'course' => $moduleinfo->course,
+            'name' => $moduleinfo->name,
+            'reference' => 'scorm_package.zip',
+        ]);
+        $db->set_field('course_modules', 'instance', $scormid, ['id' => $cmid]);
+        foreach (($GLOBALS['_test_scorm_scoes'] ?? []) as $sco) {
+            $row = (object)$sco;
+            $row->scorm = $scormid;
+            unset($row->id);
+            $db->insert_record('scorm_scoes', $row);
+        }
+        $GLOBALS['_test_events'][] = ['name' => 'course_module_created', 'cmid' => $cmid];
+        $moduleinfo->coursemodule = $cmid;
+        $moduleinfo->instance = $scormid;
+        return $moduleinfo;
+    }
+}
+
+if (!function_exists('set_coursemodule_visible')) {
+    function set_coursemodule_visible($id, $visible, $visibleoncoursepage = 1, $rebuildcache = true) {
+        $GLOBALS['_test_set_visible_calls'][] = [(int)$id, (int)$visible, (int)$visibleoncoursepage];
+        $db = $GLOBALS['DB'];
+        $db->set_field('course_modules', 'visible', $visible, ['id' => $id]);
+        $db->set_field('course_modules', 'visibleoncoursepage', $visibleoncoursepage, ['id' => $id]);
+        return true;
+    }
+}
+
+// Lock API (namespaced, so it lives in its own file).
+if (!class_exists('core\\lock\\lock_config')) {
+    require_once __DIR__ . '/lock_stub.php';
 }
