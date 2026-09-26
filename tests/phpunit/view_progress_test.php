@@ -133,4 +133,31 @@ class view_progress_test extends TestCase {
         skilland_render_lesson_list($skilland, $this->lessons(), (object) ['id' => 90]);
         $this->assertCount(1, $GLOBALS['_test_completion_updates']);
     }
+
+    public function test_progress_reader_issues_no_logging_only_queries(): void {
+        // SKL-670: no per-view scorm_scoes listing or all-users scorm_attempt count just for a debug line.
+        $this->db->get_manager()->set_table_exists('scorm_scoes_value', true);
+        $this->db->get_manager()->set_table_exists('scorm_attempt', true);
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object) ['id' => 100, 'instance' => 5, 'course' => 3];
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object) ['id' => 90, 'instance' => 10, 'course' => 3];
+        $this->db->seed('skilland_lesson', array_map(fn($l) => (object) ['id' => $l->id, 'skillandid' => 10,
+            'scoid' => $l->scoid, 'visible' => 1], array_values($this->lessons())));
+        $this->db->set_records_sql_handler(fn() => [
+            1 => (object) ['id' => 1, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'completed'],
+            2 => (object) ['id' => 2, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.score.raw', 'value' => '75'],
+        ]);
+        $skilland = (object) ['id' => 10, 'course' => 3, 'scormcmid' => 100, 'grade' => 0];
+
+        $progress = skilland_read_scorm_progress($skilland, [50]);
+        skilland_render_lesson_list($skilland, $this->lessons(), (object) ['id' => 90]);
+
+        $this->assertSame([50 => [1 => ['status' => 'completed', 'score' => 75.0]]], $progress);
+        $scormattemptcounts = array_filter($this->db->get_calls_for('count_records'),
+            fn($c) => $c['table'] === 'scorm_attempt');
+        $this->assertEmpty($scormattemptcounts);
+        $scoesreads = array_filter($this->db->get_calls_for('get_records'), fn($c) => $c['table'] === 'scorm_scoes');
+        $this->assertEmpty($scoesreads);
+    }
 }

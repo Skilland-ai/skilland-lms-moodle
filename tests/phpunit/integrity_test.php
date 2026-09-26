@@ -759,4 +759,14 @@ class integrity_test extends TestCase {
             }
         }
     }
+
+    public function test_skl670_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include self::$srcDir . "/lang/$lang/skilland.php";
+            $this->assertNotEmpty($string['error_api_unavailable'] ?? '', "$lang string error_api_unavailable");
+            $this->assertStringNotContainsString('{$a}', $string['error_scorm_fetch_failed'],
+                "$lang error_scorm_fetch_failed carries no inner message");
+        }
+    }
 }
