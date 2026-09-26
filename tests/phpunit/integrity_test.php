@@ -591,4 +591,36 @@ class integrity_test extends TestCase {
             "Placeholder {" . '$a} mismatch between EN and ES:' . "\n  " . implode("\n  ", $mismatches)
         );
     }
+
+    // ---------------------------------------------------------------
+    // Event observers (SKL-673)
+    // ---------------------------------------------------------------
+
+    public function test_events_file_declares_course_module_deleted_observer(): void {
+        $file = self::$srcDir . '/db/events.php';
+        $this->assertFileExists($file);
+
+        $observers = null;
+        require $file;
+        $this->assertIsArray($observers);
+
+        $found = array_values(array_filter($observers,
+            fn($o) => ($o['eventname'] ?? '') === '\\core\\event\\course_module_deleted'));
+        $this->assertCount(1, $found);
+        $this->assertFalse($found[0]['internal']);
+
+        [$class, $method] = explode('::', $found[0]['callback']);
+        $class = ltrim($class, '\\');
+        $this->assertTrue(class_exists($class), "Observer class $class not found");
+        $this->assertTrue(method_exists($class, $method), "Observer method $class::$method not found");
+    }
+
+    public function test_version_is_bumped_for_event_observers(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+        $this->assertGreaterThanOrEqual(2026092602, $plugin->version);
+    }
 }
