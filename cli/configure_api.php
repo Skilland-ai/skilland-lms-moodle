@@ -98,12 +98,35 @@ function mod_skilland_cli_prompt_apikey(): ?string {
         return null;
     }
 
+    // Restore the terminal however the prompt ends: normally, on Ctrl-C, or on a fatal error.
+    $restored = false;
+    $restore = function () use ($saved, &$restored): void {
+        if ($restored) {
+            return;
+        }
+        $restored = true;
+        @exec('stty ' . escapeshellarg(trim($saved[0])) . ' 2>/dev/null');
+    };
+    register_shutdown_function($restore);
+    $signals = function_exists('pcntl_signal') && function_exists('pcntl_async_signals');
+    if ($signals) {
+        pcntl_async_signals(true);
+        pcntl_signal(SIGINT, function () use ($restore): void {
+            $restore();
+            echo "\n";
+            exit(130);
+        });
+    }
+
     echo 'API key (input hidden, Enter to leave unchanged): ';
     try {
         @exec('stty -echo 2>/dev/null');
         $line = fgets(STDIN);
     } finally {
-        @exec('stty ' . escapeshellarg(trim($saved[0])) . ' 2>/dev/null');
+        $restore();
+        if ($signals) {
+            pcntl_signal(SIGINT, SIG_DFL);
+        }
         echo "\n";
     }
 
@@ -146,6 +169,12 @@ try {
     echo "Connection successful\n";
 } catch (\Throwable $e) {
     echo 'Connection failed: ' . $e->getMessage() . "\n";
+    $endpoint = (string) get_config('mod_skilland', 'graphql_endpoint');
+    if (strtolower((string) parse_url(trim($endpoint), PHP_URL_SCHEME)) === 'http' &&
+            empty($CFG->mod_skilland_allow_http)) {
+        echo "Hint: http:// endpoints are also blocked at request time unless config.php sets " .
+            "\$CFG->mod_skilland_allow_http = true; --allow-insecure only lets this script save one.\n";
+    }
     exit(1);
 }
 

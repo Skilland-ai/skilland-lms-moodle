@@ -54,6 +54,34 @@ class cli_config_test extends TestCase {
         $this->assertNotNull(cli_config::validate_endpoint('javascript:alert(1)', true));
     }
 
+    public function test_https_without_host_rejected(): void {
+        $this->assertNotNull(cli_config::validate_endpoint('https:', false));
+        $this->assertNotNull(cli_config::validate_endpoint('https:///graphql', false));
+        $this->expectException(\InvalidArgumentException::class);
+        cli_config::plan(['endpoint' => 'https:'], null);
+    }
+
+    public function test_uppercase_https_scheme_accepted(): void {
+        $this->assertNull(cli_config::validate_endpoint('HTTPS://api.skilland.ai/graphql', false));
+        $writes = cli_config::plan(['endpoint' => 'HTTPS://api.skilland.ai/graphql'], null);
+        $this->assertSame('HTTPS://api.skilland.ai/graphql', $writes['graphql_endpoint']);
+    }
+
+    public function test_uppercase_http_scheme_still_needs_allow_insecure(): void {
+        $this->assertNotNull(cli_config::validate_endpoint('HTTP://localhost:8000/graphql', false));
+    }
+
+    public function test_surrounding_whitespace_is_trimmed(): void {
+        $this->assertNull(cli_config::validate_endpoint("  https://api.skilland.ai/graphql \n", false));
+        $writes = cli_config::plan(
+            ['endpoint' => "  https://api.skilland.ai/graphql \n", 'orgid' => ' org_1 '],
+            "  sk_live_abc\n"
+        );
+        $this->assertSame('https://api.skilland.ai/graphql', $writes['graphql_endpoint']);
+        $this->assertSame('org_1', $writes['orgid']);
+        $this->assertSame('sk_live_abc', $writes['apikey']);
+    }
+
     public function test_orgid_with_space_rejected(): void {
         $this->expectException(\InvalidArgumentException::class);
         cli_config::plan(['orgid' => 'my org'], null);
