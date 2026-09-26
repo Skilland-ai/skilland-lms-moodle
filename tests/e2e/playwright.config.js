@@ -4,8 +4,9 @@ const { defineConfig, devices } = require('@playwright/test')
 /**
  * Playwright configuration for Moodle-Skilland E2E tests
  *
- * These tests verify the integration between Moodle LMS and Skilland platform,
- * including SSO authentication, plugin functionality, and SCORM provisioning.
+ * The suite runs against a local Moodle only (MOODLE_URL). SkilLand is always
+ * mocked in the browser by fixtures/skilland-mock.js; setup/global-setup.js fails
+ * the run when Moodle is not reachable.
  */
 module.exports = defineConfig({
   testDir: './specs',
@@ -41,12 +42,5 @@ module.exports = defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] }
     }
-  ],
-
-  webServer: {
-    command: 'echo "Using existing Docker services"',
-    url: process.env.MOODLE_URL || 'http://localhost:8081',
-    reuseExistingServer: true,
-    timeout: 120000
-  }
+  ]
 })

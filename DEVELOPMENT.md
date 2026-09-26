@@ -240,26 +240,66 @@ For issues or questions:
 2. Review this guide and the main README
 3. Contact the development team
 
+## E2E tests
+
+The Playwright suite in `tests/e2e` needs **only a running Moodle** with the plugin installed: no SkilLand backend, frontend or database. It is local only (no CI job).
+
+```bash
+npx grunt build                                      # dist/, mounted into the Moodle container
+(cd 00_development && docker compose up -d --build)  # Moodle on http://localhost:8081
+npm run test:e2e                                     # MOODLE_URL overrides the Moodle address
+node --test tests/e2e/unit/*.test.js                 # unit tests of the mock itself
+```
+
+`setup/global-setup.js` fails the run when Moodle is not reachable, and `loginToMoodle` throws `Moodle login failed for <user>` instead of carrying on logged out. The suite expects the `admin`, `teacher1` and `student1` accounts from `00_development/create_test_users.php`. The SSO specs set an organization id on the plugin settings page when it is empty and sign tokens with the configured (or `config.php`-forced) SSO secret.
+
+**SkilLand is always mocked.** The `skillandMock` fixture (`fixtures/skilland-mock.js`, auto-used through `fixtures/auth.js`) intercepts Moodle's AJAX endpoint (`/lib/ajax/service.php`) and answers every `mod_skilland_*` call in the batch from per-test handlers; core Moodle calls in the same batch still reach Moodle. Browser navigations to a SkilLand origin (`SKILLAND_URL`, default `http://localhost:3000`, plus `https://app.skilland.ai`) land on a stub page, and the `sso_redirect.php` redirect is recorded instead of followed:
+
+```js
+test('lists topics', async ({ authenticatedPage, skillandMock, moodleCourse }) => {
+  const courseId = await moodleCourse.create({ skillId: SKILL_ID })  // created and deleted for this test
+  skillandMock.on('mod_skilland_fetch_topics_ajax', skillandData.topics())
+  skillandMock.fail('mod_skilland_fetch_lessons_ajax', 'boom')        // Moodle web service exception
+  // skillandMock.abort(method): network failure; skillandMock.on(method, args => data) for dynamic answers
+  // skillandMock.calls(method): args the page sent; skillandMock.navigations(): SkilLand URLs opened
+})
+```
+
+Only `mod_skilland_fetch_courses_ajax` has a default answer, because every course form calls it. The default payloads live in `fixtures/skilland-data.js` and must keep the shape of the matching `*_returns()` in `src/classes/external.php`: change both in the same commit.
+
+**Tests fail loudly.** A test fails when the page calls a `mod_skilland_*` method it did not mock, logs a `console.error`, or throws an uncaught error. Allow an expected one with `expectConsoleError(/pattern/)` (or `skillandMock.expectConsoleError`); `skillandMock.abort()` allows the `net::ERR_FAILED` it causes. Use `test.skip` only for a real environment toggle, never to hide a missing precondition, and wait on `expect(...)`, `waitForURL` or `expect.poll` rather than `waitForTimeout`.
+
+Behaviour that runs server-side against SkilLand's GraphQL API (saving an activity, SCORM provisioning and updates, the `sync_content` task) cannot be reached from the browser mock and is covered by PHPUnit in `tests/phpunit`.
+
+Every spec creates its own Moodle course through the `moodleCourse` fixture, so a spec passes alone (`npx playwright test --config=tests/e2e/playwright.config.js --grep "<title>"`) and in parallel (`--workers=4`); the default stays `workers: 1`.
+
+## CI and releases
+
+Every pull request to `main` runs `.github/workflows/ci.yml`:
+
+- **`test`**: `npm run lint` (ESLint over `tests/e2e` and the AMD sources in `src/amd/src`), `php -l` on every PHP file under `src/`, `cli/` and `scripts/` (vendor excluded) in a `php:8.2-cli` container, then PHPUnit via `npm run test:unit`.
+- **`version`** (pull requests only): `node scripts/check_version.js` against the PR base, then a gitleaks scan of the source tree.
+
+Every merge to `main` publishes a release, so the version check requires, against the base branch's `src/version.php`:
+
+1. `$plugin->version` higher than the base (format `YYYYMMDDXX`);
+2. a different `$plugin->release` string;
+3. `$plugin->maturity` matching the release string: `alpha` → `MATURITY_ALPHA`, `beta` → `MATURITY_BETA`, `rc` → `MATURITY_RC`, anything else → `MATURITY_STABLE`.
+
+Run it locally with `BASE_REF=origin/main node scripts/check_version.js` (without `BASE_REF` it compares against `HEAD`). `SKIP_VERSION_CHECK=1` skips it.
+
+`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files, one minified AMD module per source, no `tests/`, `node_modules/`, dev vendor packages or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit fails the run instead of skipping it. Actions are pinned by commit SHA and the gitleaks image by version tag.
+
 ## Git Hooks
 
 This project uses **Husky** to manage git hooks.
 
 ### Pre-commit Hook
-On every commit, the following checks run automatically:
+On every commit, `.husky/pre-commit`:
 
-1.  **Version Check**: Verifies that `$plugin->version` in `src/version.php` has been increased.
-2.  **Auto-Build**: Runs `npm run build` to update the `dist/` directory.
-3.  **Add to Commit**: Automatically adds the updated `dist/` files to your commit.
+1.  **Blocks `dist/`**: refuses a commit that adds or modifies files under `dist/` (it is built by CI).
+2.  **Lint**: runs `npm run lint`.
+3.  **Unit tests**: runs `npm run test:unit` (PHPUnit in Docker).
 
-### Bypassing Checks
-If you need to make a commit without bumping the version (e.g., updating documentation) but **still want the build to run**, use the `SKIP_VERSION_CHECK` environment variable:
-
-```bash
-SKIP_VERSION_CHECK=1 git commit -m "Update docs"
-```
-
-If you want to skip **everything** (including the build), use `--no-verify`:
-```bash
-git commit -m "WIP" --no-verify
-```
+The version bump is enforced by CI on the pull request, not by the hook.
 

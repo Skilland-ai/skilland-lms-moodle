@@ -5,15 +5,25 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   release:
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
@@ -22,20 +32,55 @@ jobs:
         run: |
           VERSION=$(grep -oP "\\\$plugin->release\s*=\s*'\K[^']+" src/version.php)
           MOODLE_VERSION=$(grep -oP "\\\$plugin->version\s*=\s*\K[0-9]+" src/version.php)
-          echo "release=$VERSION" >> $GITHUB_OUTPUT
-          echo "moodle_version=$MOODLE_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$MOODLE_VERSION" >> $GITHUB_OUTPUT
+          {
+            echo "release=$VERSION"
+            echo "moodle_version=$MOODLE_VERSION"
+            echo "tag=v$MOODLE_VERSION"
+            if echo "$VERSION" | grep -qiE -- '-(alpha|beta|rc)(\.?[0-9]+)?$'; then
+              echo "prerelease=true"
+            else
+              echo "prerelease=false"
+            fi
+          } >> "$GITHUB_OUTPUT"
           echo "Detected version: $VERSION (Moodle version: $MOODLE_VERSION)"
 
-      - name: Check if release already exists
+      - name: Check if tag or release already exists
         id: check_release
         run: |
-          TAG="v${{ steps.version.outputs.moodle_version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          SHA="${{ github.sha }}"
+
+          # Commit the remote tag points at (peeled for annotated tags), empty when absent.
+          TAG_COMMIT=""
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            REFS=$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")
+            TAG_COMMIT=$(echo "$REFS" | awk '$2 ~ /\^\{\}$/ {print $1}')
+            if [ -z "$TAG_COMMIT" ]; then
+              TAG_COMMIT=$(echo "$REFS" | awk '{print $1; exit}')
+            fi
+          fi
+
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Release $TAG already exists, skipping..."
+            if [ -n "$TAG_COMMIT" ] && [ "$TAG_COMMIT" = "$SHA" ]; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "reuse_tag=true" >> "$GITHUB_OUTPUT"
+              echo "Release $TAG already exists for $SHA (re-run), skipping."
+              exit 0
+            fi
+            echo "::error::Release $TAG already exists for commit ${TAG_COMMIT:-<no tag>}, not $SHA. Bump \$plugin->version in src/version.php."
+            exit 1
+          fi
+
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG_COMMIT" ]; then
+            if [ "$TAG_COMMIT" != "$SHA" ]; then
+              echo "::error::Tag $TAG already exists on commit $TAG_COMMIT, not $SHA, and has no release. Bump \$plugin->version in src/version.php, or delete the stray tag."
+              exit 1
+            fi
+            echo "reuse_tag=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already points at $SHA with no release (earlier run failed after tagging): reusing it."
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "reuse_tag=false" >> "$GITHUB_OUTPUT"
             echo "Release $TAG does not exist, will create..."
           fi
         env:
@@ -43,7 +88,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.check_release.outputs.exists == 'false'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -81,26 +126,16 @@ jobs:
           SRC_MATURITY=$(grep -oP "\\\$plugin->maturity\s*=\s*\KMATURITY_\w+" src/version.php)
           echo "Maturity: $SRC_MATURITY, Release: $SRC_RELEASE"
 
-          if echo "$SRC_RELEASE" | grep -qi "beta"; then
-            if [ "$SRC_MATURITY" != "MATURITY_BETA" ]; then
-              echo "::error::Release contains 'beta' but maturity is $SRC_MATURITY (expected MATURITY_BETA)"
-              exit 1
-            fi
-          elif echo "$SRC_RELEASE" | grep -qi "alpha"; then
-            if [ "$SRC_MATURITY" != "MATURITY_ALPHA" ]; then
-              echo "::error::Release contains 'alpha' but maturity is $SRC_MATURITY (expected MATURITY_ALPHA)"
-              exit 1
-            fi
-          elif echo "$SRC_RELEASE" | grep -qi "rc"; then
-            if [ "$SRC_MATURITY" != "MATURITY_RC" ]; then
-              echo "::error::Release contains 'rc' but maturity is $SRC_MATURITY (expected MATURITY_RC)"
-              exit 1
-            fi
+          # Pre-release suffix: -alpha, -beta or -rc, optionally followed by a number (-rc1, -beta.2).
+          SUFFIX=$(echo "$SRC_RELEASE" | grep -oiE -- '-(alpha|beta|rc)(\.?[0-9]+)?$' | sed -E 's/^-([A-Za-z]+).*/\1/' | tr '[:lower:]' '[:upper:]' || true)
+          if [ -n "$SUFFIX" ]; then
+            EXPECTED="MATURITY_$SUFFIX"
           else
-            if [ "$SRC_MATURITY" != "MATURITY_STABLE" ]; then
-              echo "::error::Release is stable but maturity is $SRC_MATURITY (expected MATURITY_STABLE)"
-              exit 1
-            fi
+            EXPECTED="MATURITY_STABLE"
+          fi
+          if [ "$SRC_MATURITY" != "$EXPECTED" ]; then
+            echo "::error::Release '$SRC_RELEASE' requires $EXPECTED but maturity is $SRC_MATURITY"
+            exit 1
           fi
 
           echo "✓ Version consistency verified"
@@ -108,7 +143,7 @@ jobs:
       - name: Scan built plugin for secrets
         if: steps.check_release.outputs.exists == 'false'
         run: |
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 \
             detect --source /repo/dist --no-git --redact --config /repo/.gitleaks.toml
 
       - name: Create release zip
@@ -121,19 +156,60 @@ jobs:
           zip -r mod_skilland-${{ steps.version.outputs.moodle_version }}.zip skilland
 
           echo "Created mod_skilland-${{ steps.version.outputs.moodle_version }}.zip"
-          ls -la *.zip
+          ls -la ./*.zip
+
+      - name: Smoke test release zip
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          ZIPCHECK="$RUNNER_TEMP/zipcheck"
+          rm -rf "$ZIPCHECK"
+          mkdir -p "$ZIPCHECK"
+          unzip -q "mod_skilland-${{ steps.version.outputs.moodle_version }}.zip" -d "$ZIPCHECK"
+          cd "$ZIPCHECK"
+          FAIL=0
+
+          for f in skilland/version.php skilland/lib.php skilland/vendor/autoload.php \
+                   skilland/vendor/firebase/php-jwt/src/JWT.php; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Release zip is missing $f"
+              FAIL=1
+            fi
+          done
+
+          AMD_BUILT=$(find skilland/amd/build -maxdepth 1 -name '*.min.js' | wc -l)
+          AMD_SRC=$(find "$GITHUB_WORKSPACE/src/amd/src" -maxdepth 1 -name '*.js' | wc -l)
+          if [ "$AMD_BUILT" -ne "$AMD_SRC" ]; then
+            echo "::error::Release zip has $AMD_BUILT amd/build/*.min.js files, expected $AMD_SRC (one per src/amd/src/*.js)"
+            FAIL=1
+          fi
+
+          FORBIDDEN=$(find skilland \( -name tests -o -name node_modules -o -name .env \
+            -o -path 'skilland/vendor/phpunit' -o -path 'skilland/vendor/sebastian' -o -path 'skilland/vendor/bin' \) -print)
+          if [ -n "$FORBIDDEN" ]; then
+            echo "::error::Release zip contains dev-only paths:"
+            echo "$FORBIDDEN"
+            FAIL=1
+          fi
+
+          if [ "$FAIL" -ne 0 ]; then
+            exit 1
+          fi
+          echo "✓ Release zip structure verified ($AMD_BUILT AMD modules)"
 
       - name: Create git tag
-        if: steps.check_release.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false' && steps.check_release.outputs.reuse_tag != 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          RELEASE: ${{ steps.version.outputs.release }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.release }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          git tag -a "$TAG" -m "Release $RELEASE"
+          git push origin "$TAG"
 
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.version.outputs.tag }}
@@ -153,6 +229,6 @@ jobs:
           files: |
             mod_skilland-${{ steps.version.outputs.moodle_version }}.zip
           draft: false
-          prerelease: ${{ contains(steps.version.outputs.release, 'alpha') || contains(steps.version.outputs.release, 'beta') || contains(steps.version.outputs.release, 'rc') }}
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
 
 

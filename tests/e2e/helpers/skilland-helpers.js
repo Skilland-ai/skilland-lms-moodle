@@ -1,20 +1,21 @@
 // @ts-check
-const testData = require('../fixtures/test-data.json')
+const { SKILLAND_URL } = require('../fixtures/skilland-data')
 
 /**
- * Skilland-specific helper functions for E2E tests
+ * SkilLand-side helpers. The suite never reaches a SkilLand backend: navigations to a
+ * SkilLand origin land on the stub page served by fixtures/skilland-mock.js.
  */
 
-const SKILLAND_BASE_URL = process.env.SKILLAND_URL || testData.skilland.baseUrl
-const SKILLAND_API_URL = process.env.SKILLAND_API_URL || testData.skilland.apiUrl
+const SKILLAND_BASE_URL = SKILLAND_URL
 
 /**
  * Check if URL is a Skilland URL
  * @param {string} url
+ * @param {string} [baseUrl]
  * @returns {boolean}
  */
-function isEdukmiUrl(url) {
-  return url.includes(SKILLAND_BASE_URL) || url.includes('localhost:3000')
+function isSkillandUrl(url, baseUrl = SKILLAND_BASE_URL) {
+  return new URL(url).origin === new URL(baseUrl).origin
 }
 
 /**
@@ -23,8 +24,7 @@ function isEdukmiUrl(url) {
  * @returns {string | null}
  */
 function extractSsoToken(url) {
-  const urlObj = new URL(url)
-  return urlObj.searchParams.get('token')
+  return new URL(url).searchParams.get('token')
 }
 
 /**
@@ -33,173 +33,39 @@ function extractSsoToken(url) {
  * @returns {string | null}
  */
 function extractRedirectPath(url) {
-  const urlObj = new URL(url)
-  return urlObj.searchParams.get('redirect')
+  return new URL(url).searchParams.get('redirect')
 }
 
 /**
  * Validate JWT token structure
- * @param {string} token
+ * @param {string | null} token
  * @returns {boolean}
  */
 function isValidJwtStructure(token) {
   if (!token) return false
-  const parts = token.split('.')
-  return parts.length === 3
+  return token.split('.').length === 3
 }
 
 /**
  * Decode JWT token payload (without verification)
  * @param {string} token
- * @returns {object | null}
+ * @returns {Record<string, any> | null}
  */
 function decodeJwtPayload(token) {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return null
-
-    const payload = parts[1]
-    const decoded = Buffer.from(payload, 'base64').toString('utf-8')
-    return JSON.parse(decoded)
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
   } catch {
     return null
   }
 }
 
-/**
- * Wait for Skilland page to load
- * @param {import('@playwright/test').Page} page
- */
-async function waitForEdukmiLoad(page) {
-  await page.waitForLoadState('networkidle')
-  await page.waitForSelector('#app, #__nuxt, [data-testid="app-root"]', {
-    state: 'attached',
-    timeout: 30000
-  }).catch(() => {})
-}
-
-/**
- * Check if user is authenticated in Skilland
- * @param {import('@playwright/test').Page} page
- * @returns {Promise<boolean>}
- */
-async function isAuthenticatedInEdukmi(page) {
-  const authIndicators = [
-    '[data-testid="user-menu"]',
-    '.user-avatar',
-    '[data-testid="logout-button"]'
-  ]
-
-  for (const selector of authIndicators) {
-    const element = page.locator(selector)
-    if (await element.count() > 0) {
-      return true
-    }
-  }
-
-  return false
-}
-
-/**
- * Check if we're on the Skills Studio page
- * @param {import('@playwright/test').Page} page
- * @returns {Promise<boolean>}
- */
-async function isOnSkillsStudio(page) {
-  const url = page.url()
-  return url.includes('/skills-studio')
-}
-
-/**
- * Check if we're on a topic page
- * @param {import('@playwright/test').Page} page
- * @param {string} [topicId]
- * @returns {Promise<boolean>}
- */
-async function isOnTopicPage(page, topicId) {
-  const url = page.url()
-  if (topicId) {
-    return url.includes(`/topics/${topicId}`)
-  }
-  return url.includes('/topics/')
-}
-
-/**
- * Extract skill ID from current URL
- * @param {import('@playwright/test').Page} page
- * @returns {Promise<string | null>}
- */
-async function extractSkillIdFromUrl(page) {
-  const url = page.url()
-  const match = url.match(/\/skills-studio\/([^/]+)/)
-  return match ? match[1] : null
-}
-
-/**
- * Extract topic ID from current URL
- * @param {import('@playwright/test').Page} page
- * @returns {Promise<string | null>}
- */
-async function extractTopicIdFromUrl(page) {
-  const url = page.url()
-  const match = url.match(/\/topics\/([^/]+)/)
-  return match ? match[1] : null
-}
-
-/**
- * Make API call to Skilland
- * @param {string} endpoint
- * @param {object} options
- * @returns {Promise<Response>}
- */
-async function skillandApiCall(endpoint, options = {}) {
-  const url = `${SKILLAND_API_URL}${endpoint}`
-  return fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers
-    },
-    ...options
-  })
-}
-
-/**
- * Verify SSO token with Skilland API
- * @param {string} token
- * @returns {Promise<{valid: boolean, user?: object, error?: string}>}
- */
-async function verifySsoToken(token) {
-  try {
-    const response = await skillandApiCall('/auth/sso/verify', {
-      method: 'POST',
-      body: JSON.stringify({ token })
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      return { valid: true, user: data.user }
-    }
-
-    return { valid: false, error: 'Token verification failed' }
-  } catch (error) {
-    return { valid: false, error: String(error) }
-  }
-}
-
 module.exports = {
   SKILLAND_BASE_URL,
-  SKILLAND_API_URL,
-  isEdukmiUrl,
+  isSkillandUrl,
   extractSsoToken,
   extractRedirectPath,
   isValidJwtStructure,
-  decodeJwtPayload,
-  waitForEdukmiLoad,
-  isAuthenticatedInEdukmi,
-  isOnSkillsStudio,
-  isOnTopicPage,
-  extractSkillIdFromUrl,
-  extractTopicIdFromUrl,
-  skillandApiCall,
-  verifySsoToken
+  decodeJwtPayload
 }

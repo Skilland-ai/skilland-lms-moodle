@@ -1,92 +1,49 @@
 // @ts-check
-const { execSync } = require('child_process')
 
 /**
- * Global setup for Playwright tests
- * Verifies Docker services are running before tests start
+ * Global setup for Playwright tests.
+ *
+ * The suite only needs a running Moodle with the plugin installed: SkilLand is
+ * always mocked in the browser (see fixtures/skilland-mock.js), so nothing here
+ * probes a SkilLand backend.
  */
 async function globalSetup() {
   const moodleUrl = process.env.MOODLE_URL || 'http://localhost:8081'
-  const skillandUrl = process.env.SKILLAND_URL || 'http://localhost:3000'
-
-  console.log('\n=== Moodle-Skilland E2E Test Setup ===\n')
-
-  console.log('Checking Docker services...')
-  try {
-    execSync('docker compose ps --format json', {
-      cwd: process.cwd().replace('/moodle/tests/e2e', ''),
-      encoding: 'utf-8'
-    })
-    console.log('Docker services status retrieved')
-  } catch {
-    console.warn('Warning: Could not check Docker services status')
-  }
 
   console.log(`\nChecking Moodle availability at ${moodleUrl}...`)
-  const moodleReady = await waitForService(moodleUrl, 'Moodle', 60)
+  const moodleReady = await waitForService(`${moodleUrl}/login/index.php`, 60)
 
   if (!moodleReady) {
-    console.error('\nMoodle is not available. Please ensure Docker services are running:')
-    console.error('  cd skillandUniverse && docker compose up -d')
-    throw new Error('Moodle service not available')
+    throw new Error(
+      `Moodle is not reachable at ${moodleUrl}. Start it (see DEVELOPMENT.md, "E2E tests") ` +
+      'or point MOODLE_URL at a running instance.'
+    )
   }
-
-  console.log(`\nChecking Skilland availability at ${skillandUrl}...`)
-  const skillandReady = await waitForService(skillandUrl, 'Skilland', 30)
-
-  if (!skillandReady) {
-    console.warn('\nWarning: Skilland is not available. SSO tests may fail.')
-    console.warn('To start Skilland: cd skillandUniverse && docker compose up skilland-back skilland-front -d')
-  }
-
-  console.log('\n=== Setup Complete ===\n')
 }
 
 /**
- * Wait for a service to be available
+ * Poll `url` until it answers with a non-error status.
  * @param {string} url
- * @param {string} serviceName
  * @param {number} timeoutSeconds
  * @returns {Promise<boolean>}
  */
-async function waitForService(url, serviceName, timeoutSeconds = 30) {
-  const startTime = Date.now()
-  const timeout = timeoutSeconds * 1000
+async function waitForService(url, timeoutSeconds) {
+  const deadline = Date.now() + timeoutSeconds * 1000
 
-  while (Date.now() - startTime < timeout) {
+  while (Date.now() < deadline) {
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-      const response = await fetch(url, {
-        method: 'GET',
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      if (response.ok || response.status === 302 || response.status === 303) {
-        console.log(`  ${serviceName} is ready (status: ${response.status})`)
+      const response = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(5000) })
+      if (response.status < 400) {
+        console.log(`  Moodle is ready (status: ${response.status})`)
         return true
       }
     } catch {
-      // Service not ready yet
+      // Not ready yet.
     }
-
-    await sleep(2000)
-    process.stdout.write('.')
+    await new Promise(resolve => setTimeout(resolve, 2000))
   }
 
-  console.log(`\n  ${serviceName} not available after ${timeoutSeconds}s`)
   return false
-}
-
-/**
- * Sleep for specified milliseconds
- * @param {number} ms
- */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 module.exports = globalSetup

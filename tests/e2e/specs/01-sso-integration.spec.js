@@ -1,165 +1,89 @@
 // @ts-check
 const { expect } = require('@playwright/test')
-const { test, testData, loginToMoodle } = require('../fixtures/auth')
+const { test } = require('../fixtures/auth')
 const {
-  createCourse,
+  configureSkillandSso,
+  expandSkillandSection,
   getSesskey,
-  deleteCourse
+  goToCourseEditPage
 } = require('../helpers/moodle-helpers')
 const {
-  isEdukmiUrl,
   extractSsoToken,
+  extractRedirectPath,
   isValidJwtStructure,
   decodeJwtPayload
 } = require('../helpers/skilland-helpers')
+const { SKILL_ID, TOPIC_ID } = require('../fixtures/skilland-data')
 
 /**
  * Test suite: SSO Integration
  *
- * Tests the Single Sign-On flow between Moodle and Skilland.
- * Verifies that users can seamlessly authenticate from Moodle to Skilland.
+ * sso_redirect.php signs a token and redirects the browser to SkilLand's
+ * /sso-login. The SkilLand origin is stubbed, so these tests assert the redirect
+ * Moodle produces, never what SkilLand does with it.
  */
 test.describe('SSO Integration', () => {
-  test.describe.configure({ mode: 'serial' })
+  test('SSO redirect without a sesskey is rejected', async ({ authenticatedPage, skillandMock, expectConsoleError }) => {
+    // Moodle answers the missing-parameter error page with HTTP 404.
+    expectConsoleError(/status of 404/)
+    await authenticatedPage.goto('/mod/skilland/sso_redirect.php?topicid=test')
 
-  let courseId = ''
-
-  test.beforeAll(async ({ browser }) => {
-    const page = await browser.newPage()
-    await loginToMoodle(page, testData.moodle.admin.username, testData.moodle.admin.password)
-
-    try {
-      courseId = await createCourse(page, {
-        fullname: 'SSO Test Course',
-        shortname: `sso-test-${Date.now()}`
-      })
-    } catch {
-      console.log('Course creation skipped or failed')
-    }
-
-    await page.close()
+    await expect(authenticatedPage.getByText('A required parameter (sesskey) was missing')).toBeVisible()
+    expect(skillandMock.navigations()).toEqual([])
   })
 
-  test.afterAll(async ({ browser }) => {
-    if (courseId) {
-      const page = await browser.newPage()
-      await loginToMoodle(page, testData.moodle.admin.username, testData.moodle.admin.password)
-      try {
-        await deleteCourse(page, courseId)
-      } catch {
-        console.log('Course cleanup skipped')
-      }
-      await page.close()
-    }
+  test('SSO redirect lands on SkilLand with a signed token and the topic path', async ({
+    authenticatedPage,
+    skillandMock,
+    moodleCourse
+  }) => {
+    const page = authenticatedPage
+    const sso = await configureSkillandSso(page)
+    skillandMock.stubOrigin(sso.frontendUrl)
+    const courseId = await moodleCourse.create({ skillId: SKILL_ID })
+
+    const sesskey = await getSesskey(page)
+    await page.goto(`/mod/skilland/sso_redirect.php?topicid=${TOPIC_ID}&courseid=${courseId}&sesskey=${sesskey}`)
+
+    await expect(page.locator('#skilland-stub')).toBeVisible()
+    const redirects = skillandMock.navigations()
+    expect(redirects).toHaveLength(1)
+    const ssoUrl = redirects[0]
+    expect(new URL(ssoUrl).origin).toBe(new URL(sso.frontendUrl).origin)
+    expect(new URL(ssoUrl).pathname).toBe('/sso-login')
+    expect(extractRedirectPath(ssoUrl)).toBe(`/skills-studio/${SKILL_ID}/topics/${TOPIC_ID}`)
+
+    const token = extractSsoToken(ssoUrl)
+    expect(isValidJwtStructure(token)).toBe(true)
+    const payload = decodeJwtPayload(/** @type {string} */ (token))
+    expect(payload).toMatchObject({ source: 'moodle', orgId: sso.orgId, role: 'Expert' })
+    expect(payload?.email).toBeTruthy()
+    expect(payload?.nonce).toMatch(/^[0-9a-f]{32}$/)
   })
 
-  test('SSO redirect page exists', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/mod/skilland/sso_redirect.php')
+  test('"Go to Skilland" on the course form opens SkilLand in a new tab', async ({
+    authenticatedPage,
+    skillandMock,
+    moodleCourse
+  }) => {
+    const page = authenticatedPage
+    const sso = await configureSkillandSso(page)
+    skillandMock.stubOrigin(sso.frontendUrl)
+    const courseId = await moodleCourse.create()
 
-    const pageContent = await authenticatedPage.content()
-    const hasError = pageContent.includes('error') || pageContent.includes('Error')
+    await goToCourseEditPage(page, courseId)
+    await expandSkillandSection(page)
+    const goToSkilland = page.locator('#skilland-goto-btn a')
+    await expect(goToSkilland).toBeVisible()
 
-    expect(hasError).toBeTruthy()
-  })
-
-  test('SSO redirect requires sesskey', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/mod/skilland/sso_redirect.php?topicid=test&courseid=test')
-
-    const pageContent = await authenticatedPage.content()
-    const hasSessionError =
-      pageContent.includes('sesskey') ||
-      pageContent.includes('session') ||
-      pageContent.includes('invalid')
-
-    expect(hasSessionError).toBeTruthy()
-  })
-
-  test('SSO redirect generates valid token structure', async ({ authenticatedPage }) => {
-    const sesskey = await getSesskey(authenticatedPage)
-
-    let capturedUrl = ''
-
-    // Listen for requests to capture the redirect URL
-    authenticatedPage.on('request', request => {
-      const url = request.url()
-      if (url.includes('sso') && url.includes('token=')) {
-        capturedUrl = url
-      }
-    })
-
-    // Navigate with a reasonable timeout
-    await authenticatedPage.goto(
-      `/mod/skilland/sso_redirect.php?topicid=test-topic&courseid=test-skill&sesskey=${sesskey}`,
-      { waitUntil: 'commit', timeout: 15000 }
-    ).catch(() => {
-      // Timeout is expected if redirect takes long
-    })
-
-    const finalUrl = capturedUrl || authenticatedPage.url()
-
-    // Verify we either got redirected to Skilland or captured the token
-    if (isEdukmiUrl(finalUrl)) {
-      const token = extractSsoToken(finalUrl)
-      if (token) {
-        expect(isValidJwtStructure(token)).toBeTruthy()
-      }
-    }
-  })
-
-  test('SSO token contains user information', async ({ authenticatedPage }) => {
-    const sesskey = await getSesskey(authenticatedPage)
-
-    let capturedToken = ''
-
-    authenticatedPage.on('request', request => {
-      const url = request.url()
-      if (url.includes('token=')) {
-        const token = new URL(url).searchParams.get('token')
-        if (token) capturedToken = token
-      }
-    })
-
-    await authenticatedPage.goto(
-      `/mod/skilland/sso_redirect.php?topicid=test-topic&courseid=test-skill&sesskey=${sesskey}`,
-      { waitUntil: 'commit', timeout: 10000 }
-    ).catch(() => {})
-
-    if (capturedToken && isValidJwtStructure(capturedToken)) {
-      const payload = decodeJwtPayload(capturedToken)
-      if (payload) {
-        expect(payload).toHaveProperty('email')
-      }
-    }
-  })
-
-  test('SSO redirect includes correct path parameters', async ({ authenticatedPage }) => {
-    const sesskey = await getSesskey(authenticatedPage)
-    const testSkillId = 'skill-123'
-    const testTopicId = 'topic-456'
-
-    let capturedUrl = ''
-
-    authenticatedPage.on('request', request => {
-      const url = request.url()
-      if (isEdukmiUrl(url)) {
-        capturedUrl = url
-      }
-    })
-
-    await authenticatedPage.goto(
-      `/mod/skilland/sso_redirect.php?topicid=${testTopicId}&courseid=${testSkillId}&sesskey=${sesskey}`,
-      { waitUntil: 'commit', timeout: 10000 }
-    ).catch(() => {})
-
-    const finalUrl = authenticatedPage.url()
-    const urlToCheck = capturedUrl || finalUrl
-
-    if (isEdukmiUrl(urlToCheck)) {
-      const urlObj = new URL(urlToCheck)
-      const redirect = urlObj.searchParams.get('redirect') || urlObj.pathname
-
-      expect(redirect).toContain(testSkillId)
-      expect(redirect).toContain(testTopicId)
-    }
+    const [popup] = await Promise.all([
+      page.context().waitForEvent('page'),
+      goToSkilland.click()
+    ])
+    await expect(popup.locator('#skilland-stub')).toBeVisible()
+    const ssoUrl = skillandMock.navigations()[0]
+    expect(new URL(ssoUrl).pathname).toBe('/sso-login')
+    expect(extractRedirectPath(ssoUrl)).toBe('/skills-studio')
+    expect(isValidJwtStructure(extractSsoToken(ssoUrl))).toBe(true)
   })
 })

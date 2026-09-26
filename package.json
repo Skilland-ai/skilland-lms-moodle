@@ -5,8 +5,9 @@
   "scripts": {
     "build": "grunt build",
     "watch": "grunt watch",
-    "lint": "eslint tests/e2e",
-    "lint:fix": "eslint tests/e2e --fix",
+    "lint": "eslint tests/e2e src/amd/src",
+    "lint:fix": "eslint tests/e2e src/amd/src --fix",
+    "test:e2e:unit": "node --test tests/e2e/unit/skilland-batch.test.js",
     "test:e2e": "npx playwright test --config=tests/e2e/playwright.config.js",
     "test:e2e:ui": "npx playwright test --config=tests/e2e/playwright.config.js --ui",
     "test:e2e:headed": "npx playwright test --config=tests/e2e/playwright.config.js --headed",

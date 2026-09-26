@@ -1,4 +1,5 @@
 // @ts-check
+const { expect } = require('@playwright/test')
 const testData = require('../fixtures/test-data.json')
 
 /**
@@ -11,7 +12,6 @@ const testData = require('../fixtures/test-data.json')
  */
 async function goToSiteAdmin(page) {
   await page.goto('/admin/search.php')
-  await page.waitForLoadState('domcontentloaded')
 }
 
 /**
@@ -20,16 +20,50 @@ async function goToSiteAdmin(page) {
  */
 async function goToPluginManagement(page) {
   await page.goto('/admin/plugins.php')
-  await page.waitForLoadState('domcontentloaded')
 }
 
 /**
  * Navigate to Skilland plugin settings
  * @param {import('@playwright/test').Page} page
  */
-async function goToEdukmiSettings(page) {
+async function goToSkillandSettings(page) {
   await page.goto('/admin/settings.php?section=modsettingskilland')
-  await page.waitForLoadState('domcontentloaded')
+}
+
+/**
+ * Make sure the plugin can sign SSO tokens: set an organization id and, unless
+ * config.php forces one, an SSO secret. Returns the frontend URL SSO redirects to,
+ * so the caller can stub that origin.
+ * @param {import('@playwright/test').Page} page Admin page
+ * @returns {Promise<{ orgId: string, frontendUrl: string }>}
+ */
+async function configureSkillandSso(page) {
+  await goToSkillandSettings(page)
+
+  const orgInput = page.locator('#id_s_mod_skilland_orgid')
+  const secretInput = page.locator('input#id_s_mod_skilland_sso_secret')
+  const frontendInput = page.locator('input#id_s_mod_skilland_frontend_url')
+  await expect(orgInput).toBeAttached()
+
+  let changed = false
+  if (!await orgInput.inputValue()) {
+    await orgInput.fill('e2e-org')
+    changed = true
+  }
+  if (await secretInput.count() > 0 && await secretInput.isEnabled() && !await secretInput.inputValue()) {
+    const secret = Buffer.from(Array.from({ length: 48 }, () => Math.floor(Math.random() * 256))).toString('base64')
+    await secretInput.evaluate((input, value) => { /** @type {HTMLInputElement} */ (input).value = value }, secret)
+    changed = true
+  }
+  if (changed) {
+    await page.locator('#adminsettings button[type="submit"]').first().click()
+    await expect(page.locator('.alert-success').first()).toBeVisible()
+  }
+
+  const orgId = await orgInput.inputValue()
+  const frontendUrl = (await frontendInput.count() > 0 && await frontendInput.inputValue()) ||
+    'https://app.skilland.ai'
+  return { orgId, frontendUrl }
 }
 
 /**
@@ -37,7 +71,7 @@ async function goToEdukmiSettings(page) {
  * @param {import('@playwright/test').Page} page
  * @returns {Promise<boolean>}
  */
-async function isEdukmiPluginInstalled(page) {
+async function isSkillandPluginInstalled(page) {
   await goToPluginManagement(page)
 
   const pluginRow = page.locator('tr:has-text("skilland")')
@@ -45,80 +79,87 @@ async function isEdukmiPluginInstalled(page) {
 }
 
 /**
- * Create a new course in Moodle
+ * Create a new course in Moodle. Throws when Moodle does not land on the new course.
+ * The course form triggers mod_skilland_fetch_courses_ajax, which the SkilLand mock answers.
  * @param {import('@playwright/test').Page} page
- * @param {object} courseData
+ * @param {{ fullname: string, shortname: string }} courseData
  * @returns {Promise<string>} Course ID
  */
 async function createCourse(page, courseData = testData.testCourse) {
   await page.goto('/course/edit.php?category=1')
-  await page.waitForLoadState('networkidle')  // Wait for form JS to load
 
-  // Wait for form fields to be visible and interactive
-  await page.locator('#id_fullname').waitFor({ state: 'visible' })
+  await expect(page.locator('#id_fullname')).toBeVisible()
   await page.locator('#id_fullname').fill(courseData.fullname)
   await page.locator('#id_shortname').fill(courseData.shortname)
 
-  // Wait for submit button to be visible before clicking
-  // Note: Moodle 4.x uses #id_saveanddisplay instead of #id_submitbutton
-  const submitButton = page.locator('#id_saveanddisplay, #id_submitbutton')
-  await submitButton.first().waitFor({ state: 'visible' })
-  await submitButton.first().click()
-  await page.waitForLoadState('networkidle')
+  // Moodle 4.x uses #id_saveanddisplay instead of #id_submitbutton
+  await page.locator('#id_saveanddisplay, #id_submitbutton').first().click()
+  await page.waitForURL(/\/course\/view\.php\?id=\d+/)
 
-  const url = page.url()
-  const match = url.match(/id=(\d+)/)
-  return match ? match[1] : ''
+  const match = page.url().match(/[?&]id=(\d+)/)
+  if (!match) {
+    throw new Error(`Course "${courseData.shortname}" was not created (landed on ${page.url()})`)
+  }
+  return match[1]
+}
+
+/**
+ * Link a Moodle course to a SkilLand skill through the course form dropdown.
+ * `skillId` must be one of the courses the SkilLand mock returns for
+ * mod_skilland_fetch_courses_ajax.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} courseId
+ * @param {string} skillId
+ */
+async function linkCourseToSkill(page, courseId, skillId) {
+  await goToCourseEditPage(page, courseId)
+  await waitForSkillandDropdownLoaded(page)
+  await selectExistingCourse(page, skillId)
+  await saveCourseForm(page)
+}
+
+/**
+ * Enrol an existing user in a course through the manual enrolment page.
+ * @param {import('@playwright/test').Page} page Admin page
+ * @param {string} courseId
+ * @param {string} fullname The user's full name as Moodle lists it
+ * @param {string} [roleLabel] Role name in the "Assign roles" select
+ */
+async function enrolUser(page, courseId, fullname, roleLabel = 'Teacher') {
+  await page.goto(`/enrol/instances.php?id=${courseId}`)
+  const manageUrl = await page.locator('a[href*="/enrol/manual/manage.php?enrolid="]').first().getAttribute('href')
+  if (!manageUrl) {
+    throw new Error(`Course ${courseId} has no manual enrolment instance`)
+  }
+  await page.goto(manageUrl)
+
+  const candidate = page.locator('#addselect option', { hasText: fullname }).first()
+  const userId = await candidate.getAttribute('value')
+  if (!userId) {
+    throw new Error(`User "${fullname}" is not available for enrolment in course ${courseId}`)
+  }
+  await page.locator('#addselect').selectOption(userId)
+  await page.locator('#menuroleid').selectOption({ label: roleLabel })
+  await page.locator('#add').click()
+  await expect(page.locator(`#removeselect option[value="${userId}"]`)).toBeAttached()
+}
+
+/**
+ * Submit the course settings form and wait for the course page.
+ * @param {import('@playwright/test').Page} page
+ */
+async function saveCourseForm(page) {
+  await page.locator('#id_saveanddisplay, #id_submitbutton').first().click()
+  await page.waitForURL(/\/course\/view\.php\?id=\d+/)
 }
 
 /**
  * Add Skilland activity to a course
  * @param {import('@playwright/test').Page} page
  * @param {string} courseId
- * @param {object} activityData
- * @returns {Promise<string>} Activity ID
  */
-async function addEdukmiActivity(page, courseId, activityData = testData.testActivity) {
-  await page.goto(`/course/view.php?id=${courseId}`)
-  await page.waitForLoadState('domcontentloaded')
-
-  await page.locator('[data-action="setmode"]').click()
-
-  const addActivityLink = page.locator('a.aalink.editing_section')
-  if (await addActivityLink.count() > 0) {
-    await addActivityLink.first().click()
-  }
-
-  const skillandOption = page.locator('div.option:has-text("Skilland")')
-  if (await skillandOption.isVisible()) {
-    await skillandOption.click()
-  } else {
-    const activityChooser = page.locator('[data-action="open-chooser"]').first()
-    await activityChooser.click()
-    await page.waitForLoadState('domcontentloaded')
-
-    const skillandItem = page.locator('.activity:has-text("Skilland"), .optionname:has-text("Skilland")')
-    await skillandItem.click()
-  }
-
-  await page.waitForLoadState('domcontentloaded')
-
-  await page.locator('#id_name').fill(activityData.name)
-
-  const introField = page.locator('#id_introeditor')
-  if (await introField.isVisible()) {
-    await introField.fill(activityData.intro)
-  }
-
-  // Note: Moodle 4.x uses #id_submitbutton2 for activity forms
-  const submitButton = page.locator('#id_submitbutton2, #id_submitbutton')
-  await submitButton.first().waitFor({ state: 'visible' })
-  await submitButton.first().click()
-  await page.waitForLoadState('networkidle')
-
-  const url = page.url()
-  const match = url.match(/id=(\d+)/)
-  return match ? match[1] : ''
+async function goToAddSkillandActivity(page, courseId) {
+  await page.goto(`/course/modedit.php?add=skilland&type=&course=${courseId}&section=0&return=0&sr=0`)
 }
 
 /**
@@ -126,9 +167,8 @@ async function addEdukmiActivity(page, courseId, activityData = testData.testAct
  * @param {import('@playwright/test').Page} page
  * @param {string} activityId
  */
-async function goToEdukmiActivity(page, activityId) {
+async function goToSkillandActivity(page, activityId) {
   await page.goto(`/mod/skilland/view.php?id=${activityId}`)
-  await page.waitForLoadState('domcontentloaded')
 }
 
 /**
@@ -141,7 +181,10 @@ async function getSesskey(page) {
     // @ts-ignore
     return typeof M !== 'undefined' && M.cfg ? M.cfg.sesskey : null
   })
-  return sesskey || ''
+  if (!sesskey) {
+    throw new Error(`No Moodle sesskey on ${page.url()}`)
+  }
+  return sesskey
 }
 
 /**
@@ -151,13 +194,10 @@ async function getSesskey(page) {
  */
 async function deleteCourse(page, courseId) {
   await page.goto(`/course/delete.php?id=${courseId}`)
-  await page.waitForLoadState('domcontentloaded')
 
-  const deleteButton = page.locator('button[type="submit"]:has-text("Delete")')
-  if (await deleteButton.isVisible()) {
-    await deleteButton.click()
-    await page.waitForLoadState('networkidle')
-  }
+  const deleteButton = page.locator('button[type="submit"]:has-text("Delete"), input[type="submit"][value="Delete"]')
+  await deleteButton.first().click()
+  await expect(page.locator('#region-main')).toContainText(/has been completely deleted|deleted/i)
 }
 
 /**
@@ -166,46 +206,10 @@ async function deleteCourse(page, courseId) {
  * @returns {Promise<boolean>}
  */
 async function isLoggedIn(page) {
-  // Check for user menu (standard indicator on most pages)
-  const userMenu = page.locator('.usermenu, #user-menu-toggle, .userbutton')
-  if (await userMenu.count() > 0) {
+  if (new URL(page.url()).pathname.includes('/admin/')) {
     return true
   }
-
-  // Check if on admin page (means admin is logged in)
-  const currentUrl = page.url()
-  if (currentUrl.includes('/admin/')) {
-    return true
-  }
-
-  // Check for logout link as fallback
-  const logoutLink = page.locator('a[href*="logout"]')
-  if (await logoutLink.count() > 0) {
-    return true
-  }
-
-  return false
-}
-
-/**
- * Get logged in user info
- * @param {import('@playwright/test').Page} page
- * @returns {Promise<{username: string, email: string} | null>}
- */
-async function getLoggedInUser(page) {
-  const userInfo = await page.evaluate(() => {
-    // @ts-ignore
-    if (typeof M !== 'undefined' && M.cfg) {
-      return {
-        // @ts-ignore
-        username: M.cfg.username || '',
-        // @ts-ignore
-        email: M.cfg.useremail || ''
-      }
-    }
-    return null
-  })
-  return userInfo
+  return await page.locator('#user-menu-toggle').isVisible()
 }
 
 /**
@@ -215,74 +219,69 @@ async function getLoggedInUser(page) {
  */
 async function goToCourseEditPage(page, courseId) {
   await page.goto(`/course/edit.php?id=${courseId}`)
-  await page.waitForLoadState('domcontentloaded')
 }
 
 /**
  * Get the Skilland course dropdown element
- * Note: The field is inside the collapsed "Skilland content" section
+ * The plugin replaces the custom field text input with a select that has the same id.
  * @param {import('@playwright/test').Page} page
- * @returns {Promise<import('@playwright/test').Locator>}
+ * @returns {import('@playwright/test').Locator}
  */
 function getSkillandDropdown(page) {
-  // The dropdown uses Moodle's custom field system with this ID
-  // There may be both a text input and select with same ID - we want the visible select
   return page.locator('select#id_customfield_skilland_course_id')
 }
 
 /**
- * Expand the Skilland content section on course edit page
+ * The original custom field text input (shown again when the course list fails to load).
  * @param {import('@playwright/test').Page} page
+ * @returns {import('@playwright/test').Locator}
  */
-async function expandSkillandSection(page) {
-  // Find the collapsed section header
-  const sectionHeader = page.locator('a:has-text("Skilland content"), [data-toggle="collapse"]:has-text("Skilland")')
+function getSkillandCourseIdInput(page) {
+  return page.locator('input#id_customfield_skilland_course_id')
+}
 
-  if (await sectionHeader.count() > 0) {
-    // Check if section is already expanded by looking for visible dropdown
-    const dropdown = page.locator('select#id_customfield_skilland_course_id')
-    const isExpanded = await dropdown.isVisible().catch(() => false)
+/**
+ * Expand the collapsible form section (fieldset) that contains `selector`.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} selector
+ */
+async function expandFormSection(page, selector) {
+  const fieldset = page.locator(`fieldset:has(${selector})`).last()
+  await expect(fieldset).toBeAttached()
 
-    if (!isExpanded) {
-      await sectionHeader.click()
-      await page.waitForTimeout(500)  // Wait for collapse animation
-    }
+  const toggle = fieldset.locator('a[data-toggle="collapse"], a[data-bs-toggle="collapse"]').first()
+  if (await toggle.count() > 0 && await toggle.getAttribute('aria-expanded') === 'false') {
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   }
 }
 
 /**
- * Wait for Skilland dropdown to be populated with courses
+ * Expand the collapsible form section holding the Skilland course field.
  * @param {import('@playwright/test').Page} page
- * @param {number} timeout
  */
-async function waitForSkillandDropdownLoaded(page, timeout = 10000) {
-  // First expand the section if needed
-  await expandSkillandSection(page)
-
-  const dropdown = getSkillandDropdown(page)
-  await dropdown.waitFor({ state: 'visible', timeout })
-
-  // Wait for loading to complete (dropdown has options)
-  // eslint-disable-next-line no-undef
-  await page.waitForFunction(
-    () => {
-      const select = document.querySelector('select#id_customfield_skilland_course_id')
-      if (!select) return false
-      const options = select.querySelectorAll('option')
-      // Has at least placeholder + one real option, and not in loading state
-      return options.length >= 1 && !select.innerHTML.includes('Loading')
-    },
-    { timeout }
-  )
+async function expandSkillandSection(page) {
+  await expandFormSection(page, '#id_customfield_skilland_course_id')
 }
 
 /**
- * Select "Create New Skilland Course" option from dropdown
+ * Wait for the Skilland dropdown to leave its loading state.
+ * @param {import('@playwright/test').Page} page
+ */
+async function waitForSkillandDropdownLoaded(page) {
+  await expandSkillandSection(page)
+
+  const dropdown = getSkillandDropdown(page)
+  await expect(dropdown).toBeVisible()
+  await expect(dropdown.locator('option').first()).not.toHaveText(/Loading/)
+}
+
+/**
+ * Select "+ Create in Skilland" from the dropdown (creates the SkilLand course right away)
  * @param {import('@playwright/test').Page} page
  */
 async function selectCreateNewCourse(page) {
-  const dropdown = getSkillandDropdown(page)
-  await dropdown.selectOption({ value: '__create_new__' })
+  await getSkillandDropdown(page).selectOption({ value: '__create_new__' })
 }
 
 /**
@@ -291,17 +290,7 @@ async function selectCreateNewCourse(page) {
  * @param {string} courseId
  */
 async function selectExistingCourse(page, courseId) {
-  const dropdown = getSkillandDropdown(page)
-  await dropdown.selectOption({ value: courseId })
-}
-
-/**
- * Wait for AJAX operations to complete
- * @param {import('@playwright/test').Page} page
- * @param {number} timeout
- */
-async function waitForAjaxComplete(page, timeout = 10000) {
-  await page.waitForLoadState('networkidle', { timeout })
+  await getSkillandDropdown(page).selectOption({ value: courseId })
 }
 
 /**
@@ -310,30 +299,19 @@ async function waitForAjaxComplete(page, timeout = 10000) {
  * @returns {import('@playwright/test').Locator}
  */
 function getEditInSkillandButton(page) {
-  return page.locator('a:has-text("Edit in Skilland"), button:has-text("Edit in Skilland")')
+  return page.locator('#skilland-edit-link')
 }
 
 /**
- * Check if a Moodle notification of a specific type exists
+ * Moodle notification locator of a given type
  * @param {import('@playwright/test').Page} page
- * @param {string} type - 'success' or 'error'
- * @param {string} [textContains] - Optional text to check for
- * @returns {Promise<boolean>}
+ * @param {'success' | 'error'} type
+ * @returns {import('@playwright/test').Locator}
  */
-async function hasNotification(page, type, textContains) {
-  const selector = type === 'success'
+function notification(page, type) {
+  return page.locator(type === 'success'
     ? '.alert-success, [data-type="success"]'
-    : '.alert-danger, .alert-error, [data-type="error"]'
-
-  const notification = page.locator(selector)
-  if (await notification.count() === 0) return false
-
-  if (textContains) {
-    const text = await notification.textContent()
-    return text?.includes(textContains) ?? false
-  }
-
-  return true
+    : '.alert-danger, .alert-error, [data-type="error"]')
 }
 
 /**
@@ -342,30 +320,44 @@ async function hasNotification(page, type, textContains) {
  * @returns {Promise<string>}
  */
 async function getSelectedSkillandCourse(page) {
-  const dropdown = getSkillandDropdown(page)
-  return await dropdown.inputValue()
+  return await getSkillandDropdown(page).inputValue()
+}
+
+/**
+ * Wait until the activity form's topic select has loaded topics.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} topicId A topic the mock returns
+ */
+async function waitForTopicsLoaded(page, topicId) {
+  await expect(page.locator(`select#id_skilland_topicid option[value="${topicId}"]`)).toHaveCount(1)
+  await expect(page.locator('select#id_skilland_topicid')).toBeEnabled()
 }
 
 module.exports = {
   goToSiteAdmin,
   goToPluginManagement,
-  goToEdukmiSettings,
-  isEdukmiPluginInstalled,
+  goToSkillandSettings,
+  configureSkillandSso,
+  isSkillandPluginInstalled,
   createCourse,
-  addEdukmiActivity,
-  goToEdukmiActivity,
+  linkCourseToSkill,
+  enrolUser,
+  saveCourseForm,
+  goToAddSkillandActivity,
+  goToSkillandActivity,
   getSesskey,
   deleteCourse,
   isLoggedIn,
-  getLoggedInUser,
   goToCourseEditPage,
   getSkillandDropdown,
+  getSkillandCourseIdInput,
+  expandFormSection,
   expandSkillandSection,
   waitForSkillandDropdownLoaded,
   selectCreateNewCourse,
   selectExistingCourse,
-  waitForAjaxComplete,
   getEditInSkillandButton,
-  hasNotification,
-  getSelectedSkillandCourse
+  notification,
+  getSelectedSkillandCourse,
+  waitForTopicsLoaded
 }
