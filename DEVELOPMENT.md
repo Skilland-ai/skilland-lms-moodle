@@ -185,6 +185,8 @@ Enable debug mode in Moodle plugin settings and check:
 3. Check the SCORM activity was created (should be hidden)
 4. Check logs for provisioning details
 
+Provisioning is serialized per activity with a Moodle lock (`mod_skilland/provision_<id>`), is idempotent (a repeat call returns the existing SCORM cmid), creates the module through core `create_module()` and deletes it again if the package does not parse; `mod_scorm` is a declared dependency in `version.php`.
+
 ### Updating Language Strings
 
 1. Edit `lang/en/skilland.php` and `lang/es/skilland.php`
