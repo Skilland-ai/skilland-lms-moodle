@@ -19,21 +19,21 @@ function isSkillandUrl(url, baseUrl = SKILLAND_BASE_URL) {
 }
 
 /**
- * Extract SSO token from URL
- * @param {string} url
+ * SSO token from the form body Moodle POSTed to /sso-login (skillandMock.ssoRequests()).
+ * @param {import('../fixtures/skilland-mock').SsoRequest | undefined} request
  * @returns {string | null}
  */
-function extractSsoToken(url) {
-  return new URL(url).searchParams.get('token')
+function extractSsoToken(request) {
+  return request?.form.token ?? null
 }
 
 /**
- * Extract redirect path from URL
- * @param {string} url
+ * Redirect path from the form body Moodle POSTed to /sso-login (skillandMock.ssoRequests()).
+ * @param {import('../fixtures/skilland-mock').SsoRequest | undefined} request
  * @returns {string | null}
  */
-function extractRedirectPath(url) {
-  return new URL(url).searchParams.get('redirect')
+function extractRedirectPath(request) {
+  return request?.form.redirect ?? null
 }
 
 /**

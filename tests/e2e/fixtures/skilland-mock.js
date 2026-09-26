@@ -13,7 +13,7 @@ const skillandData = require('./skilland-data')
  *
  * The suite never talks to a SkilLand backend. Every mod_skilland_* call that the
  * browser sends through Moodle's AJAX endpoint is answered here from a per-test
- * handler map, and every browser navigation to a SkilLand origin (SSO redirects,
+ * handler map, and every browser navigation to a SkilLand origin (the SSO form POST,
  * "Edit in Skilland" tabs) lands on a stub page.
  *
  * Fail-loud guards, checked when the test ends:
@@ -39,6 +39,10 @@ const DEFAULT_HANDLERS = {
 }
 
 /**
+ * @typedef {{ method: string, url: string, form: Record<string, string> }} SsoRequest
+ */
+
+/**
  * @param {string} url
  * @returns {string}
  */
@@ -58,6 +62,8 @@ async function installSkillandMock(context) {
   const unmocked = []
   /** @type {string[]} */
   const stubNavigations = []
+  /** @type {SsoRequest[]} */
+  const ssoRequests = []
   /** @type {string[]} */
   const pageErrors = []
   /** @type {RegExp[]} */
@@ -122,27 +128,19 @@ async function installSkillandMock(context) {
     })
   })
 
-  // Playwright does not route the follow-up requests of a redirect, so the server-side
-  // redirect from sso_redirect.php to SkilLand would bypass the stub below (and fail to
-  // connect). Fetch it without following redirects: a redirect to a stubbed origin is
-  // recorded in navigations() and answered with the stub page; anything else goes back
-  // to the browser unchanged. The page URL therefore stays on sso_redirect.php.
-  await context.route('**/mod/skilland/sso_redirect.php**', async route => {
-    const response = await route.fetch({ maxRedirects: 0 })
-    const location = response.headers().location
-    const target = location ? new URL(location, route.request().url()) : null
-    if (target && stubOrigins.has(target.origin)) {
-      stubNavigations.push(target.href)
-      await route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: STUB_HTML })
-      return
-    }
-    await route.fulfill({ response })
-  })
-
+  // sso_redirect.php answers with a self-submitting form that POSTs the token to
+  // SkilLand's /sso-login (SKL-687), so that navigation reaches the stub route below.
   await context.route(url => stubOrigins.has(url.origin), async route => {
     const request = route.request()
     if (request.isNavigationRequest()) {
       stubNavigations.push(request.url())
+      if (new URL(request.url()).pathname === '/sso-login') {
+        ssoRequests.push({
+          method: request.method(),
+          url: request.url(),
+          form: Object.fromEntries(new URLSearchParams(request.postData() || ''))
+        })
+      }
     }
     await route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: STUB_HTML })
   })
@@ -196,6 +194,14 @@ async function installSkillandMock(context) {
      */
     navigations() {
       return [...stubNavigations]
+    },
+
+    /**
+     * Every navigation to SkilLand's /sso-login: method, URL and the form fields it posted.
+     * @returns {SsoRequest[]}
+     */
+    ssoRequests() {
+      return ssoRequests.map(request => ({ ...request, form: { ...request.form } }))
     },
 
     /**

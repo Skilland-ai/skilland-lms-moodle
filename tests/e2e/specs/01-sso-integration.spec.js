@@ -18,9 +18,10 @@ const { SKILL_ID, TOPIC_ID } = require('../fixtures/skilland-data')
 /**
  * Test suite: SSO Integration
  *
- * sso_redirect.php signs a token and redirects the browser to SkilLand's
- * /sso-login. The SkilLand origin is stubbed, so these tests assert the redirect
- * Moodle produces, never what SkilLand does with it.
+ * sso_redirect.php signs a token and answers with a self-submitting form that POSTs
+ * it to SkilLand's /sso-login, so the token never appears in a URL (SKL-687). The
+ * SkilLand origin is stubbed, so these tests assert the request Moodle produces,
+ * never what SkilLand does with it.
  */
 test.describe('SSO Integration', () => {
   test('SSO redirect without a sesskey is rejected', async ({ authenticatedPage, skillandMock, expectConsoleError }) => {
@@ -32,7 +33,7 @@ test.describe('SSO Integration', () => {
     expect(skillandMock.navigations()).toEqual([])
   })
 
-  test('SSO redirect lands on SkilLand with a signed token and the topic path', async ({
+  test('SSO handoff POSTs a signed, short-lived token and the topic path to SkilLand', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -43,22 +44,32 @@ test.describe('SSO Integration', () => {
     const courseId = await moodleCourse.create({ skillId: SKILL_ID })
 
     const sesskey = await getSesskey(page)
+    // @ts-ignore M is Moodle's page global.
+    const wwwroot = await page.evaluate(() => M.cfg.wwwroot)
     await page.goto(`/mod/skilland/sso_redirect.php?topicid=${TOPIC_ID}&courseid=${courseId}&sesskey=${sesskey}`)
 
     await expect(page.locator('#skilland-stub')).toBeVisible()
-    const redirects = skillandMock.navigations()
-    expect(redirects).toHaveLength(1)
-    const ssoUrl = redirects[0]
-    expect(new URL(ssoUrl).origin).toBe(new URL(sso.frontendUrl).origin)
-    expect(new URL(ssoUrl).pathname).toBe('/sso-login')
-    expect(extractRedirectPath(ssoUrl)).toBe(`/skills-studio/${SKILL_ID}/topics/${TOPIC_ID}`)
+    const requests = skillandMock.ssoRequests()
+    expect(requests).toHaveLength(1)
+    const request = requests[0]
+    expect(request.method).toBe('POST')
+    const ssoUrl = new URL(request.url)
+    expect(ssoUrl.origin).toBe(new URL(sso.frontendUrl).origin)
+    expect(ssoUrl.pathname).toBe('/sso-login')
+    expect(ssoUrl.search).toBe('')
+    expect(request.url).not.toContain('token')
+    expect(Object.keys(request.form).sort()).toEqual(['redirect', 'token'])
+    expect(extractRedirectPath(request)).toBe(`/skills-studio/${SKILL_ID}/topics/${TOPIC_ID}`)
 
-    const token = extractSsoToken(ssoUrl)
+    const token = extractSsoToken(request)
     expect(isValidJwtStructure(token)).toBe(true)
     const payload = decodeJwtPayload(/** @type {string} */ (token))
     expect(payload).toMatchObject({ source: 'moodle', orgId: sso.orgId, role: 'Expert' })
     expect(payload?.email).toBeTruthy()
     expect(payload?.nonce).toMatch(/^[0-9a-f]{32}$/)
+    expect(payload?.exp - payload?.iat).toBe(60)
+    expect(payload?.aud).toBe(new URL(sso.frontendUrl).origin)
+    expect(payload?.iss).toBe(wwwroot)
   })
 
   test('"Go to Skilland" on the course form opens SkilLand in a new tab', async ({
@@ -83,9 +94,11 @@ test.describe('SSO Integration', () => {
       goToSkilland.click()
     ])
     await expect(popup.locator('#skilland-stub')).toBeVisible()
-    const ssoUrl = skillandMock.navigations()[0]
-    expect(new URL(ssoUrl).pathname).toBe('/sso-login')
-    expect(extractRedirectPath(ssoUrl)).toBe('/skills-studio')
-    expect(isValidJwtStructure(extractSsoToken(ssoUrl))).toBe(true)
+    const request = skillandMock.ssoRequests()[0]
+    expect(request.method).toBe('POST')
+    expect(new URL(request.url).pathname).toBe('/sso-login')
+    expect(new URL(request.url).search).toBe('')
+    expect(extractRedirectPath(request)).toBe('/skills-studio')
+    expect(isValidJwtStructure(extractSsoToken(request))).toBe(true)
   })
 })

@@ -158,8 +158,8 @@ test.describe('Input Validation', () => {
     await page.goto(`/mod/skilland/sso_redirect.php?topicid=${encodeURIComponent(maliciousInput)}&sesskey=${sesskey}`)
     await expect(page.locator('#skilland-stub')).toBeVisible()
 
-    const redirect = extractRedirectPath(skillandMock.navigations()[0]) || ''
-    // PARAM_TEXT strips the tags; what is left is URL-encoded into the path.
+    const redirect = extractRedirectPath(skillandMock.ssoRequests()[0]) || ''
+    // PARAM_TEXT strips the tags; what is left is URL-encoded into the path, posted as a form field.
     expect(decodeURIComponent(redirect)).toBe('/skills-studio/topics/alert("xss")')
     expect(dialogs).toEqual([])
   })
@@ -174,6 +174,6 @@ test.describe('Input Validation', () => {
     await page.goto(`/mod/skilland/sso_redirect.php?topicid=test&courseid=${encodeURIComponent(maliciousInput)}&sesskey=${sesskey}`)
     await expect(page.locator('#skilland-stub')).toBeVisible()
 
-    expect(extractRedirectPath(skillandMock.navigations()[0])).toBe('/skills-studio/topics/test')
+    expect(extractRedirectPath(skillandMock.ssoRequests()[0])).toBe('/skills-studio/topics/test')
   })
 })

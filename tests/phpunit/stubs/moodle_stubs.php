@@ -192,6 +192,12 @@ if (!function_exists('optional_param')) {
     }
 }
 
+if (!function_exists('s')) {
+    function s($var): string {
+        return htmlspecialchars((string) $var, ENT_QUOTES | ENT_HTML401 | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+
 if (!function_exists('fullname')) {
     function fullname($user): string {
         $first = $user->firstname ?? '';
