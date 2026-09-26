@@ -5,7 +5,7 @@ This guide helps you set up the Skilland Moodle plugin for local development.
 ## Prerequisites
 
 1. **Docker & Docker Compose** - for running Skilland Universe
-2. **Moodle** - local Moodle installation (4.0+)
+2. **Moodle** - local Moodle installation (4.2+)
 3. **SCORM module** - enabled in Moodle
 
 ## Quick Setup
@@ -171,6 +171,8 @@ Never pass SkilLand API data (course and topic names, descriptions, error messag
 
 The activity form keeps the lesson selection per topic (`selectionsByTopic`), derives `selected_lessons` only from the ticked checkboxes of the rendered topic (`updateSelectedState()`), drops lesson responses for a superseded topic (`lessonsRequestSeq`), and `validation()` rejects lessons outside the submitted topic (`skilland_lessons_outside_topic()`); `tests/phpunit/form_lesson_selection_test.php` guards this (SKL-657).
 
+Web services live in `src/classes/external/<function>.php` (one `mod_skilland\external\<function>` class per function, extending `base`, on Moodle 4.2's `core_external` API), and each `execute()` calls `self::validate_context()` before `require_capability()`; `tests/phpunit/external_validate_context_test.php` guards this (SKL-666).
+
 ## Common Development Tasks
 
 ### Debugging GraphQL Queries
@@ -265,7 +267,7 @@ test('lists topics', async ({ authenticatedPage, skillandMock, moodleCourse }) =
 })
 ```
 
-Only `mod_skilland_fetch_courses_ajax` has a default answer, because every course form calls it. The default payloads live in `fixtures/skilland-data.js` and must keep the shape of the matching `*_returns()` in `src/classes/external.php`: change both in the same commit.
+Only `mod_skilland_fetch_courses_ajax` has a default answer, because every course form calls it. The default payloads live in `fixtures/skilland-data.js` and must keep the shape of the matching `execute_returns()` in `src/classes/external/<function>.php`: change both in the same commit.
 
 **Tests fail loudly.** A test fails when the page calls a `mod_skilland_*` method it did not mock, logs a `console.error`, or throws an uncaught error. Allow an expected one with `expectConsoleError(/pattern/)` (or `skillandMock.expectConsoleError`); `skillandMock.abort()` allows the `net::ERR_FAILED` it causes. Use `test.skip` only for a real environment toggle, never to hide a missing precondition, and wait on `expect(...)`, `waitForURL` or `expect.poll` rather than `waitForTimeout`.
 

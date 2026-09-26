@@ -4,7 +4,7 @@
  * Default payloads for the SkilLand AJAX mock.
  *
  * Each builder returns a fresh object shaped exactly like the matching
- * `*_returns()` definition in src/classes/external.php. When a return structure
+ * `execute_returns()` definition in src/classes/external/<function>.php. When a return structure
  * changes there, change the builder here in the same commit: the mock answers
  * at the Moodle AJAX boundary, so Moodle's own return validation never runs on it.
  *

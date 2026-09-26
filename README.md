@@ -4,7 +4,7 @@
 
 **Seamlessly integrate AI-generated educational content from Skilland into your Moodle courses**
 
-[![Moodle](https://img.shields.io/badge/Moodle-4.0%2B-orange?style=flat-square&logo=moodle)](https://moodle.org)
+[![Moodle](https://img.shields.io/badge/Moodle-4.2%2B-orange?style=flat-square&logo=moodle)](https://moodle.org)
 [![Status](https://img.shields.io/badge/Status-Beta-blue?style=flat-square)]()
 
 </div>
@@ -62,7 +62,7 @@ When creating an activity (Topic), you can now **select exactly which lessons** 
 ## 🚀 Installation
 
 ### Prerequisites
-- Moodle **4.0 or higher**
+- Moodle **4.2 or higher**
 - A Skilland platform account with API access
 - SCORM module enabled in Moodle
 
@@ -110,7 +110,7 @@ Before adding activities, you must link the course:
 | `mod/skilland:addinstance` | Course | Adding a Skilland activity to a course |
 | `mod/skilland:view` | Activity | Opening a Skilland activity (`view.php`) |
 | `mod/skilland:provision` | Activity | Provisioning and updating an activity's SCORM content, and the update checker |
-| `mod/skilland:accessstudio` | Course | Opening SkilLand Studio (SSO), the course navigation link, and listing or creating linked SkilLand courses |
+| `mod/skilland:accessstudio` | Course | Opening SkilLand Studio (SSO), the course navigation link, listing or creating linked SkilLand courses, and browsing the linked course's topics and lessons |
 
 When the plugin is first installed or upgraded, `mod/skilland:provision` copies its role permissions from `moodle/course:manageactivities` and `mod/skilland:accessstudio` copies them from `moodle/course:update`, so existing teacher and manager roles keep the access they had.
 
