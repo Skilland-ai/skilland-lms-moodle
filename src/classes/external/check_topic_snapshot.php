@@ -49,7 +49,7 @@ class check_topic_snapshot extends base {
      * Check if topic content has changed in Skilland.
      *
      * @param int $skillandid Skilland activity record ID.
-     * @return array { isstale: bool, contenthash: string, error: string|null }
+     * @return array { isstale: bool, contenthash: string, studentattemptcount: int, error: string|null }
      */
     public static function execute(int $skillandid) {
         global $DB;
@@ -73,10 +73,15 @@ class check_topic_snapshot extends base {
         self::validate_context($context);
         require_capability('mod/skilland:provision', $context);
 
+        // Independent of the remote API call below: how many students would lose progress if the
+        // teacher goes ahead with the update (SKL-697).
+        $studentattemptcount = skilland_count_topic_student_attempts($skilland);
+
         if (empty($skilland->skilland_topicid)) {
             return [
                 'isstale' => false,
                 'contenthash' => '',
+                'studentattemptcount' => $studentattemptcount,
                 'error' => 'No topic ID configured',
             ];
         }
@@ -88,6 +93,7 @@ class check_topic_snapshot extends base {
                 return [
                     'isstale' => false,
                     'contenthash' => '',
+                    'studentattemptcount' => $studentattemptcount,
                     'error' => 'Could not reach Skilland API',
                 ];
             }
@@ -99,12 +105,14 @@ class check_topic_snapshot extends base {
             return [
                 'isstale' => $isstale,
                 'contenthash' => $remoteHash,
+                'studentattemptcount' => $studentattemptcount,
                 'error' => null,
             ];
         } catch (\Throwable $e) {
             return [
                 'isstale' => false,
                 'contenthash' => '',
+                'studentattemptcount' => $studentattemptcount,
                 'error' => self::client_error($e, 'check_topic_snapshot'),
             ];
         }
@@ -119,6 +127,8 @@ class check_topic_snapshot extends base {
         return new external_single_structure([
             'isstale' => new external_value(PARAM_BOOL, 'Whether content has changed since last sync'),
             'contenthash' => new external_value(PARAM_TEXT, 'Current content hash from Skilland'),
+            'studentattemptcount' => new external_value(PARAM_INT,
+                'Number of distinct students with a SCORM attempt on this topic', VALUE_DEFAULT, 0),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),
         ]);
     }

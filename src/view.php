@@ -291,7 +291,10 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
 
         // Status indicator.
         $html .= html_writer::div(
-            html_writer::tag('i', '', ['class' => 'fa ' . $completionicon . ' skilland-status-icon']) .
+            html_writer::tag('i', '', [
+                'class' => 'fa ' . $completionicon . ' skilland-status-icon',
+                'aria-hidden' => 'true',
+            ]) .
             html_writer::tag('span', $statustext, ['class' => 'skilland-status-text']),
             'skilland-lesson-status'
         );
@@ -395,8 +398,13 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         'class' => 'skilland-fullscreen-back'
     ]);
 
-    // Center: Lesson title (absolutely positioned for true centering).
-    $html .= html_writer::tag('span', $lessontitle, ['class' => 'skilland-fullscreen-title']);
+    // Center: Lesson title. A heading (not a span) so it takes its place in the page's
+    // heading structure, and focusable so it can receive focus when the overlay opens.
+    $html .= html_writer::tag('h2', $lessontitle, [
+        'class' => 'skilland-fullscreen-title',
+        'id' => 'skilland-fullscreen-title',
+        'tabindex' => '-1',
+    ]);
 
     // Right: Close button (X) - same action as back to lessons.
     $html .= html_writer::link($backurl, '×', [
@@ -426,7 +434,8 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
     // Load the fullscreen JavaScript module.
     $devmode = get_config('mod_skilland', 'devmode');
     $PAGE->requires->js_call_amd('mod_skilland/fullscreen_player', 'init', [[
-        'debug' => (bool)$devmode
+        'debug' => (bool)$devmode,
+        'backurl' => $backurl->out(false)
     ]]);
 
     return $html;
@@ -543,15 +552,26 @@ function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm,
                 ? $prevlabel . ' - ' . format_string($prev->title)
                 : format_string($prev->title);
             $html .= html_writer::link($prevurl,
-                html_writer::tag('span', '←', ['class' => 'skilland-fullscreen-nav-arrow']) .
+                html_writer::tag('span', '←', ['class' => 'skilland-fullscreen-nav-arrow', 'aria-hidden' => 'true']) .
                 html_writer::tag('span', $prevtext, ['class' => 'skilland-fullscreen-nav-text']),
-                ['class' => 'skilland-fullscreen-nav-prev']
+                [
+                    'class' => 'skilland-fullscreen-nav-prev',
+                    'aria-label' => get_string('aria_previous_lesson', 'mod_skilland', $prevtext),
+                ]
             );
         } else {
-            $html .= html_writer::span('', 'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled');
+            $html .= html_writer::span(
+                html_writer::tag('span', get_string('no_previous_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+                'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled',
+                ['aria-disabled' => 'true']
+            );
         }
     } else {
-        $html .= html_writer::span('', 'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled');
+        $html .= html_writer::span(
+            html_writer::tag('span', get_string('no_previous_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+            'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled',
+            ['aria-disabled' => 'true']
+        );
     }
 
     // Next lesson link.
@@ -565,14 +585,25 @@ function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm,
                 : format_string($next->title);
             $html .= html_writer::link($nexturl,
                 html_writer::tag('span', $nexttext, ['class' => 'skilland-fullscreen-nav-text']) .
-                html_writer::tag('span', '→', ['class' => 'skilland-fullscreen-nav-arrow']),
-                ['class' => 'skilland-fullscreen-nav-next']
+                html_writer::tag('span', '→', ['class' => 'skilland-fullscreen-nav-arrow', 'aria-hidden' => 'true']),
+                [
+                    'class' => 'skilland-fullscreen-nav-next',
+                    'aria-label' => get_string('aria_next_lesson', 'mod_skilland', $nexttext),
+                ]
             );
         } else {
-            $html .= html_writer::span('', 'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled');
+            $html .= html_writer::span(
+                html_writer::tag('span', get_string('no_next_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+                'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled',
+                ['aria-disabled' => 'true']
+            );
         }
     } else {
-        $html .= html_writer::span('', 'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled');
+        $html .= html_writer::span(
+            html_writer::tag('span', get_string('no_next_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+            'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled',
+            ['aria-disabled' => 'true']
+        );
     }
 
     $html .= html_writer::end_div();
@@ -598,7 +629,7 @@ function skilland_render_provision_view($skilland, $cm) {
         'data-cmid' => $cm->id
     ]);
 
-    $html .= html_writer::tag('div', '📦', ['class' => 'skilland-placeholder-icon']);
+    $html .= html_writer::tag('div', '📦', ['class' => 'skilland-placeholder-icon', 'aria-hidden' => 'true']);
     $html .= html_writer::tag('h4', get_string('content_not_provisioned', 'mod_skilland'));
     $html .= html_writer::tag('p', get_string('provision_topic_desc', 'mod_skilland'), ['class' => 'text-muted mb-3']);
 
@@ -610,16 +641,21 @@ function skilland_render_provision_view($skilland, $cm) {
         'data-cmid' => $cm->id
     ]);
 
-    // Loading spinner (hidden by default).
+    // Loading spinner (hidden by default). role="status"/aria-live announces the elapsed-time
+    // updates and the eventual timeout message to screen reader users (SKL-697).
     $html .= html_writer::div(
-        html_writer::tag('i', '', ['class' => 'fa fa-spinner fa-spin fa-2x']) .
-        html_writer::tag('p', get_string('provisioning', 'mod_skilland'), ['class' => 'mt-2']),
+        html_writer::tag('i', '', ['class' => 'fa fa-spinner fa-spin fa-2x', 'aria-hidden' => 'true']) .
+        html_writer::tag('p', get_string('provisioning', 'mod_skilland'), ['class' => 'mt-2']) .
+        html_writer::tag('p', '', ['class' => 'mt-1 skilland-provision-elapsed', 'id' => 'skilland-provision-elapsed']) .
+        html_writer::tag('p', get_string('provisioning_wait_hint', 'mod_skilland'),
+            ['class' => 'text-muted small mt-2']),
         'skilland-provision-loading d-none',
-        ['id' => 'skilland-provision-loading']
+        ['id' => 'skilland-provision-loading', 'role' => 'status', 'aria-live' => 'polite']
     );
 
     // Error message area (hidden by default).
-    $html .= html_writer::div('', 'alert alert-danger d-none mt-3', ['id' => 'skilland-provision-error']);
+    $html .= html_writer::div('', 'alert alert-danger d-none mt-3', ['id' => 'skilland-provision-error',
+        'role' => 'alert']);
 
     $html .= html_writer::end_div();
 

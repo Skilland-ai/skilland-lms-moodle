@@ -115,6 +115,10 @@ $string['score'] = 'Puntuación';
 $string['updated'] = 'Actualizado';
 $string['back_to_lessons'] = 'Volver a lecciones';
 $string['toggle_fullscreen'] = 'Alternar pantalla completa';
+$string['aria_previous_lesson'] = 'Lección anterior: {$a}';
+$string['aria_next_lesson'] = 'Siguiente lección: {$a}';
+$string['no_previous_lesson'] = 'No hay lección anterior';
+$string['no_next_lesson'] = 'No hay siguiente lección';
 $string['launch_lesson'] = 'Iniciar Lección';
 $string['content_coming_soon'] = 'Contenido Próximamente';
 $string['content_being_prepared'] = 'El contenido de esta lección está siendo preparado. Por favor, vuelva más tarde.';
@@ -142,6 +146,9 @@ $string['provision_topic_desc'] = 'Descargar y crear el paquete SCORM que contie
 $string['provisioning'] = 'Provisionando contenido...';
 $string['provision_success'] = '¡Contenido provisionado exitosamente!';
 $string['provision_failed'] = 'Error al provisionar contenido: {$a}';
+$string['provisioning_wait_hint'] = 'Esto puede tardar varios minutos en temas grandes. Mantén esta página abierta.';
+$string['provisioning_elapsed'] = 'Preparando contenido… {$a}';
+$string['provisioning_timeout_message'] = 'Esto está tardando más de lo esperado. Sigue ejecutándose en segundo plano: puedes actualizar esta página en unos minutos para comprobarlo.';
 
 // New content indicator.
 $string['new_content_available'] = 'Nuevo Contenido Disponible';
@@ -150,11 +157,17 @@ $string['new_content_available'] = 'Nuevo Contenido Disponible';
 $string['update_from_skilland'] = 'Actualizar Desde Skilland';
 $string['updating'] = 'Actualizando...';
 $string['update_confirm_title'] = '¿Actualizar Contenido?';
-$string['update_confirm_message'] = 'Esto descargará el contenido más reciente de Skilland y reemplazará el paquete SCORM actual. ADVERTENCIA: Todo el progreso y las calificaciones de los estudiantes para este tema se eliminarán permanentemente. Esta acción no se puede deshacer. ¿Está seguro de que desea continuar?';
+$string['update_confirm_message'] = 'Esto descargará el contenido más reciente de Skilland y reemplazará el paquete SCORM actual.';
+$string['update_confirm_message_students'] = 'Esto descargará el contenido más reciente de Skilland y reemplazará el paquete SCORM actual. {$a} estudiante(s) tienen progreso en este tema que se eliminará permanentemente y no podrá recuperarse.';
+
+// Destructive confirmation styling (SKL-697).
+$string['destructive_confirm_action'] = 'Reemplazar contenido y eliminar progreso';
+$string['lockafterfirstaccess_hint'] = 'Para mantener el contenido actual sin cambios para los estudiantes que ya han empezado, activa "{$a}" en los ajustes de la actividad.';
 
 // Topic change and SCO reconciliation (SKL-655).
 $string['topic_change_confirm_title'] = '¿Cambiar el tema?';
-$string['topic_change_confirm'] = 'Cambiar el tema reemplaza el contenido y reinicia todo el progreso de los estudiantes en esta actividad.';
+$string['topic_change_confirm'] = 'Cambiar el tema reemplaza el contenido de esta actividad.';
+$string['topic_change_confirm_students'] = 'Cambiar el tema reemplaza el contenido de esta actividad. {$a} estudiante(s) tienen progreso que se eliminará permanentemente.';
 $string['topic_changed_reprovision_failed'] = 'Se ha cambiado el tema, pero no se ha podido generar su contenido. Abre la actividad y usa Provisionar Contenido del Tema para crearlo.';
 $string['lesson_sco_missing'] = 'Esta lección no está en el paquete de contenido actual. Usa Actualizar Desde Skilland en los ajustes de la actividad para regenerarlo.';
 $string['update_success'] = 'Contenido actualizado exitosamente desde Skilland.';
