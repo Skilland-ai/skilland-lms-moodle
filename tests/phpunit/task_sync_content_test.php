@@ -5,6 +5,8 @@ namespace mod_skilland\tests;
 use PHPUnit\Framework\TestCase;
 use mod_skilland\task\sync_content;
 
+require_once __DIR__ . '/stubs/completionlib.php';
+
 class task_sync_content_test extends TestCase {
 
     /** @var \FakeDatabase */
@@ -515,5 +517,138 @@ class task_sync_content_test extends TestCase {
         // Should see "Sync complete" log with error count.
         $completeLog = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'Sync complete'));
         $this->assertNotEmpty($completeLog);
+    }
+
+    // ---------------------------------------------------------------
+    // Progress backfill (SKL-668)
+    // ---------------------------------------------------------------
+
+    private function seedTrackedActivity(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => 'key',
+            'orgid' => 'org',
+            'graphql_endpoint' => 'https://localhost/graphql',
+        ];
+        $this->db->get_manager()->set_table_exists('scorm_attempt', true);
+        $this->db->get_manager()->set_table_exists('scorm_scoes_value', true);
+        $this->db->seed('skilland', [
+            (object)['id' => 1, 'course' => 3, 'autoupdate' => 1, 'scormcmid' => 100, 'skilland_topicid' => 'topic1',
+                'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash', 'grade' => 100],
+        ]);
+        $this->db->seed('skilland_lesson', [
+            (object)['id' => 5, 'skillandid' => 1, 'scoid' => 11, 'visible' => 1],
+        ]);
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 9, 'course' => 3];
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 90, 'instance' => 1, 'course' => 3, 'section' => 1];
+        unset($GLOBALS['_test_grade_updates'], $GLOBALS['_test_completion_updates']);
+    }
+
+    public function test_backfill_runs_even_when_the_api_call_fails(): void {
+        $this->seedTrackedActivity();
+        $this->db->set_records_sql_handler(fn() => [
+            1 => (object)['id' => 1, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'completed'],
+            2 => (object)['id' => 2, 'userid' => 51, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'incomplete'],
+        ]);
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $this->makeTask()->execute();
+
+        $rows = $this->db->get_records('skilland_progress');
+        $this->assertCount(2, $rows);
+        $this->assertSame(['completed', 'incomplete'], array_values(array_map(fn($r) => $r->status, $rows)));
+        $this->assertCount(2, $GLOBALS['_test_completion_updates'] ?? []);
+        $this->assertCount(2, $GLOBALS['_test_grade_updates'] ?? []);
+        $skipped = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'Could not get hash info'));
+        $this->assertNotEmpty($skipped, 'The API check still ran and failed');
+    }
+
+    public function test_backfill_reads_progress_rows_once_per_activity_whatever_the_learner_count(): void {
+        $this->seedTrackedActivity();
+        $this->db->seed('skilland_progress', [
+            (object)['id' => 1, 'skillandid' => 1, 'lessonid' => 5, 'userid' => 50, 'status' => 'incomplete',
+                'score' => null, 'timemodified' => 1],
+        ]);
+        $tracks = [];
+        foreach (range(50, 59) as $i => $userid) {
+            $tracks[$i + 1] = (object)['id' => $i + 1, 'userid' => $userid, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'completed'];
+        }
+        $this->db->set_records_sql_handler(fn() => $tracks);
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $this->makeTask()->execute();
+
+        $progressreads = array_filter($this->db->get_calls_for('get_records'),
+            fn($c) => $c['table'] === 'skilland_progress' && !isset($c['conditions']['userid']));
+        // The merge's own per-learner read (grading reads per learner separately, after a change).
+        $peruserreads = array_filter($this->db->get_calls_for('get_records'),
+            fn($c) => $c['table'] === 'skilland_progress' && $c['fields'] === 'lessonid, id, status, score');
+        $this->assertCount(1, $progressreads);
+        $this->assertCount(0, $peruserreads, 'No per-learner read of the store in the merge');
+        $rows = $this->db->get_records('skilland_progress');
+        $this->assertCount(10, $rows);
+        $this->assertSame(['completed'], array_values(array_unique(array_map(fn($r) => $r->status, $rows))));
+        $this->assertCount(1, array_filter($rows, fn($r) => $r->userid == 50), 'Existing row merged, not duplicated');
+    }
+
+    public function test_backfill_recomputes_only_learners_whose_progress_changed(): void {
+        $this->seedTrackedActivity();
+        $this->db->seed('skilland_progress', [
+            (object)['id' => 1, 'skillandid' => 1, 'lessonid' => 5, 'userid' => 50, 'status' => 'completed',
+                'score' => null, 'timemodified' => 1],
+        ]);
+        $this->db->set_records_sql_handler(fn() => [
+            1 => (object)['id' => 1, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'completed'],
+        ]);
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $this->makeTask()->execute();
+
+        $this->assertEmpty($GLOBALS['_test_completion_updates'] ?? []);
+        $this->assertEmpty($GLOBALS['_test_grade_updates'] ?? []);
+    }
+
+    public function test_backfill_runs_when_config_is_incomplete(): void {
+        $this->seedTrackedActivity();
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['apikey' => '', 'orgid' => '', 'graphql_endpoint' => ''];
+        $this->db->set_records_sql_handler(fn() => [
+            1 => (object)['id' => 1, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'passed'],
+        ]);
+
+        $this->makeTask()->execute();
+
+        $this->assertCount(1, $this->db->get_records('skilland_progress'));
+    }
+
+    public function test_reprovision_path_does_not_recompute(): void {
+        $this->seedTrackedActivity();
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_update_topic_scorm'] = 200;
+
+        $this->makeTask()->execute();
+
+        $complete = array_values(array_filter($GLOBALS['_test_debug_messages'],
+            fn($m) => str_contains($m['message'], 'Sync complete')));
+        $this->assertStringContainsString('1 updated', $complete[0]['message']);
+        $this->assertEmpty($GLOBALS['_test_completion_updates'] ?? []);
+        $this->assertEmpty($GLOBALS['_test_grade_updates'] ?? []);
+        $this->assertEmpty($this->db->get_records('skilland_progress'));
+    }
+
+    public function test_backfill_failure_on_one_activity_does_not_stop_the_sync(): void {
+        $this->seedTrackedActivity();
+        $this->db->set_records_sql_handler(function () {
+            throw new \RuntimeException('boom');
+        });
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $this->makeTask()->execute();
+
+        $complete = array_filter($GLOBALS['_test_debug_messages'], fn($m) => str_contains($m['message'], 'Sync complete'));
+        $this->assertNotEmpty($complete);
     }
 }

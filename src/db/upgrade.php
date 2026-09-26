@@ -169,6 +169,70 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092604, 'skilland');
     }
 
+    // For version 2026092608 (SKL-668): the SkilLand activity owns completion and the (opt-in)
+    // grade, read from a per-learner progress store that survives SCORM re-provisioning; the
+    // hidden topic SCORM keeps no gradebook presence.
+    if ($oldversion < 2026092608) {
+        $table = new xmldb_table('skilland');
+
+        $field = new xmldb_field('completionlessons', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
+            'scomappings');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('grade', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0',
+            'completionlessons');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $table = new xmldb_table('skilland_progress');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('skillandid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('lessonid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'not_started');
+        $table->add_field('score', XMLDB_TYPE_NUMBER, '10, 5', null, null, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('skillandid_fk', XMLDB_KEY_FOREIGN, ['skillandid'], 'skilland', ['id']);
+        $table->add_key('lessonid_fk', XMLDB_KEY_FOREIGN, ['lessonid'], 'skilland_lesson', ['id']);
+        $table->add_key('userid_fk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('lessonid_userid_uix', XMLDB_INDEX_UNIQUE, ['lessonid', 'userid']);
+        $table->add_index('skillandid_userid_idx', XMLDB_INDEX_NOTUNIQUE, ['skillandid', 'userid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Already-linked topic SCORMs drop their grade item: one broken SCORM never fails the upgrade.
+        require_once($CFG->dirroot . '/mod/scorm/lib.php');
+        require_once($CFG->dirroot . '/mod/scorm/locallib.php');
+        $linked = $DB->get_records_select('skilland', 'scormcmid IS NOT NULL', null, 'id ASC', 'id, scormcmid');
+        foreach ($linked as $skilland) {
+            try {
+                $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
+                if (!$scormcm) {
+                    continue;
+                }
+                $scorm = $DB->get_record('scorm', ['id' => $scormcm->instance], '*', IGNORE_MISSING);
+                if (!$scorm) {
+                    continue;
+                }
+                $scorm->maxgrade = 0;
+                $scorm->grademethod = GRADEHIGHEST;
+                $DB->update_record('scorm', $scorm);
+                $scorm->cmidnumber = $scormcm->idnumber ?? '';
+                scorm_grade_item_update($scorm);
+            } catch (\Throwable $e) {
+                debugging('mod_skilland: could not remove the grade item of SCORM cmid ' . $skilland->scormcmid .
+                    ': ' . $e->getMessage(), DEBUG_NORMAL);
+            }
+        }
+
+        upgrade_mod_savepoint(true, 2026092608, 'skilland');
+    }
+
     return true;
 }
 

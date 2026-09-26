@@ -339,49 +339,57 @@ class integrity_test extends TestCase {
     // ---------------------------------------------------------------
 
     /**
-     * Every function declared in db/services.php must have a matching
-     * static method, *_parameters(), and *_returns() in external.php.
+     * Every function declared in db/services.php must name a class under
+     * classes/external/ that defines execute(), execute_parameters() and execute_returns().
      */
     public function test_services_methods_exist_in_external_class(): void {
-        $functions = [];
-        // We need MOODLE_INTERNAL + stubs for the require.
-        if (!defined('MOODLE_INTERNAL')) {
-            define('MOODLE_INTERNAL', true);
-        }
-
-        // Parse services.php by extracting the $functions array via regex
-        // (can't require it because it calls die() without MOODLE_INTERNAL in the right scope).
         $content = file_get_contents(self::$srcDir . '/db/services.php');
 
-        // Extract all methodname values.
-        preg_match_all("/'methodname'\\s*=>\\s*'(\\w+)'/", $content, $matches);
-        $methodNames = $matches[1];
+        preg_match_all("/'classname'\\s*=>\\s*'([^']+)'/", $content, $classes);
+        preg_match_all("/'methodname'\\s*=>\\s*'(\\w+)'/", $content, $methods);
 
-        $this->assertNotEmpty($methodNames, 'No methods found in services.php');
+        $this->assertNotEmpty($classes[1], 'No classnames found in services.php');
+        $this->assertCount(count($classes[1]), $methods[1], 'Every service needs a methodname');
 
-        // Read external.php source to check method existence without requiring it.
-        $externalSource = file_get_contents(self::$srcDir . '/classes/external.php');
         $missing = [];
-
-        foreach ($methodNames as $method) {
-            // Check main method exists.
-            if (!preg_match('/function\s+' . preg_quote($method) . '\s*\(/', $externalSource)) {
-                $missing[] = "$method()";
+        foreach ($classes[1] as $i => $classname) {
+            $classname = str_replace('\\\\', '\\', $classname);
+            $prefix = 'mod_skilland\\external\\';
+            if (strpos($classname, $prefix) !== 0) {
+                $missing[] = "$classname is not in the mod_skilland\\external namespace";
+                continue;
             }
-            // Check _parameters method.
-            if (!preg_match('/function\s+' . preg_quote($method . '_parameters') . '\s*\(/', $externalSource)) {
-                $missing[] = "{$method}_parameters()";
+            $file = self::$srcDir . '/classes/external/' . substr($classname, strlen($prefix)) . '.php';
+            if (!is_file($file)) {
+                $missing[] = "$classname has no class file";
+                continue;
             }
-            // Check _returns method.
-            if (!preg_match('/function\s+' . preg_quote($method . '_returns') . '\s*\(/', $externalSource)) {
-                $missing[] = "{$method}_returns()";
+            $source = file_get_contents($file);
+            foreach (['execute', 'execute_parameters', 'execute_returns'] as $method) {
+                if (!preg_match('/public\s+static\s+function\s+' . $method . '\s*\(/', $source)) {
+                    $missing[] = "$classname::$method()";
+                }
+            }
+            if ($methods[1][$i] !== 'execute') {
+                $missing[] = "$classname methodname is {$methods[1][$i]}, expected execute";
             }
         }
 
         $this->assertEmpty(
             $missing,
-            "External API methods missing for services.php declarations:\n  " . implode("\n  ", $missing)
+            "External API classes missing for services.php declarations:\n  " . implode("\n  ", $missing)
         );
+    }
+
+    public function test_version_requires_moodle_42_for_core_external(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+
+        $this->assertGreaterThanOrEqual(2023042400, $plugin->requires,
+            'The web services extend core_external\\external_api, which needs Moodle 4.2+');
     }
 
     // ---------------------------------------------------------------
@@ -661,6 +669,104 @@ class integrity_test extends TestCase {
                     'lesson_sco_missing'] as $key) {
                 $this->assertNotEmpty($string[$key] ?? '', "$lang string $key");
             }
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Completion and grades (SKL-668)
+    // ---------------------------------------------------------------
+
+    public function test_completion_and_grade_columns_are_installed_and_upgraded(): void {
+        $xml = simplexml_load_file(self::$srcDir . '/db/install.xml');
+        foreach (['completionlessons' => '1', 'grade' => '10'] as $name => $length) {
+            $field = $xml->xpath('//TABLE[@NAME="skilland"]/FIELDS/FIELD[@NAME="' . $name . '"]');
+            $this->assertCount(1, $field, $name);
+            $this->assertSame('int', (string) $field[0]['TYPE']);
+            $this->assertSame($length, (string) $field[0]['LENGTH']);
+            $this->assertSame('true', (string) $field[0]['NOTNULL']);
+            $this->assertSame('0', (string) $field[0]['DEFAULT']);
+        }
+
+        $upgrade = file_get_contents(self::$srcDir . '/db/upgrade.php');
+        $this->assertMatchesRegularExpression(
+            "/if \\(\\\$oldversion < 2026092608\\) \\{.*new xmldb_field\\('completionlessons'.*new xmldb_field\\('grade'.*" .
+            "new xmldb_table\\('skilland_progress'\\).*table_exists.*create_table.*scorm_grade_item_update.*" .
+            "upgrade_mod_savepoint\\(true, 2026092608, 'skilland'\\);/s",
+            $upgrade
+        );
+    }
+
+    public function test_progress_table_is_installed_with_its_keys_and_indexes(): void {
+        $this->assertArrayHasKey('skilland_progress', self::$dbColumns);
+        foreach (['id', 'skillandid', 'lessonid', 'userid', 'status', 'score', 'timemodified'] as $col) {
+            $this->assertContains($col, self::$dbColumns['skilland_progress'], $col);
+        }
+
+        $xml = simplexml_load_file(self::$srcDir . '/db/install.xml');
+        $table = $xml->xpath('//TABLE[@NAME="skilland_progress"]')[0];
+        $score = $table->xpath('FIELDS/FIELD[@NAME="score"]')[0];
+        $this->assertSame('number', (string) $score['TYPE']);
+        $this->assertSame('false', (string) $score['NOTNULL']);
+        $lessonfk = $table->xpath('KEYS/KEY[@NAME="lessonid_fk"]')[0];
+        $this->assertSame('skilland_lesson', (string) $lessonfk['REFTABLE']);
+        $unique = $table->xpath('INDEXES/INDEX[@UNIQUE="true"]');
+        $this->assertCount(1, $unique);
+        $this->assertSame('lessonid, userid', (string) $unique[0]['FIELDS']);
+        $this->assertCount(1, $table->xpath('INDEXES/INDEX[@FIELDS="skillandid, userid"]'));
+    }
+
+    public function test_events_file_declares_scorm_tracking_observers(): void {
+        $observers = null;
+        require self::$srcDir . '/db/events.php';
+
+        foreach (['\\mod_scorm\\event\\status_submitted', '\\mod_scorm\\event\\scoreraw_submitted'] as $name) {
+            $found = array_values(array_filter($observers, fn($o) => ($o['eventname'] ?? '') === $name));
+            $this->assertCount(1, $found, $name);
+            [$class, $method] = explode('::', $found[0]['callback']);
+            $class = ltrim($class, '\\');
+            $this->assertTrue(class_exists($class), "Observer class $class not found");
+            $this->assertTrue(method_exists($class, $method), "Observer method $class::$method not found");
+        }
+    }
+
+    public function test_custom_completion_class_exists(): void {
+        $this->assertFileExists(self::$srcDir . '/classes/completion/custom_completion.php');
+        $this->assertTrue(class_exists(\mod_skilland\completion\custom_completion::class));
+    }
+
+    public function test_backup_carries_completion_and_grade(): void {
+        $backup = file_get_contents(self::$srcDir . '/backup/moodle2/backup_skilland_stepslib.php');
+        $this->assertStringContainsString("'completionlessons'", $backup);
+        $this->assertStringContainsString("'grade'", $backup);
+    }
+
+    public function test_version_is_bumped_for_completion_and_grades(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+        $this->assertGreaterThanOrEqual(2026092608, $plugin->version);
+    }
+
+    public function test_skl668_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include self::$srcDir . "/lang/$lang/skilland.php";
+            foreach (['completionlessons', 'completionlessons_help', 'completionlessons_desc',
+                    'completiondetail:lessons', 'error_grade_scale_unsupported'] as $key) {
+                $this->assertNotEmpty($string[$key] ?? '', "$lang string $key");
+            }
+        }
+    }
+
+    public function test_skl670_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include self::$srcDir . "/lang/$lang/skilland.php";
+            $this->assertNotEmpty($string['error_api_unavailable'] ?? '', "$lang string error_api_unavailable");
+            $this->assertStringNotContainsString('{$a}', $string['error_scorm_fetch_failed'],
+                "$lang error_scorm_fetch_failed carries no inner message");
         }
     }
 }

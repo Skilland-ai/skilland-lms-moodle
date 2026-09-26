@@ -280,8 +280,16 @@ class locallib_graphql_test extends TestCase {
         }
     }
 
-    public function test_graphql_http_0_with_errno7_suggests_docker(): void {
+    /**
+     * Run a request that fails with curl's connection refused against the localhost endpoint.
+     *
+     * @param bool $devmode Whether devmode is on.
+     * @return \moodle_exception
+     */
+    private function connection_refused_exception(bool $devmode = false): \moodle_exception {
         $this->setValidConfig();
+        $GLOBALS['_test_plugin_config']['mod_skilland']->devmode = $devmode ? 1 : 0;
+        \mod_skilland\logger::reset_cache();
         $GLOBALS['_test_curl_response'] = [
             'body' => '',
             'http_code' => 0,
@@ -291,11 +299,48 @@ class locallib_graphql_test extends TestCase {
 
         try {
             mod_skilland_graphql('{ test }');
-            $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
-            $this->assertEquals('error_graphql_http', $e->errorcode);
-            $this->assertStringContainsString('host.docker.internal', $e->a);
+            return $e;
         }
+        $this->fail('Expected exception');
+    }
+
+    /**
+     * All logged debugging() messages as one string.
+     *
+     * @return string
+     */
+    private function debug_log(): string {
+        return implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+    }
+
+    public function test_graphql_http_0_with_errno7_keeps_details_out_of_exception(): void {
+        $e = $this->connection_refused_exception();
+
+        $this->assertEquals('error_graphql_http', $e->errorcode);
+        $this->assertSame('HTTP 0', $e->a);
+        $this->assertStringNotContainsString('host.docker.internal', $e->getMessage());
+        $this->assertStringNotContainsString('localhost', $e->getMessage());
+        $this->assertStringNotContainsString('Connection refused', $e->getMessage());
+        $this->assertStringNotContainsString('errno', $e->getMessage());
+        // The detailed failure is logged, the Docker hint is not (devmode off).
+        $this->assertStringContainsString('Connection refused', $this->debug_log());
+        $this->assertStringNotContainsString('host.docker.internal', $this->debug_log());
+    }
+
+    public function test_graphql_http_0_with_errno7_logs_docker_hint_in_devmode(): void {
+        $e = $this->connection_refused_exception(true);
+
+        $this->assertSame('HTTP 0', $e->a);
+        $this->assertStringContainsString('host.docker.internal', $this->debug_log());
+    }
+
+    public function test_graphql_debug_messages_never_dump_arrays(): void {
+        $this->connection_refused_exception(true);
+
+        $this->assertNotEmpty($GLOBALS['_test_debug_messages']);
+        $this->assertStringNotContainsString('Array (', $this->debug_log());
+        $this->assertStringNotContainsString("Array\n(", $this->debug_log());
     }
 
     public function test_graphql_http_0_no_errno_shows_connection_failed(): void {
@@ -312,7 +357,8 @@ class locallib_graphql_test extends TestCase {
             $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
             $this->assertEquals('error_graphql_http', $e->errorcode);
-            $this->assertStringContainsString('Connection failed', $e->a);
+            $this->assertSame('HTTP 0', $e->a);
+            $this->assertStringContainsString('failed', $this->debug_log());
         }
     }
 

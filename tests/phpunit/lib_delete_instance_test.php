@@ -124,7 +124,8 @@ class lib_delete_instance_test extends TestCase {
 
         $this->assertEmpty($GLOBALS['_test_lock_calls'] ?? []);
         $this->assertEmpty($GLOBALS['_test_deleted_cmids'] ?? []);
-        $this->assertCount(2, $this->db->get_calls_for('delete_records'));
+        // skilland_progress (SKL-668), skilland_lesson, skilland.
+        $this->assertCount(3, $this->db->get_calls_for('delete_records'));
     }
 
     // ---------------------------------------------------------------

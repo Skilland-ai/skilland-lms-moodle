@@ -421,7 +421,7 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     $apikey = $config->apikey ?? '';
     $endpoint = $config->graphql_endpoint ?? '';
 
-    logger::debug('GraphQL', 'Starting request to ' . $endpoint);
+    logger::debug('GraphQL', 'Starting request to ' . mod_skilland_redact_url($endpoint));
     logger::debug('GraphQL', 'Org ID: ' . ($orgid ? 'SET' : 'MISSING'));
     logger::debug('GraphQL', 'API Key: ' . ($apikey ? 'SET' : 'MISSING'));
 
@@ -466,7 +466,7 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
         'X-Skilland-Api-Key: ' . $apikey
     ];
     $curl->setHeader($headers);
-    logger::debug('GraphQL', 'Headers set, making POST request to ' . $endpoint);
+    logger::debug('GraphQL', 'Headers set, making POST request to ' . mod_skilland_redact_url($endpoint));
     logger::debug('GraphQL', 'Payload length: ' . strlen($jsonpayload));
 
     // Make POST request.
@@ -488,7 +488,6 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     logger::debug('GraphQL', 'HTTP code: ' . $httpcode);
     logger::debug('GraphQL', 'CURL errno: ' . $errno);
     logger::debug('GraphQL', 'CURL error: ' . $curlerror);
-    logger::debug('GraphQL', 'CURL info dump: ' . print_r($info, true));
 
     if ($httpcode >= 300 && $httpcode < 400) {
         logger::error('GraphQL', 'Refusing redirect (HTTP ' . $httpcode . ') from ' . mod_skilland_redact_url($endpoint));
@@ -496,53 +495,30 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     }
 
     if ($httpcode < 200 || $httpcode >= 300) {
-        if ($errno) {
-            // CURL error occurred (connection failed, DNS, SSL, etc.)
-            $errormsg = 'HTTP error when calling Skilland API at ' . $endpoint . ': ' . $curlerror . ' (errno: ' . $errno . ')';
-
-            // Check if this is a connection refused error and suggest Docker host fix
-            if ($errno == 7 || (strpos($curlerror, 'Connection refused') !== false || strpos($curlerror, 'Could not connect') !== false)) {
-                $parsed = parse_url($endpoint);
-                $host = $parsed['host'] ?? '';
-
-                // If using localhost and connection fails, suggest host.docker.internal for Docker
-                if ($host === 'localhost' || $host === '127.0.0.1') {
-                    $suggestedEndpoint = str_replace($host, 'host.docker.internal', $endpoint);
-                    $errormsg .= ' If Moodle is running in Docker, try using "host.docker.internal" instead of "localhost" in the GraphQL endpoint setting. Suggested endpoint: ' . $suggestedEndpoint;
-                }
-            }
-
-            logger::error('GraphQL', 'CURL error - ' . $errormsg);
-        } else if ($httpcode == 0) {
-            // HTTP 0 usually means connection failed - include curl error details if available
+        // The exception carries only the status: the endpoint and curl details go to the log.
+        $safeendpoint = mod_skilland_redact_url($endpoint);
+        if ($errno || $httpcode == 0) {
             $details = '';
             if ($errno) {
-                $details = ' CURL errno: ' . $errno;
+                $details .= ' (errno: ' . $errno . ')';
             }
             if ($curlerror && $curlerror !== 'Unknown error') {
-                $details .= ' CURL error: ' . $curlerror;
+                $details .= ' ' . $curlerror;
             }
+            logger::error('GraphQL', 'Connection to Skilland API at ' . $safeendpoint . ' failed: HTTP ' . $httpcode .
+                $details);
 
-            $errormsg = 'HTTP error when calling Skilland API at ' . $endpoint . ': HTTP 0 (Connection failed.' . $details . ' Check endpoint URL and network connectivity.)';
-
-            // Check if this is a connection refused error and suggest Docker host fix
-            if ($errno == 7 || (strpos($curlerror, 'Connection refused') !== false || strpos($curlerror, 'Could not connect') !== false)) {
-                $parsed = parse_url($endpoint);
-                $host = $parsed['host'] ?? '';
-
-                // If using localhost and connection fails, suggest host.docker.internal for Docker
-                if ($host === 'localhost' || $host === '127.0.0.1') {
-                    $suggestedEndpoint = str_replace($host, 'host.docker.internal', $endpoint);
-                    $errormsg .= ' If Moodle is running in Docker, try using "host.docker.internal" instead of "localhost" in the GraphQL endpoint setting. Suggested endpoint: ' . $suggestedEndpoint;
-                }
+            $refused = $errno == 7 || strpos($curlerror, 'Connection refused') !== false ||
+                strpos($curlerror, 'Could not connect') !== false;
+            $host = (string) parse_url($endpoint, PHP_URL_HOST);
+            if ($refused && ($host === 'localhost' || $host === '127.0.0.1')) {
+                logger::debug('GraphQL', 'If Moodle is running in Docker, use "host.docker.internal" instead of "' .
+                    $host . '" in the GraphQL endpoint setting.');
             }
-
-            logger::error('GraphQL', 'HTTP 0 error - Connection failed to ' . $endpoint . $details);
         } else {
-            $errormsg = 'HTTP error when calling Skilland API at ' . $endpoint . ': HTTP ' . $httpcode;
-            logger::error('GraphQL', 'HTTP error - ' . $httpcode . ' for endpoint ' . $endpoint);
+            logger::error('GraphQL', 'HTTP error ' . $httpcode . ' from Skilland API at ' . $safeendpoint);
         }
-        throw new moodle_exception('error_graphql_http', 'mod_skilland', '', $errormsg);
+        throw new moodle_exception('error_graphql_http', 'mod_skilland', '', 'HTTP ' . $httpcode);
     }
 
     // Decode JSON response.
@@ -875,6 +851,10 @@ GRAPHQL;
             'mappings' => $mappings,
         ];
     } catch (moodle_exception $e) {
+        // A user-facing error (not available, configuration) keeps its own code.
+        if (mod_skilland_is_client_error($e)) {
+            throw $e;
+        }
         // Check for specific error codes in the message.
         $message = $e->getMessage();
         if (strpos($message, 'SCORM_NOT_AVAILABLE') !== false) {
@@ -883,8 +863,8 @@ GRAPHQL;
         if (strpos($message, 'TOPIC_NOT_FOUND') !== false) {
             throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
         }
-        // Re-throw with context.
-        throw new moodle_exception('error_scorm_fetch_failed', 'mod_skilland', '', $e->getMessage());
+        logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . $message);
+        throw new moodle_exception('error_scorm_fetch_failed', 'mod_skilland');
     }
 }
 
@@ -1027,8 +1007,9 @@ function skilland_create_topic_scorm_module(stdClass $skilland, stdClass $course
     $moduleinfo->scormtype = SCORM_TYPE_LOCAL;
     $moduleinfo->packagefile = $draftitemid;
     $moduleinfo->version = 'SCORM_1.2';
-    $moduleinfo->maxgrade = 100;
-    $moduleinfo->grademethod = GRADESCOES;
+    // The SkilLand activity owns the grade (SKL-668): the hidden SCORM keeps no grade item.
+    $moduleinfo->maxgrade = 0;
+    $moduleinfo->grademethod = GRADEHIGHEST;
     $moduleinfo->whatgrade = HIGHESTATTEMPT;
     $moduleinfo->maxattempt = 0;
     $moduleinfo->forcecompleted = 0;
@@ -1557,6 +1538,254 @@ function skilland_resolve_lesson_scos(int $skillandid): array {
 }
 
 /**
+ * SCORM lesson statuses, ranked: the progress store only ever moves a lesson up this ladder.
+ *
+ * @param string|null $status A normalised status (see skilland_normalise_scorm_status()).
+ * @return int 0 not started, 1 in progress, 2 failed, 3 completed or passed.
+ */
+function skilland_progress_status_rank(?string $status): int {
+    switch ((string) $status) {
+        case 'completed':
+        case 'passed':
+            return 3;
+        case 'failed':
+            return 2;
+        case 'incomplete':
+        case 'browsed':
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+/**
+ * Normalise a SCORM status track value: lower case, and "not attempted" / "unknown" / empty as
+ * not_started.
+ *
+ * @param string $value The raw cmi.core.lesson_status / cmi.completion_status value.
+ * @return string
+ */
+function skilland_normalise_scorm_status(string $value): string {
+    $status = strtolower(trim($value));
+    if ($status === '' || $status === 'not attempted' || $status === 'unknown') {
+        return 'not_started';
+    }
+    return core_text::substr($status, 0, 20);
+}
+
+/**
+ * Read lesson status and raw score from the tracks of the activity's current topic SCORM.
+ *
+ * One query per SCORM for every requested user. Each user's latest attempt that reported a value
+ * wins, per SCO and per kind (status, score). SCOs map to lessons through skilland_lesson.scoid.
+ * Needs the Moodle 4.3+ scorm_attempt / scorm_scoes_value tables; returns [] without them, when
+ * the SCORM is gone, or when no lesson has a SCO.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int[]|null $userids Users to read, or null for every user with tracks.
+ * @return array [userid => [lesson row id => ['status' => ?string, 'score' => ?float]]]
+ */
+function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null): array {
+    global $DB;
+
+    require_once(__DIR__ . '/lib.php');
+
+    if ($userids !== null && !$userids) {
+        return [];
+    }
+    $dbman = $DB->get_manager();
+    if (!$dbman->table_exists('scorm_scoes_value') || !$dbman->table_exists('scorm_attempt')) {
+        return [];
+    }
+    $scormcm = skilland_get_linked_scorm_cm($skilland);
+    if (!$scormcm) {
+        return [];
+    }
+
+    $scotolesson = [];
+    foreach ($DB->get_records('skilland_lesson', ['skillandid' => $skilland->id], '', 'id, scoid') as $lesson) {
+        if (!empty($lesson->scoid)) {
+            $scotolesson[(int) $lesson->scoid] = (int) $lesson->id;
+        }
+    }
+    if (!$scotolesson) {
+        return [];
+    }
+
+    $statuselements = ['cmi.core.lesson_status', 'cmi.completion_status'];
+    $scoreelements = ['cmi.core.score.raw', 'cmi.score.raw'];
+
+    [$scosql, $params] = $DB->get_in_or_equal(array_keys($scotolesson), SQL_PARAMS_NAMED, 'sco');
+    [$elementsql, $elementparams] = $DB->get_in_or_equal(array_merge($statuselements, $scoreelements),
+        SQL_PARAMS_NAMED, 'el');
+    $params += $elementparams;
+    $params['scormid'] = (int) $scormcm->instance;
+    $usersql = '';
+    if ($userids !== null) {
+        [$insql, $userparams] = $DB->get_in_or_equal(array_map('intval', $userids), SQL_PARAMS_NAMED, 'usr');
+        $usersql = "AND a.userid $insql";
+        $params += $userparams;
+    }
+
+    $sql = "SELECT ssv.id, a.userid, a.attempt, ssv.scoid, e.element, ssv.value
+              FROM {scorm_attempt} a
+              JOIN {scorm_scoes_value} ssv ON ssv.attemptid = a.id
+              JOIN {scorm_element} e ON e.id = ssv.elementid
+             WHERE a.scormid = :scormid
+                   AND ssv.scoid $scosql
+                   AND e.element $elementsql
+                   $usersql
+          ORDER BY a.userid ASC, a.attempt DESC, ssv.timemodified DESC, ssv.id DESC";
+    try {
+        $tracks = $DB->get_records_sql($sql, $params);
+    } catch (\Throwable $e) {
+        logger::error('Progress', 'Reading SCORM tracks of skilland id ' . $skilland->id . ' failed - ' .
+            $e->getMessage());
+        return [];
+    }
+
+    $progress = [];
+    foreach ($tracks as $track) {
+        $lessonid = $scotolesson[(int) $track->scoid] ?? null;
+        if ($lessonid === null) {
+            continue;
+        }
+        $userid = (int) $track->userid;
+        if (!isset($progress[$userid][$lessonid])) {
+            $progress[$userid][$lessonid] = ['status' => null, 'score' => null];
+        }
+        $entry =& $progress[$userid][$lessonid];
+        if (in_array($track->element, $statuselements, true)) {
+            if ($entry['status'] === null) {
+                $entry['status'] = skilland_normalise_scorm_status((string) $track->value);
+            }
+        } else if ($entry['score'] === null && is_numeric($track->value)) {
+            $entry['score'] = (float) $track->value;
+        }
+        unset($entry);
+    }
+
+    return $progress;
+}
+
+/**
+ * Merge a user's current SCORM tracks into the progress store, monotonically.
+ *
+ * Rows are keyed by the skilland_lesson row, so they survive re-provisioning (new SCORM, new
+ * SCO ids, empty tracks). A status only moves up (see skilland_progress_status_rank()) and the
+ * score keeps its maximum.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int $userid The learner.
+ * @param array|null $tracks That user's entry of skilland_read_scorm_progress(), or null to read it.
+ * @param array|null $existing That user's stored rows keyed by lesson row id (an entry of
+ *        skilland_get_progress_rows_by_user()), or null to read them.
+ * @return bool Whether any row was inserted or changed.
+ */
+function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $tracks = null,
+        ?array $existing = null): bool {
+    global $DB;
+
+    if ($tracks === null) {
+        $tracks = skilland_read_scorm_progress($skilland, [$userid])[$userid] ?? [];
+    }
+    if (!$tracks) {
+        return false;
+    }
+
+    if ($existing === null) {
+        $existing = $DB->get_records('skilland_progress', ['skillandid' => $skilland->id, 'userid' => $userid], '',
+            'lessonid, id, status, score');
+    }
+    $changed = false;
+    $now = time();
+
+    foreach ($tracks as $lessonid => $track) {
+        $status = $track['status'] ?? null;
+        $score = $track['score'] ?? null;
+
+        $row = $existing[$lessonid] ?? null;
+        if ($row) {
+            $update = (object) ['id' => $row->id];
+            if ($status !== null && skilland_progress_status_rank($status) > skilland_progress_status_rank($row->status)) {
+                $update->status = $status;
+            }
+            if ($score !== null && ($row->score === null || $row->score === '' || $score > (float) $row->score)) {
+                $update->score = $score;
+            }
+            if (count((array) $update) > 1) {
+                $update->timemodified = $now;
+                $DB->update_record('skilland_progress', $update);
+                $changed = true;
+            }
+            continue;
+        }
+
+        if ($status === null && $score === null) {
+            continue;
+        }
+        try {
+            $DB->insert_record('skilland_progress', (object) [
+                'skillandid' => (int) $skilland->id,
+                'lessonid' => (int) $lessonid,
+                'userid' => $userid,
+                'status' => $status ?? 'not_started',
+                'score' => $score,
+                'timemodified' => $now,
+            ]);
+            $changed = true;
+        } catch (\dml_exception $e) {
+            // A concurrent refresh inserted the row first; the next refresh merges into it.
+            logger::warn('Progress', 'Could not store progress of lesson ' . $lessonid . ' for user ' . $userid .
+                ' - ' . $e->getMessage());
+        }
+    }
+
+    return $changed;
+}
+
+/**
+ * Every stored progress row of an activity, in one read.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @return array [userid => [lesson row id => row]]
+ */
+function skilland_get_progress_rows_by_user(int $skillandid): array {
+    global $DB;
+
+    $byuser = [];
+    foreach ($DB->get_records('skilland_progress', ['skillandid' => $skillandid], '',
+            'id, userid, lessonid, status, score') as $row) {
+        $byuser[(int) $row->userid][(int) $row->lessonid] = $row;
+    }
+    return $byuser;
+}
+
+/**
+ * A user's stored lesson progress for an activity.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @param int $userid The learner.
+ * @return array [lesson row id => ['status' => string, 'score' => string|null]]; lessons without a
+ *         row are absent (not started).
+ */
+function skilland_get_user_progress(int $skillandid, int $userid): array {
+    global $DB;
+
+    $progress = [];
+    $rows = $DB->get_records('skilland_progress', ['skillandid' => $skillandid, 'userid' => $userid], '',
+        'lessonid, status, score');
+    foreach ($rows as $row) {
+        $score = null;
+        if ($row->score !== null && $row->score !== '') {
+            $score = rtrim(rtrim(sprintf('%.5F', (float) $row->score), '0'), '.');
+        }
+        $progress[(int) $row->lessonid] = ['status' => (string) $row->status, 'score' => $score];
+    }
+    return $progress;
+}
+
+/**
  * Generate an SSO token for authenticating a Moodle user to Skilland.
  *
  * This function creates a signed JWT token that allows seamless authentication
@@ -1952,4 +2181,67 @@ function mod_skilland_map_graphql_error(array $error): never {
             $finalMessage = $errordetails ?: $errormessage;
             throw new moodle_exception('error_graphql', 'mod_skilland', '', $finalMessage);
     }
+}
+
+/** Error codes whose language string is safe and useful to show a client as is. */
+const MOD_SKILLAND_CLIENT_ERROR_CODES = [
+    'error_config_missing_orgid',
+    'error_config_missing_apikey',
+    'error_config_missing_endpoint',
+    'error_config_invalid_credentials',
+    'error_config_missing_topicid',
+    'error_config_missing_courseid',
+    'error_config_missing_lessonid',
+    'error_http_redirect',
+    'error_scorm_not_available',
+    'error_plugin_disabled',
+    'error_course_not_mapped',
+    'error_course_not_mapped_to_skill',
+    'error_lessons_not_in_topic',
+    'error_provision_in_progress',
+];
+
+/**
+ * Whether an exception is an allowlisted mod_skilland error that is safe to show a client.
+ *
+ * @param \Throwable $e
+ * @return bool
+ */
+function mod_skilland_is_client_error(\Throwable $e): bool {
+    return $e instanceof moodle_exception && !($e instanceof dml_exception) && $e->module === 'mod_skilland' &&
+        in_array($e->errorcode, MOD_SKILLAND_CLIENT_ERROR_CODES, true);
+}
+
+/**
+ * The message a web service may return to the browser for a caught exception.
+ *
+ * Only mod_skilland errors that tell the user what to fix pass through, as their language
+ * string without $a or debuginfo (error_http_redirect keeps its numeric status). Anything else
+ * (error_graphql, error_graphql_http, error_graphql_invalid_json, error_scorm_fetch_failed,
+ * dml_exception, plain exceptions) becomes error_api_unavailable, so endpoints, curl errors and
+ * SQL never reach the client. With devmode on, the raw message is appended for debugging.
+ *
+ * Pass-through allowlist: error_config_missing_orgid, error_config_missing_apikey,
+ * error_config_missing_endpoint, error_config_invalid_credentials, error_config_missing_topicid,
+ * error_config_missing_courseid, error_config_missing_lessonid, error_http_redirect,
+ * error_scorm_not_available, error_plugin_disabled, error_course_not_mapped,
+ * error_course_not_mapped_to_skill, error_lessons_not_in_topic, error_provision_in_progress.
+ * Add any future user-facing error code to MOD_SKILLAND_CLIENT_ERROR_CODES.
+ *
+ * @param \Throwable $e The caught exception.
+ * @return string
+ */
+function mod_skilland_client_error_message(\Throwable $e): string {
+    $message = get_string('error_api_unavailable', 'mod_skilland');
+    if (mod_skilland_is_client_error($e)) {
+        $a = null;
+        if ($e->errorcode === 'error_http_redirect' && is_numeric($e->a)) {
+            $a = (int) $e->a;
+        }
+        $message = get_string($e->errorcode, 'mod_skilland', $a);
+    }
+    if (get_config('mod_skilland', 'devmode')) {
+        $message .= ' (' . $e->getMessage() . ')';
+    }
+    return $message;
 }

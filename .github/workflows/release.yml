@@ -225,7 +225,7 @@ jobs:
             3. Visit Site Administration > Notifications to complete installation
 
             ### Requirements
-            - Moodle 4.0 or later
+            - Moodle 4.2 or later
           files: |
             mod_skilland-${{ steps.version.outputs.moodle_version }}.zip
           draft: false

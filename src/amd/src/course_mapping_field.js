@@ -1,8 +1,6 @@
 define(['jquery', 'core/ajax', 'core/notification'], function($, ajax, notification) {
     return {
         init: function(courseid) {
-            console.log('Skilland course mapping field: Initializing for course', courseid);
-
             // Find the Skilland Course ID custom field input.
             // Moodle custom fields use different naming patterns - try multiple selectors.
             var fieldInput = $('input[id*="customfield_skilland_course_id"], input[name*="customfield_skilland_course_id"], input[id*="id_customfield_skilland_course_id"]');
@@ -35,13 +33,10 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, ajax, notificat
                 });
             }
 
-            console.log('Skilland course mapping field: Found input?', fieldInput.length > 0, fieldInput);
 
             if (fieldInput.length > 0) {
-                console.log('Skilland course mapping field: Processing field', fieldInput.attr('id'), fieldInput.attr('name'));
                 var formItem = fieldInput.closest('.fitem');
                 var currentValue = fieldInput.val();
-                console.log('Skilland course mapping field: Current value', currentValue);
 
                 // Create a container for the enhanced field.
                 var container = $('<div>').addClass('skilland-course-mapping-field');

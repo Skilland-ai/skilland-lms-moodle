@@ -85,6 +85,7 @@ $string['error_http_redirect'] = 'El servidor de Skilland respondió con una red
 $string['error_package_host_not_allowed'] = 'No se pueden descargar paquetes SCORM desde {$a}. Añade el host al ajuste de hosts de paquetes SCORM si es de confianza.';
 $string['error_package_too_large'] = 'El paquete SCORM supera el límite de {$a} MB.';
 $string['error_package_not_zip'] = 'El paquete SCORM descargado no es un archivo zip válido.';
+$string['error_api_unavailable'] = 'No se pudo contactar con el servicio de SkilLand. Inténtalo más tarde o pide al administrador del sitio que revise la configuración del plugin de SkilLand.';
 $string['error_graphql_http'] = 'Error HTTP al llamar a la API de Skilland: {$a}';
 $string['error_graphql_invalid_json'] = 'Respuesta JSON inválida de la API de Skilland';
 $string['error_graphql'] = 'Error de GraphQL: {$a}';
@@ -126,7 +127,7 @@ $string['scorm_missing_reprovision'] = 'El paquete de contenido de esta activida
 
 // SCORM integration.
 $string['error_scorm_not_available'] = 'El contenido SCORM no está disponible para esta lección.';
-$string['error_scorm_fetch_failed'] = 'Error al obtener el paquete SCORM de Skilland: {$a}';
+$string['error_scorm_fetch_failed'] = 'Error al obtener el paquete SCORM de Skilland.';
 $string['error_scorm_download_failed'] = 'Error al descargar el paquete SCORM: {$a}';
 $string['error_scorm_hash_mismatch'] = 'La verificación de integridad del paquete SCORM falló. El archivo descargado puede estar corrupto.';
 $string['error_scorm_create_failed'] = 'Error al crear la actividad SCORM: {$a}';
@@ -194,3 +195,24 @@ $string['error_lessons_not_in_topic'] = 'Las lecciones seleccionadas no pertenec
 // Errors.
 $string['invalidactivity'] = 'Actividad especificada inválida.';
 $string['error_missing_parameters'] = 'Faltan parámetros requeridos para la redirección SSO.';
+
+// Finalización y calificaciones (SKL-668).
+$string['completionlessons'] = 'Completar todas las lecciones';
+$string['completionlessons_desc'] = 'El alumnado debe completar o aprobar todas las lecciones visibles';
+$string['completionlessons_help'] = 'Si se activa, la actividad se marca como completada cuando el alumno ha completado o aprobado todas las lecciones visibles. Las lecciones ocultas no cuentan, y una actividad sin lecciones visibles nunca se completa. El progreso se conserva cuando se reconstruye el paquete SCORM.';
+$string['completiondetail:lessons'] = 'Completar todas las lecciones';
+$string['error_grade_scale_unsupported'] = 'No se admiten escalas. Elige una calificación por puntos o Ninguna.';
+
+// Privacy API (SKL-660).
+$string['privacy:metadata:skilland'] = 'Para iniciar la sesión de un usuario en SkilLand Studio (SSO), listar los cursos de SkilLand de un docente y crear un curso de SkilLand desde Moodle (lo que crea una cuenta de SkilLand para ese correo electrónico), el plugin envía datos personales a la plataforma SkilLand de la organización. Los datos ya enviados a SkilLand los gestiona el administrador de SkilLand de la organización.';
+$string['privacy:metadata:skilland:email'] = 'La dirección de correo electrónico del usuario, enviada al iniciar sesión en SkilLand Studio, al listar sus cursos de SkilLand y al crear un curso de SkilLand.';
+$string['privacy:metadata:skilland:fullname'] = 'El nombre completo del usuario, enviado al iniciar sesión en SkilLand Studio.';
+$string['privacy:metadata:skilland:role'] = 'El rol de SkilLand que se asigna al usuario, enviado al iniciar sesión en SkilLand Studio.';
+$string['privacy:metadata:skilland:courseaccess'] = 'Los cursos de Moodle en los que está matriculado el usuario y que están vinculados a un curso de SkilLand, enviados al iniciar sesión en SkilLand Studio.';
+$string['privacy:metadata:skilland_progress'] = 'El mejor estado y la mejor puntuación que cada alumno ha alcanzado en cada lección de una actividad Skilland.';
+$string['privacy:metadata:skilland_progress:userid'] = 'El ID del alumno.';
+$string['privacy:metadata:skilland_progress:lessonid'] = 'El ID de la lección.';
+$string['privacy:metadata:skilland_progress:status'] = 'El mejor estado que el alumno ha alcanzado en la lección.';
+$string['privacy:metadata:skilland_progress:score'] = 'La puntuación más alta que el alumno ha alcanzado en la lección.';
+$string['privacy:metadata:skilland_progress:timemodified'] = 'La fecha en que se actualizó el progreso por última vez.';
+$string['privacy:path:progress'] = 'Progreso de las lecciones';

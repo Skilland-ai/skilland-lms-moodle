@@ -61,3 +61,21 @@ class course_module_deleted extends base {
         $this->data['edulevel'] = self::LEVEL_TEACHING;
     }
 }
+
+// mod_scorm tracking events (Moodle 4.x): the context is the SCORM module, so contextinstanceid
+// is its cmid, and relateduserid is the learner.
+namespace mod_scorm\event;
+
+abstract class cmielement_submitted extends \core\event\base {
+    protected function init() {
+        $this->data['crud'] = 'u';
+        $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
+        $this->data['objecttable'] = 'scorm_scoes_value';
+    }
+}
+
+class status_submitted extends cmielement_submitted {
+}
+
+class scoreraw_submitted extends cmielement_submitted {
+}

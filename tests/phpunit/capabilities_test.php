@@ -38,12 +38,12 @@ class capabilities_test extends TestCase {
     }
 
     /**
-     * Body of a public static method in external.php, up to the next method.
+     * Body of execute() in classes/external/<class>.php, up to the next method.
      */
-    private function externalMethodBody(string $name): string {
-        $source = $this->src('classes/external.php');
-        $pattern = '/public static function ' . preg_quote($name, '/') . '\(.*?(?=\n    (?:public|private|protected) static function |\z)/s';
-        $this->assertSame(1, preg_match($pattern, $source, $m), "method $name not found in external.php");
+    private function externalMethodBody(string $class): string {
+        $source = $this->src('classes/external/' . $class . '.php');
+        $pattern = '/public static function execute\(.*?(?=\n    (?:public|private|protected) static function |\z)/s';
+        $this->assertSame(1, preg_match($pattern, $source, $m), "execute() not found in classes/external/$class.php");
         return $m[0];
     }
 
@@ -214,7 +214,11 @@ class capabilities_test extends TestCase {
 
     public function test_view_and_external_no_longer_use_manageactivities(): void {
         $this->assertStringNotContainsString('moodle/course:manageactivities', $this->src('view.php'));
-        $this->assertStringNotContainsString('moodle/course:manageactivities', $this->src('classes/external.php'));
+        $files = glob(self::$srcDir . '/classes/external/*.php');
+        $this->assertNotEmpty($files);
+        foreach ($files as $file) {
+            $this->assertStringNotContainsString('moodle/course:manageactivities', file_get_contents($file), basename($file));
+        }
     }
 
     // ---------------------------------------------------------------
@@ -223,12 +227,12 @@ class capabilities_test extends TestCase {
 
     public static function external_capability_provider(): array {
         return [
-            'fetch_courses_ajax' => ['fetch_courses_ajax', 'mod/skilland:accessstudio'],
-            'create_course_ajax' => ['create_course_ajax', 'mod/skilland:accessstudio'],
-            'fetch_topics_ajax' => ['fetch_topics_ajax', 'moodle/course:update'],
-            'fetch_lessons_ajax' => ['fetch_lessons_ajax', 'moodle/course:update'],
-            'provision_topic_scorm_ajax' => ['provision_topic_scorm_ajax', 'mod/skilland:provision'],
-            'update_topic_scorm_ajax' => ['update_topic_scorm_ajax', 'mod/skilland:provision'],
+            'fetch_courses' => ['fetch_courses', 'mod/skilland:accessstudio'],
+            'create_course' => ['create_course', 'mod/skilland:accessstudio'],
+            'fetch_topics' => ['fetch_topics', 'mod/skilland:accessstudio'],
+            'fetch_lessons' => ['fetch_lessons', 'mod/skilland:accessstudio'],
+            'provision_topic_scorm' => ['provision_topic_scorm', 'mod/skilland:provision'],
+            'update_topic_scorm' => ['update_topic_scorm', 'mod/skilland:provision'],
             'check_topic_snapshot' => ['check_topic_snapshot', 'mod/skilland:provision'],
         ];
     }

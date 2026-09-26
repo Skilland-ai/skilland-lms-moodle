@@ -32,8 +32,17 @@ class hooks {
                 // Add JavaScript to enhance the Skilland Course ID custom field.
                 // Use inline JavaScript that directly implements the functionality
                 // without relying on AMD module loading.
+                $debug = json_encode((bool) get_config('mod_skilland', 'devmode'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT |
+                    JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
                 $js = "
                 (function() {
+                    var debug = " . $debug . ";
+                    function log() {
+                        if (debug && window.console) {
+                            console.log.apply(console, arguments);
+                        }
+                    }
+
                     function escapeHtml(str) {
                         return String(str === undefined || str === null ? '' : str)
                             .replace(/&/g, '&amp;')
@@ -43,7 +52,7 @@ class hooks {
                             .replace(/'/g, '&#39;');
                     }
 
-                    console.log('Skilland: Initializing course mapping field for course " . $courseid . "');
+                    log('Skilland: Initializing course mapping field for course " . $courseid . "');
 
                     // Wait for DOM to be ready.
                     if (document.readyState === 'loading') {
@@ -82,11 +91,11 @@ class hooks {
                             }
                         }
 
-                        console.log('Skilland: Found input?', !!fieldInput);
+                        log('Skilland: Found input?', !!fieldInput);
 
                         if (fieldInput) {
                             var currentValue = fieldInput.value;
-                            console.log('Skilland: Current value', currentValue);
+                            log('Skilland: Current value', currentValue);
 
                             // Find the parent form item (.fitem) that contains the entire field (label + input + description).
                             var formItem = fieldInput.closest('.fitem');
@@ -234,12 +243,12 @@ class hooks {
 
                             // Fetch courses via AJAX using Moodle's core/ajax.
                             require(['core/ajax', 'core/notification'], function(ajax, notification) {
-                                console.log('Skilland: Making AJAX call to fetch courses');
+                                log('Skilland: Making AJAX call to fetch courses');
                                 ajax.call([{
                                     methodname: 'mod_skilland_fetch_courses_ajax',
                                     args: {moodlecourseid: " . $courseid . "}
                                 }])[0].then(function(response) {
-                                    console.log('Skilland: AJAX response received', response);
+                                    log('Skilland: AJAX response received');
                                     // Check if there's an error in the response.
                                     if (response.error) {
                                         // On error, revert to text input.
@@ -279,7 +288,7 @@ class hooks {
                                         });
                                     }
                                 }).catch(function(error) {
-                                    console.error('Skilland: AJAX error', error);
+                                    log('Skilland: AJAX error', error && error.message);
                                     // On error, revert to text input.
                                     fieldInput.style.display = '';
                                     container.style.display = 'none';
@@ -299,7 +308,7 @@ class hooks {
                                         if (/^https?:\/\//i.test(pendingRedirectUrl)) {
                                             window.open(pendingRedirectUrl, '_blank');
                                         } else {
-                                            console.warn('Skilland: ignoring non-http(s) redirect URL');
+                                            log('Skilland: ignoring non-http(s) redirect URL');
                                         }
                                         pendingRedirectUrl = null;
                                     }

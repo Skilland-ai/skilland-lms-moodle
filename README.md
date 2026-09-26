@@ -4,7 +4,7 @@
 
 **Seamlessly integrate AI-generated educational content from Skilland into your Moodle courses**
 
-[![Moodle](https://img.shields.io/badge/Moodle-4.0%2B-orange?style=flat-square&logo=moodle)](https://moodle.org)
+[![Moodle](https://img.shields.io/badge/Moodle-4.2%2B-orange?style=flat-square&logo=moodle)](https://moodle.org)
 [![Status](https://img.shields.io/badge/Status-Beta-blue?style=flat-square)]()
 
 </div>
@@ -62,7 +62,7 @@ When creating an activity (Topic), you can now **select exactly which lessons** 
 ## 🚀 Installation
 
 ### Prerequisites
-- Moodle **4.0 or higher**
+- Moodle **4.2 or higher**
 - A Skilland platform account with API access
 - SCORM module enabled in Moodle
 
@@ -110,7 +110,7 @@ Before adding activities, you must link the course:
 | `mod/skilland:addinstance` | Course | Adding a Skilland activity to a course |
 | `mod/skilland:view` | Activity | Opening a Skilland activity (`view.php`) |
 | `mod/skilland:provision` | Activity | Provisioning and updating an activity's SCORM content, and the update checker |
-| `mod/skilland:accessstudio` | Course | Opening SkilLand Studio (SSO), the course navigation link, and listing or creating linked SkilLand courses |
+| `mod/skilland:accessstudio` | Course | Opening SkilLand Studio (SSO), the course navigation link, listing or creating linked SkilLand courses, and browsing the linked course's topics and lessons |
 
 When the plugin is first installed or upgraded, `mod/skilland:provision` copies its role permissions from `moodle/course:manageactivities` and `mod/skilland:accessstudio` copies them from `moodle/course:update`, so existing teacher and manager roles keep the access they had.
 
@@ -139,6 +139,29 @@ When the plugin is first installed or upgraded, `mod/skilland:provision` copies 
 1. Turn editing on and click **Edit settings** for the Skilland activity.
 2. You can change the selected **Topic** or modify which **Lessons** are selected.
 3. Changes to lesson selection will update the visibility of those lessons for students.
+
+### Completion and grades
+
+The Skilland activity owns completion and the grade; the hidden topic SCORM has no grade item.
+
+- **Completion rule**: under *Activity completion*, choose automatic completion and tick **Complete all lessons**. The activity completes once the learner has completed or passed every visible lesson. Hidden lessons are ignored; an activity with no visible lesson never completes.
+- **Grade** (opt-in, *None* by default): with a maximum grade set, the raw grade is `grade × mean / 100`, the mean taken over the visible lessons of the SCO raw score (clamped to 0–100) when one was reported, else 100 for a completed or passed lesson, else 0. A learner with no recorded progress gets no grade. Scales are not supported.
+- **Progress survives re-provisioning**: each learner's best status and highest score per lesson are kept in the plugin's own table, so rebuilding the SCORM (auto-update, topic change) never loses completion or grades. The `sync_content` task also backfills that table from the SCORM tracks.
+- **Moodle 4.2**: SCORM tracks live in `scorm_attempt` / `scorm_scoes_value` only from Moodle 4.3, so on 4.2 no progress is read and the completion rule never ticks.
+
+## Privacy
+
+The plugin implements Moodle's Privacy API (`classes/privacy/provider.php`), so its data shows up in *Site administration → Users → Privacy and policies → Plugin privacy registry* and in data requests.
+
+**Sent to SkilLand** (the organisation's SkilLand platform):
+
+- **Signing in to SkilLand Studio (SSO)**: the user's email, full name, the SkilLand role they get, and the Moodle courses they are enrolled in that are linked to a SkilLand course.
+- **Listing a teacher's SkilLand courses** in the activity form: the teacher's email.
+- **Creating a SkilLand course from Moodle**: the teacher's email; SkilLand creates an account for that email if none exists.
+
+**Stored in Moodle**: `skilland_progress` holds each learner's best status, highest score and last update time per lesson of a Skilland activity.
+
+Data export and deletion requests cover that local table. Data already sent to SkilLand is handled by the organisation's SkilLand administrator.
 
 ---
 
