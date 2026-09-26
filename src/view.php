@@ -291,7 +291,10 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
 
         // Status indicator.
         $html .= html_writer::div(
-            html_writer::tag('i', '', ['class' => 'fa ' . $completionicon . ' skilland-status-icon']) .
+            html_writer::tag('i', '', [
+                'class' => 'fa ' . $completionicon . ' skilland-status-icon',
+                'aria-hidden' => 'true',
+            ]) .
             html_writer::tag('span', $statustext, ['class' => 'skilland-status-text']),
             'skilland-lesson-status'
         );
@@ -395,8 +398,13 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         'class' => 'skilland-fullscreen-back'
     ]);
 
-    // Center: Lesson title (absolutely positioned for true centering).
-    $html .= html_writer::tag('span', $lessontitle, ['class' => 'skilland-fullscreen-title']);
+    // Center: Lesson title. A heading (not a span) so it takes its place in the page's
+    // heading structure, and focusable so it can receive focus when the overlay opens.
+    $html .= html_writer::tag('h2', $lessontitle, [
+        'class' => 'skilland-fullscreen-title',
+        'id' => 'skilland-fullscreen-title',
+        'tabindex' => '-1',
+    ]);
 
     // Right: Close button (X) - same action as back to lessons.
     $html .= html_writer::link($backurl, '×', [
@@ -426,7 +434,8 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
     // Load the fullscreen JavaScript module.
     $devmode = get_config('mod_skilland', 'devmode');
     $PAGE->requires->js_call_amd('mod_skilland/fullscreen_player', 'init', [[
-        'debug' => (bool)$devmode
+        'debug' => (bool)$devmode,
+        'backurl' => $backurl->out(false)
     ]]);
 
     return $html;
@@ -543,15 +552,26 @@ function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm,
                 ? $prevlabel . ' - ' . format_string($prev->title)
                 : format_string($prev->title);
             $html .= html_writer::link($prevurl,
-                html_writer::tag('span', '←', ['class' => 'skilland-fullscreen-nav-arrow']) .
+                html_writer::tag('span', '←', ['class' => 'skilland-fullscreen-nav-arrow', 'aria-hidden' => 'true']) .
                 html_writer::tag('span', $prevtext, ['class' => 'skilland-fullscreen-nav-text']),
-                ['class' => 'skilland-fullscreen-nav-prev']
+                [
+                    'class' => 'skilland-fullscreen-nav-prev',
+                    'aria-label' => get_string('aria_previous_lesson', 'mod_skilland', $prevtext),
+                ]
             );
         } else {
-            $html .= html_writer::span('', 'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled');
+            $html .= html_writer::span(
+                html_writer::tag('span', get_string('no_previous_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+                'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled',
+                ['aria-disabled' => 'true']
+            );
         }
     } else {
-        $html .= html_writer::span('', 'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled');
+        $html .= html_writer::span(
+            html_writer::tag('span', get_string('no_previous_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+            'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled',
+            ['aria-disabled' => 'true']
+        );
     }
 
     // Next lesson link.
@@ -565,14 +585,25 @@ function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm,
                 : format_string($next->title);
             $html .= html_writer::link($nexturl,
                 html_writer::tag('span', $nexttext, ['class' => 'skilland-fullscreen-nav-text']) .
-                html_writer::tag('span', '→', ['class' => 'skilland-fullscreen-nav-arrow']),
-                ['class' => 'skilland-fullscreen-nav-next']
+                html_writer::tag('span', '→', ['class' => 'skilland-fullscreen-nav-arrow', 'aria-hidden' => 'true']),
+                [
+                    'class' => 'skilland-fullscreen-nav-next',
+                    'aria-label' => get_string('aria_next_lesson', 'mod_skilland', $nexttext),
+                ]
             );
         } else {
-            $html .= html_writer::span('', 'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled');
+            $html .= html_writer::span(
+                html_writer::tag('span', get_string('no_next_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+                'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled',
+                ['aria-disabled' => 'true']
+            );
         }
     } else {
-        $html .= html_writer::span('', 'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled');
+        $html .= html_writer::span(
+            html_writer::tag('span', get_string('no_next_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
+            'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled',
+            ['aria-disabled' => 'true']
+        );
     }
 
     $html .= html_writer::end_div();

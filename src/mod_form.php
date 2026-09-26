@@ -32,15 +32,14 @@ class mod_skilland_mod_form extends moodleform_mod {
             // Show a prominent message that Skilland Course ID must be set first.
             $linktext = get_string('set_skilland_course_id', 'mod_skilland');
             $link = html_writer::link($courseediturl, $linktext, array(
-                'class' => 'skilland-course-id-button',
-                'style' => 'display: inline-block; padding: 10px 20px; background-color: #8B0000; color: #FFFFFF; text-decoration: none; border-radius: 4px; font-weight: bold;',
+                'class' => 'btn btn-primary',
                 'target' => '_blank'
             ));
 
             // Add a "Go to Skilland" button (SSO without a specific course).
             $ssourl = new moodle_url('/mod/skilland/sso_redirect.php', ['sesskey' => sesskey()]);
             $golink = html_writer::link($ssourl, get_string('go_to_skilland', 'mod_skilland'), array(
-                'style' => 'display: inline-block; padding: 10px 20px; background-color: #5c068c; color: #FFFFFF; text-decoration: none; border-radius: 4px; font-weight: bold; margin-left: 10px;',
+                'class' => 'btn btn-secondary ml-2',
                 'target' => '_blank',
                 'rel' => 'noopener'
             ));
@@ -70,11 +69,6 @@ class mod_skilland_mod_form extends moodleform_mod {
 
             // Hide all visible form fields and headers except our message using JavaScript and CSS.
             $mform->addElement('html', '<style>
-                .skilland-course-id-button:hover {
-                    background-color: #8B0000 !important;
-                    color: #FFFFFF !important;
-                    text-decoration: none !important;
-                }
                 /* Hide all form sections and headers when Skilland Course ID is not set */
                 form.mform .fheader,
                 form.mform .fitem_fheader,
