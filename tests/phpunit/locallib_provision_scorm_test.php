@@ -714,4 +714,94 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertSame(0, $result['scormcmid']);
         $this->assertEmpty($GLOBALS['_test_create_module_calls'] ?? []);
     }
+
+    // ---------------------------------------------------------------
+    // Stored lesson -> SCO map (SKL-655)
+    // ---------------------------------------------------------------
+
+    public function test_provisioning_stores_the_full_api_mapping(): void {
+        $this->queue_package(['L1' => 'sco_1', 'L2' => 'sco_2', 'L3' => 'sco_2']);
+        $skilland = $this->skilland();
+
+        skilland_provision_topic_scorm($skilland, $this->course(), 0);
+
+        $expected = ['L1' => 'sco_1', 'L2' => 'sco_2', 'L3' => 'sco_2'];
+        $this->assertSame($expected, json_decode($this->skilland()->scomappings, true));
+        $this->assertSame($expected, json_decode($skilland->scomappings, true));
+        $this->assertNull($this->lesson(3)->scoid, 'Hidden lessons are still mapped only on demand');
+    }
+
+    public function test_scomappings_is_written_with_the_provisioning_fields(): void {
+        $this->queue_package();
+
+        skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
+
+        $writes = array_values(array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => $c['table'] === 'skilland' && !empty($c['data']->scormcmid)));
+        $this->assertCount(1, $writes);
+        $this->assertObjectHasProperty('scomappings', $writes[0]['data']);
+    }
+
+    public function test_failed_provision_writes_no_scomappings(): void {
+        $this->queue_package(['L1' => 'missing_sco']);
+
+        $this->expect_code(fn() => skilland_provision_topic_scorm($this->skilland(), $this->course(), 0),
+            'error_scorm_parse_failed');
+
+        $this->assertEmpty($this->skilland()->scomappings ?? null);
+    }
+
+    public function test_update_clears_the_old_mapping_before_writing_the_new_one(): void {
+        $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
+        $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
+        $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
+            ['scormcmid' => 50, 'scorm_provisioned' => 1, 'scomappings' => json_encode(['L1' => 'old'])]));
+        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
+            'lessons' => []]]);
+        $this->queue_package(['L1' => 'sco_1']);
+
+        skilland_update_topic_scorm($this->skilland(), $this->course(), 0);
+
+        $clears = array_values(array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => $c['table'] === 'skilland' && property_exists($c['data'], 'scormcmid')
+                && $c['data']->scormcmid === null));
+        $this->assertCount(1, $clears);
+        $this->assertTrue(property_exists($clears[0]['data'], 'scomappings'));
+        $this->assertNull($clears[0]['data']->scomappings);
+        $this->assertSame(['L1' => 'sco_1'], json_decode($this->skilland()->scomappings, true));
+    }
+
+    public function test_update_failure_leaves_scomappings_cleared(): void {
+        $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
+        $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
+            ['scormcmid' => 50, 'scorm_provisioned' => 1, 'scomappings' => json_encode(['L1' => 'old'])]));
+        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
+            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = ['body' => 'down', 'http_code' => 500, 'errno' => 0, 'error' => ''];
+
+        try {
+            skilland_update_topic_scorm($this->skilland(), $this->course(), 0);
+            $this->fail('Expected the update to fail');
+        } catch (\moodle_exception $e) {
+            $this->assertNotEmpty($e->errorcode);
+        }
+
+        $this->assertNull($this->skilland()->scomappings);
+        $this->assertNull($this->skilland()->scormcmid);
+    }
+
+    public function test_missing_module_reprovision_clears_the_old_mapping(): void {
+        $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
+            ['scormcmid' => 999, 'scorm_provisioned' => 1, 'scomappings' => json_encode(['L1' => 'old'])]));
+        $this->queue_package(['L1' => 'sco_1']);
+
+        skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
+
+        $clears = array_values(array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => $c['table'] === 'skilland' && property_exists($c['data'], 'scormcmid')
+                && $c['data']->scormcmid === null));
+        $this->assertCount(1, $clears);
+        $this->assertNull($clears[0]['data']->scomappings);
+        $this->assertSame(['L1' => 'sco_1'], json_decode($this->skilland()->scomappings, true));
+    }
 }

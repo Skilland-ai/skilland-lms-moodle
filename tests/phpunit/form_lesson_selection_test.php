@@ -232,4 +232,46 @@ class form_lesson_selection_test extends TestCase {
         include realpath(__DIR__ . '/../../src') . '/version.php';
         $this->assertGreaterThanOrEqual(2026092603, $plugin->version);
     }
+
+    // ---------------------------------------------------------------
+    // Topic change confirmation on a provisioned activity (SKL-655)
+    // ---------------------------------------------------------------
+
+    public function test_has_scorm_is_emitted_from_the_saved_scormcmid(): void {
+        $this->assertStringContainsString('$hasscorm = !empty($skilland->scormcmid);', self::$form);
+        $this->assertStringContainsString('var hasScorm = " . json_encode($hasscorm) . ";', self::$form);
+    }
+
+    public function test_confirm_guard_sits_at_the_top_of_the_change_handler(): void {
+        $handler = $this->change_handler_body();
+        $guard = strpos($handler, 'if (hasScorm && activeTopicId !== null');
+        $this->assertNotFalse($guard);
+        $this->assertLessThan(strpos($handler, 'savedTopicInput.value = topicId;'), $guard);
+        $this->assertLessThan(strpos($handler, 'fetchLessons(topicId)'), $guard);
+        $this->assertStringContainsString('String(activeTopicId) === String(currentTopicId)', $handler);
+        $this->assertStringContainsString('String(topicId) !== String(currentTopicId)', $handler);
+    }
+
+    public function test_guard_restores_the_previous_topic_and_returns_before_any_state_change(): void {
+        $handler = $this->change_handler_body();
+        $guardstart = strpos($handler, 'if (hasScorm');
+        $guardend = strpos($handler, 'return;', $guardstart);
+        $this->assertNotFalse($guardend);
+        $guard = substr($handler, $guardstart, $guardend - $guardstart);
+        $this->assertStringContainsString('topicSelect.value = previousTopicId;', $guard);
+        $this->assertStringContainsString('Notification.confirm(', $guard);
+        $this->assertStringContainsString('topicChangeConfirmTitle', $guard);
+        $this->assertStringContainsString('topicChangeConfirmMessage', $guard);
+        foreach (['savedTopicInput', 'updateSelectedState', 'fetchLessons', 'lessonsRequestSeq',
+                'selectedLessonsInput', 'innerHTML', 'activeTopicId = '] as $untouched) {
+            $this->assertStringNotContainsString($untouched, $guard, "Guard must not touch $untouched");
+        }
+    }
+
+    public function test_confirm_strings_are_hex_escaped_lang_strings(): void {
+        $flags = 'JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE';
+        foreach (['topic_change_confirm_title', 'topic_change_confirm'] as $key) {
+            $this->assertStringContainsString("json_encode(get_string('$key', 'mod_skilland'), $flags)", self::$form);
+        }
+    }
 }

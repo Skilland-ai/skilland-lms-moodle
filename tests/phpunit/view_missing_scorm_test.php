@@ -90,4 +90,45 @@ class view_missing_scorm_test extends TestCase {
         $this->assertStringContainsString('back_to_lessons', $html);
         $this->assertStringNotContainsString('player.php', $html);
     }
+
+    // ---------------------------------------------------------------
+    // Lessons missing from the installed package (SKL-655)
+    // ---------------------------------------------------------------
+
+    private function render_list(\stdClass $skilland): string {
+        $this->db->get_manager()->set_table_exists('scorm_scoes_value', false);
+        $this->db->get_manager()->set_table_exists('scorm_attempt', false);
+        $lessons = [
+            (object) ['id' => 10, 'title' => 'Playable', 'scoid' => 5, 'updatedat' => 0],
+            (object) ['id' => 11, 'title' => 'Late', 'scoid' => null, 'updatedat' => 0],
+        ];
+        return skilland_render_lesson_list($skilland, $lessons, (object) ['id' => 90]);
+    }
+
+    public function test_teacher_sees_a_warning_on_a_lesson_without_sco(): void {
+        $html = $this->render_list((object) ['id' => 7, 'scormcmid' => 40]);
+
+        $this->assertSame(1, substr_count($html, 'lesson_sco_missing'));
+        $this->assertStringContainsString('alert alert-warning skilland-lesson-sco-missing', $html);
+        $late = substr($html, strpos($html, 'Late'));
+        $this->assertStringContainsString('lesson_sco_missing', $late);
+    }
+
+    public function test_student_sees_no_warning(): void {
+        $GLOBALS['_test_denied_capabilities'] = ['mod/skilland:provision'];
+        try {
+            $html = $this->render_list((object) ['id' => 7, 'scormcmid' => 40]);
+        } finally {
+            unset($GLOBALS['_test_denied_capabilities']);
+        }
+
+        $this->assertStringNotContainsString('lesson_sco_missing', $html);
+        $this->assertStringContainsString('skilland-lesson-disabled', $html);
+    }
+
+    public function test_unprovisioned_activity_shows_no_warning(): void {
+        $html = $this->render_list((object) ['id' => 7, 'scormcmid' => null]);
+
+        $this->assertStringNotContainsString('lesson_sco_missing', $html);
+    }
 }

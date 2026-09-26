@@ -623,4 +623,44 @@ class integrity_test extends TestCase {
         require self::$srcDir . '/version.php';
         $this->assertGreaterThanOrEqual(2026092602, $plugin->version);
     }
+
+    // ---------------------------------------------------------------
+    // skilland.scomappings (SKL-655)
+    // ---------------------------------------------------------------
+
+    public function test_scomappings_column_is_installed_and_upgraded(): void {
+        $this->assertContains('scomappings', self::$dbColumns['skilland']);
+
+        $xml = simplexml_load_file(self::$srcDir . '/db/install.xml');
+        $field = $xml->xpath('//TABLE[@NAME="skilland"]/FIELDS/FIELD[@NAME="scomappings"]');
+        $this->assertCount(1, $field);
+        $this->assertSame('text', (string) $field[0]['TYPE']);
+        $this->assertSame('false', (string) $field[0]['NOTNULL']);
+
+        $upgrade = file_get_contents(self::$srcDir . '/db/upgrade.php');
+        $this->assertMatchesRegularExpression(
+            "/if \\(\\\$oldversion < 2026092604\\) \\{.*new xmldb_field\\('scomappings', XMLDB_TYPE_TEXT.*field_exists.*add_field.*upgrade_mod_savepoint\\(true, 2026092604, 'skilland'\\);/s",
+            $upgrade
+        );
+    }
+
+    public function test_version_is_bumped_for_scomappings(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+        $this->assertGreaterThanOrEqual(2026092604, $plugin->version);
+    }
+
+    public function test_skl655_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include self::$srcDir . "/lang/$lang/skilland.php";
+            foreach (['topic_change_confirm', 'topic_change_confirm_title', 'topic_changed_reprovision_failed',
+                    'lesson_sco_missing'] as $key) {
+                $this->assertNotEmpty($string[$key] ?? '', "$lang string $key");
+            }
+        }
+    }
 }
