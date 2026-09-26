@@ -7,6 +7,24 @@
  */
 
 /* ========================================
+   Accessibility utilities
+   ======================================== */
+
+/* Visually hides content while keeping it readable by assistive technology,
+   unlike display:none which removes it from the accessibility tree too. */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ========================================
    Activity Header (Moodle's module header)
    ======================================== */
 
@@ -215,11 +233,29 @@
 }
 
 .skilland-status-text {
-  display: none;
+  /* Hidden visually below 576px (the icon carries the meaning there), but kept
+     readable by assistive technology rather than removed with display:none. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (min-width: 576px) {
   .skilland-status-text {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
     display: inline;
   }
 }
@@ -519,29 +555,23 @@
   bottom: 0;
   width: 100vw;
   height: 100vh;
+  /* Fallback first: 100dvh accounts for mobile browser chrome, but is not
+     universally supported, so a browser without it keeps the 100vh above. */
+  height: 100dvh;
   z-index: 9999;
   background: #fff;
 }
 
 /* Fullscreen Header Bar */
 .skilland-fullscreen-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   padding: 12px 20px;
   background: #1f2937;
   color: #fff;
   flex-shrink: 0;
-  position: relative;
-  /* For absolute title centering */
-}
-
-.skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10000;
 }
 
 /* Back link in fullscreen header */
@@ -561,11 +591,10 @@
   text-decoration: none;
 }
 
-/* Lesson title in fullscreen header - absolutely centered */
+/* Lesson title in fullscreen header - the middle column of the 3-column grid */
 .skilland-fullscreen-title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  min-width: 0;
+  margin: 0;
   font-size: 1rem;
   font-weight: 600;
   color: #fff;
@@ -573,10 +602,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 60%;
-  /* Prevent overlap with back/close buttons */
-  pointer-events: none;
-  /* Allow clicks to pass through to buttons below */
+}
+
+.skilland-fullscreen-title:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 /* Close button (X) in fullscreen header */
@@ -633,21 +663,6 @@
   background: #1f2937;
   flex-shrink: 0;
   gap: 16px;
-}
-
-.skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 10000;
-}
-
-.skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-content {
-  padding-top: 60px;
-  padding-bottom: 56px;
-  /* Height of bottom nav */
-  height: 100vh;
 }
 
 .skilland-fullscreen-nav-prev,
@@ -725,11 +740,6 @@
     height: 32px;
   }
 
-  .skilland-fullscreen-wrapper[data-fullscreen="true"] .skilland-fullscreen-content {
-    padding-top: 52px;
-    padding-bottom: 52px;
-  }
-
   .skilland-fullscreen-nav {
     padding: 10px 12px;
   }
@@ -742,7 +752,18 @@
   }
 
   .skilland-fullscreen-nav-text {
-    display: none;
+    /* Hidden visually below 575.98px (the arrow carries the meaning, and the
+       link's aria-label carries the full text), but kept readable by
+       assistive technology rather than removed with display:none. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .skilland-fullscreen-nav-arrow {
