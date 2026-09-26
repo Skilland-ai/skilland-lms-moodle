@@ -202,3 +202,17 @@ $string['completionlessons_desc'] = 'El alumnado debe completar o aprobar todas 
 $string['completionlessons_help'] = 'Si se activa, la actividad se marca como completada cuando el alumno ha completado o aprobado todas las lecciones visibles. Las lecciones ocultas no cuentan, y una actividad sin lecciones visibles nunca se completa. El progreso se conserva cuando se reconstruye el paquete SCORM.';
 $string['completiondetail:lessons'] = 'Completar todas las lecciones';
 $string['error_grade_scale_unsupported'] = 'No se admiten escalas. Elige una calificación por puntos o Ninguna.';
+
+// Privacy API (SKL-660).
+$string['privacy:metadata:skilland'] = 'Para iniciar la sesión de un usuario en SkilLand Studio (SSO), listar los cursos de SkilLand de un docente y crear un curso de SkilLand desde Moodle (lo que crea una cuenta de SkilLand para ese correo electrónico), el plugin envía datos personales a la plataforma SkilLand de la organización. Los datos ya enviados a SkilLand los gestiona el administrador de SkilLand de la organización.';
+$string['privacy:metadata:skilland:email'] = 'La dirección de correo electrónico del usuario, enviada al iniciar sesión en SkilLand Studio, al listar sus cursos de SkilLand y al crear un curso de SkilLand.';
+$string['privacy:metadata:skilland:fullname'] = 'El nombre completo del usuario, enviado al iniciar sesión en SkilLand Studio.';
+$string['privacy:metadata:skilland:role'] = 'El rol de SkilLand que se asigna al usuario, enviado al iniciar sesión en SkilLand Studio.';
+$string['privacy:metadata:skilland:courseaccess'] = 'Los cursos de Moodle en los que está matriculado el usuario y que están vinculados a un curso de SkilLand, enviados al iniciar sesión en SkilLand Studio.';
+$string['privacy:metadata:skilland_progress'] = 'El mejor estado y la mejor puntuación que cada alumno ha alcanzado en cada lección de una actividad Skilland.';
+$string['privacy:metadata:skilland_progress:userid'] = 'El ID del alumno.';
+$string['privacy:metadata:skilland_progress:lessonid'] = 'El ID de la lección.';
+$string['privacy:metadata:skilland_progress:status'] = 'El mejor estado que el alumno ha alcanzado en la lección.';
+$string['privacy:metadata:skilland_progress:score'] = 'La puntuación más alta que el alumno ha alcanzado en la lección.';
+$string['privacy:metadata:skilland_progress:timemodified'] = 'La fecha en que se actualizó el progreso por última vez.';
+$string['privacy:path:progress'] = 'Progreso de las lecciones';
