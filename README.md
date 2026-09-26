@@ -140,6 +140,15 @@ When the plugin is first installed or upgraded, `mod/skilland:provision` copies 
 2. You can change the selected **Topic** or modify which **Lessons** are selected.
 3. Changes to lesson selection will update the visibility of those lessons for students.
 
+### Completion and grades
+
+The Skilland activity owns completion and the grade; the hidden topic SCORM has no grade item.
+
+- **Completion rule**: under *Activity completion*, choose automatic completion and tick **Complete all lessons**. The activity completes once the learner has completed or passed every visible lesson. Hidden lessons are ignored; an activity with no visible lesson never completes.
+- **Grade** (opt-in, *None* by default): with a maximum grade set, the raw grade is `grade × mean / 100`, the mean taken over the visible lessons of the SCO raw score (clamped to 0–100) when one was reported, else 100 for a completed or passed lesson, else 0. A learner with no recorded progress gets no grade. Scales are not supported.
+- **Progress survives re-provisioning**: each learner's best status and highest score per lesson are kept in the plugin's own table, so rebuilding the SCORM (auto-update, topic change) never loses completion or grades. The `sync_content` task also backfills that table from the SCORM tracks.
+- **Moodle 4.2**: SCORM tracks live in `scorm_attempt` / `scorm_scoes_value` only from Moodle 4.3, so on 4.2 no progress is read and the completion rule never ticks.
+
 ---
 
 ## 🛠️ Development
