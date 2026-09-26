@@ -606,6 +606,15 @@ if (!class_exists('require_login_exception')) {
     }
 }
 
+// Thrown by external_api::clean_returnvalue() when a web service result does not match its execute_returns().
+if (!class_exists('invalid_response_exception')) {
+    class invalid_response_exception extends \moodle_exception {
+        public function __construct($debuginfo = null) {
+            parent::__construct('invalidresponse', 'debug', '', null, $debuginfo);
+        }
+    }
+}
+
 if (!class_exists('coding_exception')) {
     class coding_exception extends \moodle_exception {
         public function __construct($hint = '', $debuginfo = null) {
