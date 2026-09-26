@@ -1,8 +1,9 @@
 <?php
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->requires  = 2023042400;   // Moodle 4.2+ (core_external)
+$plugin->requires  = 2024100700;   // Moodle 4.5+ (core_external)
 $plugin->component = 'mod_skilland';
+$plugin->supported = [405, 405];
 
 
 $plugin->version   = 2026092617;   // YYYYMMDDHH - SSO POST handoff with exp/aud/iss claims (SKL-687)

@@ -35,7 +35,7 @@ function xmldb_skilland_upgrade($oldversion) {
 
     $dbman = $GLOBALS['DB']->get_manager();
 
-    // For version 2025120104, hooks are registered via db/callbacks.php.
+    // For version 2025120104, hooks are registered via db/hooks.php.
     if ($oldversion < 2025120104) {
         // Upgrade savepoint reached.
         upgrade_mod_savepoint(true, 2025120104, 'skilland');

@@ -4,7 +4,7 @@
 
 **Seamlessly integrate AI-generated educational content from Skilland into your Moodle courses**
 
-[![Moodle](https://img.shields.io/badge/Moodle-4.2%2B-orange?style=flat-square&logo=moodle)](https://moodle.org)
+[![Moodle](https://img.shields.io/badge/Moodle-4.5%2B-orange?style=flat-square&logo=moodle)](https://moodle.org)
 [![Status](https://img.shields.io/badge/Status-Beta-blue?style=flat-square)]()
 
 </div>
@@ -62,7 +62,8 @@ When creating an activity (Topic), you can now **select exactly which lessons** 
 ## 🚀 Installation
 
 ### Prerequisites
-- Moodle **4.2 or higher**
+- Moodle **4.5 or higher**
+- PHP **8.1 or higher**
 - A Skilland platform account with API access
 - SCORM module enabled in Moodle
 
@@ -155,7 +156,6 @@ The Skilland activity owns completion and the grade; the hidden topic SCORM has 
 - **Completion rule**: under *Activity completion*, choose automatic completion and tick **Complete all lessons**. The activity completes once the learner has completed or passed every visible lesson. Hidden lessons are ignored; an activity with no visible lesson never completes.
 - **Grade** (opt-in, *None* by default): with a maximum grade set, the raw grade is `grade × mean / 100`, the mean taken over the visible lessons of the SCO raw score (clamped to 0–100) when one was reported, else 100 for a completed or passed lesson, else 0. A learner with no recorded progress gets no grade. Scales are not supported.
 - **Progress survives re-provisioning**: each learner's best status and highest score per lesson are kept in the plugin's own table, so rebuilding the SCORM (auto-update, topic change) never loses completion or grades. The `sync_content` task also backfills that table from the SCORM tracks.
-- **Moodle 4.2**: SCORM tracks live in `scorm_attempt` / `scorm_scoes_value` only from Moodle 4.3, so on 4.2 no progress is read and the completion rule never ticks.
 
 ## Privacy
 

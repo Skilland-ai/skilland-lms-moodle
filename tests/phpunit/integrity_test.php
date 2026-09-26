@@ -538,15 +538,42 @@ class integrity_test extends TestCase {
     // ---------------------------------------------------------------
 
     public function test_callbacks_reference_existing_methods(): void {
-        $content = file_get_contents(self::$srcDir . '/db/callbacks.php');
+        $content = file_get_contents(self::$srcDir . '/db/hooks.php');
 
-        // Extract callback class and method pairs.
-        preg_match_all("/'callback'\\s*=>\\s*\\[([^\\]]+)\\]/", $content, $matches);
+        // Extract callback class and method pairs, supporting both the
+        // array callable form (\Class::class, 'method') and the
+        // 'Class::method' string callable form.
+        preg_match_all("/'callback'\\s*=>\\s*\\[([^\\]]+)\\]/", $content, $arrayMatches);
+        preg_match_all("/'callback'\\s*=>\\s*'([^']+)'/", $content, $stringMatches);
 
         $missing = [];
-        foreach ($matches[1] as $callbackDef) {
+        foreach ($arrayMatches[1] as $callbackDef) {
             // Extract class and method from something like \mod_skilland\hooks::class, 'before_footer_html_generation'
             if (preg_match("/\\\\(mod_skilland\\\\[\\w\\\\]+)::class\\s*,\\s*'(\\w+)'/", $callbackDef, $m)) {
+                $className = $m[1];
+                $methodName = $m[2];
+
+                // Convert namespace to file path.
+                $relative = str_replace('\\', '/', $className);
+                $relative = preg_replace('#^mod_skilland/#', 'classes/', $relative);
+                $filepath = self::$srcDir . '/' . $relative . '.php';
+
+                if (!file_exists($filepath)) {
+                    $missing[] = "$className (file not found at $filepath)";
+                    continue;
+                }
+
+                // Check method exists in file.
+                $classSource = file_get_contents($filepath);
+                if (!preg_match('/function\s+' . preg_quote($methodName) . '\s*\(/', $classSource)) {
+                    $missing[] = "$className::$methodName() (method not found)";
+                }
+            }
+        }
+
+        foreach ($stringMatches[1] as $callbackDef) {
+            // Extract class and method from something like mod_skilland\hooks::before_footer_html_generation
+            if (preg_match("/^(mod_skilland\\\\[\\w\\\\]+)::(\\w+)$/", $callbackDef, $m)) {
                 $className = $m[1];
                 $methodName = $m[2];
 
