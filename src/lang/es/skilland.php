@@ -37,9 +37,10 @@ $string['no_lessons_found'] = 'No se encontraron lecciones para este tema.';
 // Behaviour settings.
 $string['behaviour'] = 'Configuración de Comportamiento';
 $string['autoupdate'] = 'Actualización automática de contenido';
-$string['autoupdate_desc'] = 'Actualizar automáticamente las actividades SCORM cuando se publique una nueva versión en Skilland';
+$string['autoupdate_desc'] = 'Cuando se publique una nueva versión en Skilland, eliminar y volver a crear automáticamente este paquete SCORM. Esto elimina todos los intentos y calificaciones de los estudiantes para esta actividad, sin posibilidad de recuperarlos.';
+$string['autoupdate_warning'] = 'La actualización automática está activada y "Bloquear después del primer acceso" está desactivada: en cuanto el contenido cambie en Skilland, esta actividad se eliminará y volverá a crear, borrando los intentos y calificaciones de todos los estudiantes. Active "Bloquear después del primer acceso" para evitarlo una vez que los estudiantes hayan comenzado.';
 $string['lockafterfirstaccess'] = 'Bloquear después del primer acceso';
-$string['lockafterfirstaccess_desc'] = 'Evitar actualizaciones una vez que los estudiantes hayan accedido al contenido';
+$string['lockafterfirstaccess_desc'] = 'Una vez que un estudiante haya accedido al contenido, evitar que la actualización automática elimine y vuelva a crear este paquete SCORM (se conservan sus intentos y calificaciones)';
 $string['hidelabels'] = 'Ocultar códigos de Skilland';
 $string['hidelabels_desc'] = 'Ocultar códigos de Skilland (ej. T2-L1) de los nombres de actividades visibles para estudiantes';
 
@@ -117,6 +118,7 @@ $string['toggle_fullscreen'] = 'Alternar pantalla completa';
 $string['launch_lesson'] = 'Iniciar Lección';
 $string['content_coming_soon'] = 'Contenido Próximamente';
 $string['content_being_prepared'] = 'El contenido de esta lección está siendo preparado. Por favor, vuelva más tarde.';
+$string['content_last_updated'] = 'Contenido actualizado por última vez: {$a}. Cualquier actualización de esta actividad reinicia el progreso en ella.';
 $string['content_not_provisioned'] = 'Contenido Aún No Disponible';
 $string['lesson_not_available'] = 'Esta lección no está disponible en esta actividad.';
 $string['scorm_not_ready'] = 'Esta lección aún no está lista para reproducir. Por favor, espere a que el contenido sea provisionado.';

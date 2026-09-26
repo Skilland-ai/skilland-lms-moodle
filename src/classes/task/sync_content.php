@@ -198,6 +198,22 @@ class sync_content extends \core\task\scheduled_task {
         $currentHash = $skilland->snapshotid ?? '';
         $remoteHash = $hashinfo['contentHash'] ?? '';
 
+        // Migration for activities provisioned before snapshotid was stored (SKL-649): an empty
+        // stored hash on an already-provisioned activity means "unknown", not "changed". Record
+        // the current remote hash once, without re-provisioning, so the next run compares
+        // correctly instead of destroying student progress on a false positive.
+        if (empty($currentHash) && !empty($skilland->scormcmid)) {
+            $DB->update_record('skilland', (object) [
+                'id' => $skilland->id,
+                'snapshotid' => $remoteHash,
+                'snapshotcreatedat' => !empty($hashinfo['generatedAt']) ? strtotime($hashinfo['generatedAt']) : time(),
+                'lastsynced' => time(),
+            ]);
+            logger::info('SyncContent', 'Activity ' . $skilland->id .
+                ' had no stored hash — recording current hash without re-provisioning (migration)');
+            return 'current';
+        }
+
         if (!empty($currentHash) && $currentHash === $remoteHash) {
             // Content hasn't changed — update lastsynced and move on.
             $DB->set_field('skilland', 'lastsynced', time(), ['id' => $skilland->id]);
@@ -214,7 +230,8 @@ class sync_content extends \core\task\scheduled_task {
         $sectionnum = $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
 
         try {
-            $newcmid = skilland_update_topic_scorm($skilland, $course, $sectionnum);
+            // Thread the hash already fetched above through to provisioning, so it isn't queried twice.
+            $newcmid = skilland_update_topic_scorm($skilland, $course, $sectionnum, $remoteHash);
         } catch (\moodle_exception $e) {
             if ($e->errorcode === 'error_provision_in_progress') {
                 logger::info('SyncContent', 'Activity ' . $skilland->id . ' is being provisioned elsewhere — skipping');
@@ -223,12 +240,14 @@ class sync_content extends \core\task\scheduled_task {
             throw $e;
         }
 
-        // Update snapshot tracking fields.
-        $DB->update_record('skilland', (object)[
+        // The provisioning call above already wrote snapshotid/snapshotcreatedat with this same
+        // remote hash; this write is now redundant but kept idempotent (same values) as a safety
+        // net for any update path that bypasses the normal provisioning write (e.g. a test hook).
+        $DB->update_record('skilland', (object) [
             'id' => $skilland->id,
             'snapshotid' => $remoteHash,
             'snapshotcreatedat' => !empty($hashinfo['generatedAt']) ? strtotime($hashinfo['generatedAt']) : time(),
-            'lastsynced' => time()
+            'lastsynced' => time(),
         ]);
 
         logger::info('SyncContent', 'Activity ' . $skilland->id . ' updated successfully (new SCORM cmid: ' . $newcmid . ')');

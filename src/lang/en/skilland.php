@@ -36,9 +36,10 @@ $string['no_lessons_found'] = 'No lessons found for this topic.';
 // Behaviour settings.
 $string['behaviour'] = 'Behaviour Settings';
 $string['autoupdate'] = 'Auto-update content';
-$string['autoupdate_desc'] = 'Automatically update SCORM activities when a new snapshot is published in Skilland';
+$string['autoupdate_desc'] = 'When a new version is published in Skilland, automatically delete and recreate this SCORM package. This deletes all student attempts and grades for this activity — there is no way to recover them.';
+$string['autoupdate_warning'] = 'Auto-update is on and "Lock after first access" is off: as soon as content changes in Skilland, this activity will be deleted and recreated, erasing every student\'s attempts and grades. Turn on "Lock after first access" to stop that once students have started.';
 $string['lockafterfirstaccess'] = 'Lock after first access';
-$string['lockafterfirstaccess_desc'] = 'Prevent updates once students have accessed the content';
+$string['lockafterfirstaccess_desc'] = 'Once a student has accessed the content, stop auto-update from deleting and recreating this SCORM package (their attempts and grades are preserved)';
 $string['hidelabels'] = 'Hide Skilland codes';
 $string['hidelabels_desc'] = 'Hide Skilland codes (e.g. T2-L1) from student-facing activity names';
 
@@ -116,6 +117,7 @@ $string['toggle_fullscreen'] = 'Toggle fullscreen';
 $string['launch_lesson'] = 'Start Lesson';
 $string['content_coming_soon'] = 'Content Coming Soon';
 $string['content_being_prepared'] = 'This lesson content is being prepared. Please check back later.';
+$string['content_last_updated'] = 'Content last updated: {$a}. Any update to this activity resets progress on it.';
 $string['content_not_provisioned'] = 'Content Not Yet Available';
 $string['lesson_not_available'] = 'This lesson is not available in this activity.';
 $string['scorm_not_ready'] = 'This lesson is not yet ready to play. Please wait for the content to be provisioned.';

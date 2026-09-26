@@ -114,6 +114,16 @@ if (empty($skilland->scormcmid)) {
         ]]);
     }
 
+    // Tell everyone (students included) when this content was last (re)built: an auto-update or a
+    // manual "update now" deletes and recreates the SCORM package, resetting every attempt.
+    if (!empty($skilland->snapshotcreatedat)) {
+        echo html_writer::div(
+            get_string('content_last_updated', 'mod_skilland',
+                userdate($skilland->snapshotcreatedat, get_string('strftimedatetimeshort'))),
+            'alert alert-info skilland-snapshot-notice'
+        );
+    }
+
     // Show lesson list with progress.
     echo skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex);
 }

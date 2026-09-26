@@ -400,6 +400,13 @@ class mod_skilland_mod_form extends moodleform_mod {
             get_string('lockafterfirstaccess_desc', 'mod_skilland'));
         $mform->setDefault('lockafterfirstaccess', 0);
 
+        // Shown only while auto-update is on and the lock is off - the combination that lets a
+        // future sync silently wipe student progress.
+        $mform->addElement('static', 'autoupdatewarning', '',
+            html_writer::div(get_string('autoupdate_warning', 'mod_skilland'), 'alert alert-warning'));
+        $mform->hideIf('autoupdatewarning', 'autoupdate', 'eq', 0);
+        $mform->hideIf('autoupdatewarning', 'lockafterfirstaccess', 'eq', 1);
+
         $mform->addElement('advcheckbox', 'hidelabels',
             get_string('hidelabels', 'mod_skilland'),
             get_string('hidelabels_desc', 'mod_skilland'));
