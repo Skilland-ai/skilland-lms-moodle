@@ -251,6 +251,9 @@ if (!function_exists('get_course')) {
 if (!function_exists('course_delete_module')) {
     // Records the cmid in $GLOBALS['_test_deleted_cmids'] and removes the module rows from the fake $DB;
     // $GLOBALS['_test_course_delete_throw'] (an exception) makes it throw after recording.
+    // A deleted module triggers \core\event\course_module_deleted (modulename from the row's
+    // modname, default 'scorm'); $GLOBALS['_test_dispatch_observers'] = true also delivers it to
+    // \mod_skilland\observer::course_module_deleted().
     function course_delete_module($cmid, $async = false) {
         $GLOBALS['_test_deleted_cmids'][] = (int)$cmid;
         if (!empty($GLOBALS['_test_course_delete_throw'])) {
@@ -264,6 +267,19 @@ if (!function_exists('course_delete_module')) {
                 $db->delete_records('scorm', ['id' => $cm->instance]);
             }
             $db->delete_records('course_modules', ['id' => $cmid]);
+            $event = \core\event\course_module_deleted::create([
+                'objectid' => (int)$cmid,
+                'courseid' => $cm->course ?? 0,
+                'contextinstanceid' => (int)$cmid,
+                'other' => [
+                    'modulename' => $cm->modname ?? 'scorm',
+                    'instanceid' => $cm->instance ?? 0,
+                ],
+            ]);
+            $event->trigger();
+            if (!empty($GLOBALS['_test_dispatch_observers'])) {
+                \mod_skilland\observer::course_module_deleted($event);
+            }
         }
         return true;
     }
@@ -571,4 +587,9 @@ if (!function_exists('set_coursemodule_visible')) {
 // Lock API (namespaced, so it lives in its own file).
 if (!class_exists('core\\lock\\lock_config')) {
     require_once __DIR__ . '/lock_stub.php';
+}
+
+// \core\notification (namespaced, so it lives in its own file).
+if (!class_exists('core\\notification')) {
+    require_once __DIR__ . '/notification_stub.php';
 }

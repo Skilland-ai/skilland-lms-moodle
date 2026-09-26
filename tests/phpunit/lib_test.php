@@ -312,6 +312,95 @@ class lib_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
+    // skilland_process_selected_lessons() — stored timestamps are owned by the SCORM build (SKL-683)
+    // ---------------------------------------------------------------
+
+    private function stored_lesson(int $skillandid, string $lessonid): \stdClass {
+        return $this->db->get_record('skilland_lesson', ['skillandid' => $skillandid, 'skilland_lessonid' => $lessonid]);
+    }
+
+    public function test_process_lessons_keeps_stored_updatedat_of_an_existing_visible_row(): void {
+        $this->db->seed('skilland_lesson', [
+            (object)['id' => 10, 'skilland_lessonid' => 'L1', 'skillandid' => 1, 'visible' => 1, 'orderindex' => 3,
+                'title' => 'Old Title', 'updatedat' => 1600000000],
+        ]);
+
+        skilland_process_selected_lessons(1, json_encode([
+            'L1' => ['name' => 'New Title', 'updatedAt' => 1700000000],
+        ]));
+
+        $updates = $this->db->get_calls_for('update_record');
+        $this->assertCount(1, $updates);
+        $this->assertNotEquals(1700000000, $updates[0]['data']->updatedat ?? null);
+        $rec = $this->stored_lesson(1, 'L1');
+        $this->assertEquals(1600000000, $rec->updatedat);
+        $this->assertEquals('New Title', $rec->title);
+        $this->assertEquals(1, $rec->visible);
+        $this->assertEquals(1, $rec->orderindex);
+    }
+
+    public function test_process_lessons_keeps_stored_updatedat_of_a_reticked_hidden_row(): void {
+        $this->db->seed('skilland_lesson', [
+            (object)['id' => 10, 'skilland_lessonid' => 'L1', 'skillandid' => 1, 'visible' => 0, 'orderindex' => 4,
+                'title' => 'Hidden', 'updatedat' => 1600000000],
+        ]);
+
+        skilland_process_selected_lessons(1, json_encode([
+            'L1' => ['name' => 'Hidden', 'updatedAt' => '2026-01-03T00:00:00Z'],
+        ]));
+
+        $rec = $this->stored_lesson(1, 'L1');
+        $this->assertEquals(1600000000, $rec->updatedat);
+        $this->assertEquals(1, $rec->visible);
+        $this->assertEquals(1, $rec->orderindex);
+    }
+
+    public function test_process_lessons_mixed_only_the_insert_carries_the_submitted_stamp(): void {
+        $this->db->seed('skilland_lesson', [
+            (object)['id' => 10, 'skilland_lessonid' => 'existing', 'skillandid' => 1, 'visible' => 1, 'orderindex' => 1,
+                'title' => 'Old', 'updatedat' => 1600000000],
+        ]);
+
+        skilland_process_selected_lessons(1, json_encode([
+            'existing' => ['name' => 'Old', 'updatedAt' => 1700000000],
+            'new-lesson' => ['name' => 'Brand New', 'updatedAt' => 1700000500],
+        ]));
+
+        $this->assertEquals(1600000000, $this->stored_lesson(1, 'existing')->updatedat);
+        $inserts = $this->db->get_calls_for('insert_record');
+        $this->assertCount(1, $inserts);
+        $this->assertEquals(1700000500, $inserts[0]['data']->updatedat);
+        $this->assertEquals(1700000500, $this->stored_lesson(1, 'new-lesson')->updatedat);
+    }
+
+    public function test_update_instance_open_and_save_without_changes_keeps_every_stored_updatedat(): void {
+        $this->db->seed('skilland_lesson', [
+            (object)['id' => 10, 'skilland_lessonid' => 'L1', 'skillandid' => 1, 'visible' => 1, 'orderindex' => 1,
+                'title' => 'Lesson 1', 'updatedat' => 1600000000],
+            (object)['id' => 11, 'skilland_lessonid' => 'L2', 'skillandid' => 1, 'visible' => 1, 'orderindex' => 2,
+                'title' => 'Lesson 2', 'updatedat' => 1600000100],
+        ]);
+        $data = new \stdClass();
+        $data->course = 10;
+        $data->instance = 1;
+        $data->skilland_topicid = 'topic1';
+        $data->topic_orderindex = 1;
+        // The form carries SkilLand's newer timestamps, as it did before SKL-683.
+        $data->selected_lessons = json_encode([
+            'L1' => ['name' => 'Lesson 1', 'updatedAt' => '2026-01-03T00:00:00Z'],
+            'L2' => ['name' => 'Lesson 2', 'updatedAt' => 1700000000],
+        ]);
+
+        $this->assertTrue(skilland_update_instance($data));
+
+        $this->assertEquals(1600000000, $this->stored_lesson(1, 'L1')->updatedat);
+        $this->assertEquals(1600000100, $this->stored_lesson(1, 'L2')->updatedat);
+        $this->assertEmpty($this->db->get_calls_for('insert_record'));
+        $this->assertEmpty(array_filter($this->db->get_calls_for('set_field'),
+            fn($c) => $c['field'] === 'updatedat'));
+    }
+
+    // ---------------------------------------------------------------
     // skilland_add_instance()
     // ---------------------------------------------------------------
 

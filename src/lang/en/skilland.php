@@ -121,6 +121,7 @@ $string['content_being_prepared'] = 'This lesson content is being prepared. Plea
 $string['content_not_provisioned'] = 'Content Not Yet Available';
 $string['lesson_not_found'] = 'Lesson not found.';
 $string['scorm_not_ready'] = 'This lesson is not yet ready to play. Please wait for the content to be provisioned.';
+$string['scorm_missing_reprovision'] = 'The content package for this activity was deleted. Provision it again to make the lessons playable.';
 
 // SCORM integration.
 $string['error_scorm_not_available'] = 'SCORM content is not available for this lesson.';
@@ -149,6 +150,12 @@ $string['update_from_skilland'] = 'Update From Skilland';
 $string['updating'] = 'Updating...';
 $string['update_confirm_title'] = 'Update Content?';
 $string['update_confirm_message'] = 'This will download the latest content from Skilland and replace the current SCORM package. WARNING: All student progress and grades for this topic will be permanently deleted. This action cannot be undone. Are you sure you want to continue?';
+
+// Topic change and SCO reconciliation (SKL-655).
+$string['topic_change_confirm_title'] = 'Change the topic?';
+$string['topic_change_confirm'] = 'Changing the topic replaces the content and resets all student progress for this activity.';
+$string['topic_changed_reprovision_failed'] = 'The topic was changed, but its content could not be built. Open the activity and use Provision Topic Content to create it.';
+$string['lesson_sco_missing'] = 'This lesson is not in the current content package. Use Update From Skilland in the activity settings to rebuild it.';
 $string['update_success'] = 'Content updated successfully from Skilland.';
 $string['update_error'] = 'Failed to update content';
 
@@ -181,6 +188,7 @@ $string['update_available_desc'] = 'Content has been updated in Skilland. Click 
 $string['error_plugin_disabled'] = 'The Skilland plugin is currently disabled.';
 $string['error_course_not_mapped'] = 'This Moodle course is not mapped to a Skilland course. Set the Skilland Course ID in the course settings first.';
 $string['error_course_not_mapped_to_skill'] = 'The requested Skilland content does not belong to the Skilland course mapped to this Moodle course.';
+$string['error_lessons_not_in_topic'] = 'The selected lessons do not belong to this topic. Reselect the lessons and save again.';
 
 // Errors.
 $string['invalidactivity'] = 'Invalid activity specified.';

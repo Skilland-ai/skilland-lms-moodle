@@ -358,6 +358,50 @@ function skilland_topic_belongs_to_course(string $topicid, string $skillandcours
 }
 
 /**
+ * List the submitted lesson IDs that are not lessons of the topic.
+ *
+ * The activity form posts `selected_lessons` as a JSON object keyed by lesson ID.
+ * IDs are compared as strings, so numeric and string IDs match. A non-empty JSON
+ * list is not a lesson map: its indexes are returned, as strings, as foreign IDs.
+ * Anything else that is not a non-empty JSON object ('', '{}', '[]', 'array()',
+ * invalid JSON, a scalar) yields no foreign IDs.
+ *
+ * @param string $json Submitted selected_lessons value
+ * @param array $topiclessons Lessons of the topic, as returned by mod_skilland_fetch_lessons()
+ * @return string[] Submitted lesson IDs missing from the topic, in submitted order
+ */
+function skilland_lessons_outside_topic(string $json, array $topiclessons): array {
+    $trimmed = ltrim($json);
+    if ($trimmed === '' || ($trimmed[0] !== '{' && $trimmed[0] !== '[')) {
+        return [];
+    }
+    $selected = json_decode($trimmed, true);
+    if (!is_array($selected) || empty($selected)) {
+        return [];
+    }
+    if ($trimmed[0] === '[') {
+        // A JSON list is not a lesson map: skilland_process_selected_lessons() would save its
+        // indexes as lesson IDs, so every one of them counts as outside the topic.
+        return array_map('strval', array_keys($selected));
+    }
+
+    $known = [];
+    foreach ($topiclessons as $lesson) {
+        if (is_array($lesson) && isset($lesson['id'])) {
+            $known[(string)$lesson['id']] = true;
+        }
+    }
+
+    $outside = [];
+    foreach (array_keys($selected) as $id) {
+        if (!isset($known[(string)$id])) {
+            $outside[] = (string)$id;
+        }
+    }
+    return $outside;
+}
+
+/**
  * Execute a GraphQL query against Skilland's GraphQL endpoint.
  *
  * @param string $query The GraphQL query string
@@ -1147,12 +1191,13 @@ function skilland_clear_lesson_scos(int $skillandid): void {
  * Take the per-activity provisioning lock.
  *
  * @param int $skillandid The skilland activity id.
+ * @param int $timeout Seconds to wait for the lock.
  * @return \core\lock\lock
  * @throws moodle_exception error_provision_in_progress when another request holds it.
  */
-function skilland_get_provision_lock(int $skillandid) {
+function skilland_get_provision_lock(int $skillandid, int $timeout = 10) {
     $factory = \core\lock\lock_config::get_lock_factory('mod_skilland');
-    $lock = $factory->get_lock('provision_' . $skillandid, 10);
+    $lock = $factory->get_lock('provision_' . $skillandid, $timeout);
     if (!$lock) {
         logger::warn('SCORM', 'Provisioning already in progress for skilland id ' . $skillandid);
         throw new moodle_exception('error_provision_in_progress', 'mod_skilland');
@@ -1167,7 +1212,7 @@ function skilland_get_provision_lock(int $skillandid) {
  * @param stdClass $to Destination record.
  */
 function skilland_copy_provisioning_fields(stdClass $from, stdClass $to): void {
-    foreach (['scormcmid', 'scorm_provisioned', 'snapshotcreatedat'] as $field) {
+    foreach (['scormcmid', 'scorm_provisioned', 'scomappings', 'snapshotcreatedat'] as $field) {
         $to->$field = $from->$field ?? null;
     }
 }
@@ -1207,10 +1252,12 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
                 'id' => $current->id,
                 'scormcmid' => null,
                 'scorm_provisioned' => null,
+                'scomappings' => null,
             ]);
             skilland_clear_lesson_scos((int) $current->id);
             $current->scormcmid = null;
             $current->scorm_provisioned = null;
+            $current->scomappings = null;
         }
 
         $cmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
@@ -1251,6 +1298,7 @@ function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $cou
                 'id' => $skilland->id,
                 'scormcmid' => $cmid,
                 'scorm_provisioned' => time(),
+                'scomappings' => json_encode($scorminfo['mappings'] ?? []),
                 'snapshotcreatedat' => !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time(),
             ];
             $DB->update_record('skilland', $fields);
@@ -1318,8 +1366,10 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
  *
  * Under the same per-activity lock as provisioning, this function:
  * 1. Deletes the old SCORM activity and all its tracking data
- * 2. Updates lesson timestamps to match current Skilland values
+ * 2. Fetches the current lessons from Skilland (before the build, so a stamp is never newer
+ *    than the packaged content)
  * 3. Provisions a new SCORM package with skilland_provision_topic_scorm_locked()
+ * 4. Only once that build succeeded, stamps each lesson's updatedat with the fetched value
  *
  * WARNING: This will delete all student progress/grades for this topic!
  *
@@ -1354,10 +1404,12 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
                 'id' => $current->id,
                 'scormcmid' => null,
                 'scorm_provisioned' => null,
+                'scomappings' => null,
             ]);
             skilland_clear_lesson_scos((int) $current->id);
             $current->scormcmid = null;
             $current->scorm_provisioned = null;
+            $current->scomappings = null;
             skilland_copy_provisioning_fields($current, $skilland);
 
             logger::debug('SCORM', 'Old SCORM activity deleted');
@@ -1366,6 +1418,12 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
         // Step 2: Fetch fresh lesson data from Skilland to get updated timestamps.
         $lessons = mod_skilland_fetch_lessons($current->skilland_topicid);
 
+        // Step 3: Provision the new SCORM package (the lock is already held).
+        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
+        skilland_copy_provisioning_fields($current, $skilland);
+
+        // Step 4: updatedat = version of the lesson in the installed package; only a successful
+        // build advances it.
         foreach ($lessons as $lesson) {
             $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
             $DB->set_field('skilland_lesson', 'updatedat', $updatedAt, [
@@ -1374,10 +1432,6 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
             ]);
         }
         logger::debug('SCORM', 'Updated lesson timestamps from Skilland API');
-
-        // Step 3: Provision the new SCORM package (the lock is already held).
-        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
-        skilland_copy_provisioning_fields($current, $skilland);
     } finally {
         $lock->release();
     }
@@ -1385,6 +1439,121 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
     logger::debug('SCORM', 'Topic SCORM updated successfully, new cmid = ' . $newcmid);
 
     return $newcmid;
+}
+
+/**
+ * Return an activity to the unprovisioned ("Provision") state: delete its SCORM module and clear
+ * the provisioning fields, the snapshot and every lesson's SCO mapping. Idempotent.
+ *
+ * Used when a topic change could not re-provision, so no lesson keeps pointing at a SCO of the
+ * old topic's package.
+ *
+ * @param stdClass $skilland The skilland activity record; its provisioning fields are cleared.
+ * @throws moodle_exception error_provision_in_progress when another request holds the lock.
+ */
+function skilland_reset_topic_scorm(stdClass $skilland): void {
+    global $DB;
+
+    require_once(__DIR__ . '/lib.php');
+
+    $lock = skilland_get_provision_lock((int) $skilland->id);
+    try {
+        $current = $DB->get_record('skilland', ['id' => $skilland->id], 'id, scormcmid', IGNORE_MISSING);
+        if (!$current) {
+            return;
+        }
+        if (!empty($current->scormcmid)) {
+            logger::debug('SCORM', 'Resetting skilland id ' . $current->id . ': deleting SCORM cmid ' .
+                $current->scormcmid);
+            skilland_delete_scorm_module((int) $current->scormcmid);
+        }
+        skilland_unlink_scorm((int) $current->id);
+    } finally {
+        $lock->release();
+    }
+
+    skilland_copy_provisioning_fields(new stdClass(), $skilland);
+    $skilland->snapshotid = null;
+}
+
+/**
+ * Give visible lessons that have no SCO yet the SCO of the installed package.
+ *
+ * A lesson ticked after provisioning is inserted without a scoid; its SCO identifier comes from
+ * the lesson's own sco_identifier or the package's stored lesson -> SCO map (scomappings), and is
+ * looked up in the SCOs Moodle parsed from that package. Nothing is downloaded or created.
+ * Skips (returns []) when the provisioning lock stays busy, since the in-flight provision maps
+ * the visible lessons itself, and when the linked SCORM module is gone.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @return string[] Skilland lesson ids that could not be resolved.
+ */
+function skilland_resolve_lesson_scos(int $skillandid): array {
+    global $DB;
+
+    require_once(__DIR__ . '/lib.php');
+
+    try {
+        $lock = skilland_get_provision_lock($skillandid, 2);
+    } catch (\moodle_exception $e) {
+        logger::warn('SCORM', 'Provisioning lock busy - not resolving lesson SCOs for skilland id ' . $skillandid);
+        return [];
+    }
+
+    try {
+        $skilland = $DB->get_record('skilland', ['id' => $skillandid], '*', IGNORE_MISSING);
+        if (!$skilland) {
+            return [];
+        }
+        $scormcm = skilland_get_linked_scorm_cm($skilland);
+        if (!$scormcm) {
+            return [];
+        }
+
+        $pending = [];
+        foreach ($DB->get_records('skilland_lesson', ['skillandid' => $skillandid, 'visible' => 1]) as $lesson) {
+            if (empty($lesson->scoid)) {
+                $pending[] = $lesson;
+            }
+        }
+        if (!$pending) {
+            return [];
+        }
+
+        $mappings = json_decode((string) ($skilland->scomappings ?? ''), true);
+        if (!is_array($mappings)) {
+            $mappings = [];
+        }
+
+        $scobyidentifier = [];
+        foreach ($DB->get_records('scorm_scoes', ['scorm' => $scormcm->instance], '', 'id, identifier') as $sco) {
+            if (!empty($sco->identifier)) {
+                $scobyidentifier[(string) $sco->identifier] = (int) $sco->id;
+            }
+        }
+
+        $unresolved = [];
+        foreach ($pending as $lesson) {
+            $lessonid = (string) $lesson->skilland_lessonid;
+            $identifier = !empty($lesson->sco_identifier) ? (string) $lesson->sco_identifier
+                : (string) ($mappings[$lessonid] ?? '');
+            if ($identifier === '' || !isset($scobyidentifier[$identifier])) {
+                $unresolved[] = $lessonid;
+                continue;
+            }
+            $DB->set_field('skilland_lesson', 'scoid', $scobyidentifier[$identifier], ['id' => $lesson->id]);
+            $DB->set_field('skilland_lesson', 'sco_identifier', $identifier, ['id' => $lesson->id]);
+            logger::debug('SCORM', 'Resolved lesson ' . $lessonid . ' to SCO ' . $scobyidentifier[$identifier]);
+        }
+
+        if ($unresolved) {
+            logger::warn('SCORM', 'Lessons not in the installed package of skilland id ' . $skillandid . ': ' .
+                implode(', ', $unresolved));
+        }
+        return $unresolved;
+    } finally {
+        $lock->release();
+    }
 }
 
 /**

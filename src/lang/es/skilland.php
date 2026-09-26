@@ -122,6 +122,7 @@ $string['content_being_prepared'] = 'El contenido de esta lección está siendo 
 $string['content_not_provisioned'] = 'Contenido Aún No Disponible';
 $string['lesson_not_found'] = 'Lección no encontrada.';
 $string['scorm_not_ready'] = 'Esta lección aún no está lista para reproducir. Por favor, espere a que el contenido sea provisionado.';
+$string['scorm_missing_reprovision'] = 'El paquete de contenido de esta actividad se ha eliminado. Vuelva a provisionarlo para que las lecciones se puedan reproducir.';
 
 // SCORM integration.
 $string['error_scorm_not_available'] = 'El contenido SCORM no está disponible para esta lección.';
@@ -150,6 +151,12 @@ $string['update_from_skilland'] = 'Actualizar Desde Skilland';
 $string['updating'] = 'Actualizando...';
 $string['update_confirm_title'] = '¿Actualizar Contenido?';
 $string['update_confirm_message'] = 'Esto descargará el contenido más reciente de Skilland y reemplazará el paquete SCORM actual. ADVERTENCIA: Todo el progreso y las calificaciones de los estudiantes para este tema se eliminarán permanentemente. Esta acción no se puede deshacer. ¿Está seguro de que desea continuar?';
+
+// Topic change and SCO reconciliation (SKL-655).
+$string['topic_change_confirm_title'] = '¿Cambiar el tema?';
+$string['topic_change_confirm'] = 'Cambiar el tema reemplaza el contenido y reinicia todo el progreso de los estudiantes en esta actividad.';
+$string['topic_changed_reprovision_failed'] = 'Se ha cambiado el tema, pero no se ha podido generar su contenido. Abre la actividad y usa Provisionar Contenido del Tema para crearlo.';
+$string['lesson_sco_missing'] = 'Esta lección no está en el paquete de contenido actual. Usa Actualizar Desde Skilland en los ajustes de la actividad para regenerarlo.';
 $string['update_success'] = 'Contenido actualizado exitosamente desde Skilland.';
 $string['update_error'] = 'Error al actualizar el contenido';
 
@@ -182,6 +189,7 @@ $string['update_available_desc'] = 'El contenido ha sido actualizado en Skilland
 $string['error_plugin_disabled'] = 'El plugin de Skilland está desactivado.';
 $string['error_course_not_mapped'] = 'Este curso de Moodle no está vinculado a un curso de Skilland. Configura primero el ID de Curso de Skilland en los ajustes del curso.';
 $string['error_course_not_mapped_to_skill'] = 'El contenido de Skilland solicitado no pertenece al curso de Skilland vinculado a este curso de Moodle.';
+$string['error_lessons_not_in_topic'] = 'Las lecciones seleccionadas no pertenecen a este tema. Vuelve a seleccionar las lecciones y guarda de nuevo.';
 
 // Errors.
 $string['invalidactivity'] = 'Actividad especificada inválida.';

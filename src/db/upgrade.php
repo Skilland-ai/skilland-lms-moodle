@@ -157,6 +157,18 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092522, 'skilland');
     }
 
+    // For version 2026092604 (SKL-655): keep the full lesson -> SCO identifier map of the
+    // provisioned package, so lessons ticked after provisioning resolve their SCO.
+    if ($oldversion < 2026092604) {
+        $table = new xmldb_table('skilland');
+        $field = new xmldb_field('scomappings', XMLDB_TYPE_TEXT, null, null, null, null, null, 'scorm_provisioned');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026092604, 'skilland');
+    }
+
     return true;
 }
 

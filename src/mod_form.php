@@ -256,6 +256,10 @@ class mod_skilland_mod_form extends moodleform_mod {
             #id_lessons_container {
                 background-color: #fafbfd;
             }
+            #id_lessons_container.skilland-lessons-loading {
+                opacity: 0.6;
+                pointer-events: none;
+            }
             #id_lessons_container .skilland-lessons-list {
                 display: flex;
                 flex-direction: column;
@@ -414,12 +418,14 @@ class mod_skilland_mod_form extends moodleform_mod {
                     // Get current topic ID and selected lessons if editing.
             $currenttopicid = '';
             $currentSelectedLessons = [];
+            $hasscorm = false;
 
             if (!empty($this->_instance)) {
                 global $DB;
                 $skilland = $DB->get_record('skilland', array('id' => $this->_instance));
                 if ($skilland) {
                     $currenttopicid = $skilland->skilland_topicid;
+                    $hasscorm = !empty($skilland->scormcmid);
                     $mform->setDefault('skilland_topicid', $currenttopicid);
                     // Fetch existing selected lessons (visible=1)
                     $records = $DB->get_records('skilland_lesson',
@@ -467,6 +473,14 @@ class mod_skilland_mod_form extends moodleform_mod {
                 var moodleCourseId = " . json_encode($this->get_course()->id) . ";
                 var currentTopicId = " . json_encode($currenttopicid) . ";
                 var currentSelectedLessons = " . json_encode($currentSelectedLessons) . ";
+                var selectionsByTopic = {}; // Ticked lessons per topic ID, restored when the topic is shown again.
+                var renderedTopicId = null; // Topic whose lessons are rendered as checkboxes, null while loading.
+                var activeTopicId = null; // Topic last picked in the dropdown (SKL-655 reuses it as the previous value).
+                var hasScorm = " . json_encode($hasscorm) . "; // The activity has a provisioned SCORM (SKL-655).
+                var confirmedTopicId = null; // Topic the teacher just confirmed leaving the saved topic for.
+                var topicChangeConfirmTitle = " . json_encode(get_string('topic_change_confirm_title', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
+                var topicChangeConfirmMessage = " . json_encode(get_string('topic_change_confirm', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
+                var lessonsRequestSeq = 0; // Bumped per lessons request; a response with an older token is dropped.
                 var topicsMap = {}; // Store full topic objects by ID
                 var editLinkHtml = " . json_encode($editlink) . ";
 
@@ -510,7 +524,9 @@ class mod_skilland_mod_form extends moodleform_mod {
                     }
 
                     // Ensure hidden fields exist (Moodle sometimes doesn't add IDs to hidden elements)
+                    var selectedLessonsInputCreated = false;
                     if (!selectedLessonsInput && topicSelect.form) {
+                        selectedLessonsInputCreated = true;
                         selectedLessonsInput = document.createElement('input');
                         selectedLessonsInput.type = 'hidden';
                         selectedLessonsInput.name = 'selected_lessons';
@@ -553,9 +569,47 @@ class mod_skilland_mod_form extends moodleform_mod {
                     var skillandInstanceId = " . json_encode($this->_instance ?? 0) . ";
                     var cmId = " . json_encode($this->_cm->id ?? 0) . ";
 
-                    // Initialize selected lessons input if empty but we have current data
-                    if (selectedLessonsInput && (!selectedLessonsInput.value || selectedLessonsInput.value === '{}' || selectedLessonsInput.value.indexOf('{') !== 0) && Object.keys(currentSelectedLessons).length > 0) {
-                        selectedLessonsInput.value = JSON.stringify(currentSelectedLessons);
+                    // Seed the saved topic's selection: the form's own value when it belongs to that topic
+                    // (a redisplay after a validation error carries the posted value), else the DB rows.
+                    if (currentTopicId) {
+                        var seededSelection = null;
+                        if (!selectedLessonsInputCreated && savedTopicInput && String(savedTopicInput.value) === String(currentTopicId)) {
+                            seededSelection = parseSelectedLessons(selectedLessonsInput.value);
+                        }
+                        if (seededSelection === null) {
+                            seededSelection = Array.isArray(currentSelectedLessons) ? {} : currentSelectedLessons;
+                        }
+                        selectionsByTopic[currentTopicId] = seededSelection;
+                    }
+
+                    function parseSelectedLessons(raw) {
+                        if (typeof raw !== 'string' || raw.indexOf('{') !== 0) {
+                            return null;
+                        }
+                        try {
+                            var parsed = JSON.parse(raw);
+                            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+                        } catch (e) {
+                            return null;
+                        }
+                    }
+
+                    function setLessonsLoading(loading) {
+                        if (lessonsContainer) {
+                            if (loading) {
+                                lessonsContainer.setAttribute('aria-busy', 'true');
+                                lessonsContainer.classList.add('skilland-lessons-loading');
+                            } else {
+                                lessonsContainer.removeAttribute('aria-busy');
+                                lessonsContainer.classList.remove('skilland-lessons-loading');
+                            }
+                        }
+                        ['skilland-select-all', 'skilland-select-none', 'id_submitbutton', 'id_submitbutton2'].forEach(function(id) {
+                            var control = document.getElementById(id);
+                            if (control) {
+                                control.disabled = loading;
+                            }
+                        });
                     }
 
                     // Set initial loading state.
@@ -631,6 +685,31 @@ class mod_skilland_mod_form extends moodleform_mod {
                     // Handle topic selection change
                     topicSelect.addEventListener('change', function() {
                         var topicId = this.value;
+                        // Leaving the saved topic of a provisioned activity replaces its SCORM (SKL-655):
+                        // confirm first. Cancel restores the select and changes nothing else.
+                        if (hasScorm && activeTopicId !== null && String(activeTopicId) === String(currentTopicId) &&
+                                String(topicId) !== String(currentTopicId) && confirmedTopicId !== topicId) {
+                            var previousTopicId = activeTopicId;
+                            topicSelect.value = previousTopicId;
+                            require(['core/notification'], function(Notification) {
+                                Notification.confirm(
+                                    topicChangeConfirmTitle,
+                                    topicChangeConfirmMessage,
+                                    " . json_encode(get_string('yes')) . ",
+                                    " . json_encode(get_string('no')) . ",
+                                    function() {
+                                        confirmedTopicId = topicId;
+                                        topicSelect.value = topicId;
+                                        topicSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                                    },
+                                    function() {
+                                        topicSelect.value = previousTopicId;
+                                    }
+                                );
+                            });
+                            return;
+                        }
+                        confirmedTopicId = null;
                         if (savedTopicInput) {
                             savedTopicInput.value = topicId;
                             console.log('Skilland: Updated savedTopicInput to:', topicId);
@@ -649,15 +728,27 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 console.log('Skilland: Updated topic_orderindex to:', topicOrderInput.value);
                             }
 
-                            // Clear selected lessons when topic changes (unless it's the initial load).
-                            if (topicId !== currentTopicId) {
-                                selectedLessonsInput.value = '{}';
+                            // Keep the rendered topic's ticks for a later visit. The synthetic change of the
+                            // initial load has nothing rendered yet, so it never overwrites the seed.
+                            if (renderedTopicId !== null) {
+                                updateSelectedState();
                             }
+                            selectedLessonsInput.value = '{}';
+                            renderedTopicId = null;
+                            activeTopicId = topicId;
 
                             updateFormFields(topic);
                             fetchLessons(topicId);
                         } else {
-                             lessonsContainer.innerHTML = '';
+                            if (renderedTopicId !== null) {
+                                updateSelectedState();
+                            }
+                            lessonsRequestSeq++;
+                            selectedLessonsInput.value = '{}';
+                            renderedTopicId = null;
+                            activeTopicId = topicId || null;
+                            setLessonsLoading(false);
+                            lessonsContainer.innerHTML = '';
                         }
                     });
 
@@ -757,7 +848,9 @@ class mod_skilland_mod_form extends moodleform_mod {
                     function fetchLessons(topicId) {
                         if (!lessonsContainer) return;
 
+                        var seq = ++lessonsRequestSeq;
                         lessonsContainer.innerHTML = '<em>' + loadingText + '...</em>';
+                        setLessonsLoading(true);
 
                         require(['core/ajax', 'core/notification'], function(ajax, notification) {
                             console.log('Skilland: Fetching lessons for topic', topicId);
@@ -768,25 +861,41 @@ class mod_skilland_mod_form extends moodleform_mod {
                                     moodlecourseid: moodleCourseId
                                 }
                             }])[0].then(function(response) {
+                                // A newer request or another topic owns the list now: drop this response.
+                                if (seq !== lessonsRequestSeq || String(topicSelect.value) !== String(topicId)) {
+                                    return;
+                                }
+
                                 if (response.error) {
+                                    selectedLessonsInput.value = '{}';
                                     showLessonsError(lessonsContainer, response.error);
+                                    setLessonsLoading(false);
                                     return;
                                 }
 
                                 if (!response.lessons || response.lessons.length === 0) {
+                                    selectionsByTopic[topicId] = {};
+                                    selectedLessonsInput.value = '{}';
                                     lessonsContainer.innerHTML = '<em>' + " . json_encode(get_string('no_lessons_found', 'mod_skilland')) . " + '</em>';
+                                    setLessonsLoading(false);
                                     return;
                                 }
 
                                 console.log('Skilland: Lessons response received', response);
-                                renderLessons(response.lessons);
+                                renderLessons(response.lessons, topicId);
+                                setLessonsLoading(false);
                             }).catch(function(error) {
+                                if (seq !== lessonsRequestSeq || String(topicSelect.value) !== String(topicId)) {
+                                    return;
+                                }
+                                selectedLessonsInput.value = '{}';
                                 showLessonsError(lessonsContainer, error.message);
+                                setLessonsLoading(false);
                             });
                         });
                     }
 
-                    function renderLessons(lessons) {
+                    function renderLessons(lessons, topicId) {
                         lessonsContainer.innerHTML = '';
 
                         // Track if any lesson has new content available
@@ -794,28 +903,14 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                         // Get the current topic's order index
                         var currentTopicOrderIndex = 1;
-                        var selectedTopicId = topicSelect.value;
-                        if (selectedTopicId && topicsMap[selectedTopicId] && topicsMap[selectedTopicId].orderIndex) {
-                            currentTopicOrderIndex = topicsMap[selectedTopicId].orderIndex;
+                        if (topicId && topicsMap[topicId] && topicsMap[topicId].orderIndex) {
+                            currentTopicOrderIndex = topicsMap[topicId].orderIndex;
                         }
 
-                        // Get currently selected lessons map
-                        var selectedState = {};
-                        var value = selectedLessonsInput.value || '{}';
-                        // Handle PHP serialized default value which might look like 'array()' or serialized string
-                        if (value.indexOf('{') !== 0) {
-                            value = '{}';
-                        }
-
-                        try {
-                             selectedState = JSON.parse(value);
-                        } catch(e) {
-                            console.error('Skilland: Failed to parse selected lessons JSON', e);
-                            selectedState = {};
-                        }
-
-                        // Determine if we should auto-select all lessons (new topic)
-                        var shouldAutoSelect = Object.keys(selectedState).length === 0 && topicSelect.value !== currentTopicId;
+                        // A topic seen before (or the saved one) is restored exactly, even when nothing was
+                        // ticked; a topic never shown gets every lesson ticked.
+                        var hasSavedSelection = Object.prototype.hasOwnProperty.call(selectionsByTopic, topicId);
+                        var savedSelection = hasSavedSelection ? selectionsByTopic[topicId] : {};
 
                         // Create a list of checkboxes
                         var list = document.createElement('div');
@@ -834,29 +929,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                             checkbox.dataset.name = lesson.name;
                             checkbox.className = 'skilland-lesson-checkbox';
 
-                            // Check if selected
-                            // If we are on the original topic, check based on DB state
-                            // If we switched topics, maybe clear selection?
-                            // Logic: If lesson ID exists in selectedState, check it.
-                            // Note: Skilland IDs are global, so checking across topics is technically possible if IDs unique,
-                            // but we probably only care about current topic.
-                            // Ideally we should reset selection when topic changes, EXCEPT when it's the initial load.
-                            // But here we just check against the state.
-                            // If this is initial load of the current topic, we respect saved state.
-                            // If user switched topic, state might still contain lessons from previous topic (if we don't clear it),
-                            // but that's fine, they won't match new IDs usually.
-                            // BUT we probably want to clear selected_lessons when topic changes to avoid submitting mixed data?
-                            // Let's just rely on the user checking boxes.
-
-                            if (selectedState[lesson.id]) {
-                                checkbox.checked = true;
-                                // Update timestamp and name in state
-                                selectedState[lesson.id] = { updatedAt: lesson.updatedAt, name: lesson.name };
-                            } else if (shouldAutoSelect) {
-                                // Auto-select all for new topics
-                                checkbox.checked = true;
-                                selectedState[lesson.id] = { updatedAt: lesson.updatedAt, name: lesson.name };
-                            }
+                            checkbox.checked = hasSavedSelection ? !!savedSelection[lesson.id] : true;
 
                             checkbox.addEventListener('change', function(event) {
                                 event.stopPropagation();
@@ -902,9 +975,6 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                         lessonsContainer.appendChild(list);
 
-                        // Update input value with potentially refreshed timestamps
-                        selectedLessonsInput.value = JSON.stringify(selectedState);
-
                         // Show/hide update button based on whether any lesson has new content
                         var updateContainer = document.getElementById('skilland-update-container');
                         if (updateContainer) {
@@ -921,6 +991,9 @@ class mod_skilland_mod_form extends moodleform_mod {
                             selectActions.style.display = '';
                             setupSelectAllHandlers();
                         }
+
+                        renderedTopicId = topicId;
+                        updateSelectedState();
                     }
 
                     function setupSelectAllHandlers() {
@@ -953,24 +1026,24 @@ class mod_skilland_mod_form extends moodleform_mod {
                     }
 
                     function updateSelectedState() {
-                        // Rebuild state from DOM order to preserve API lesson order
+                        // The hidden value is always the rendered topic's ticked checkboxes, rebuilt in DOM
+                        // order (insertion order becomes orderindex). Nothing else reaches the hidden input.
                         var state = {};
-                        var existing = {};
-                        try {
-                            var raw = selectedLessonsInput.value || '{}';
-                            if (raw.indexOf('{') === 0) {
-                                existing = JSON.parse(raw);
-                            }
-                        } catch(e) {
-                            existing = {};
+                        if (renderedTopicId !== null) {
+                            var checkboxes = document.querySelectorAll('#id_lessons_container .skilland-lesson-checkbox');
+                            checkboxes.forEach(function(cb) {
+                                if (cb.checked) {
+                                    // A lesson stored for this activity keeps its stored updatedAt (the version
+                                    // inside the installed SCORM); only a lesson not stored yet takes the API one.
+                                    var stored = currentSelectedLessons[cb.value];
+                                    state[cb.value] = {
+                                        updatedAt: stored ? stored.updatedAt : cb.dataset.updatedAt,
+                                        name: cb.dataset.name || ''
+                                    };
+                                }
+                            });
+                            selectionsByTopic[renderedTopicId] = state;
                         }
-
-                        var checkboxes = document.querySelectorAll('#id_lessons_container .skilland-lesson-checkbox');
-                        checkboxes.forEach(function(cb) {
-                            if (cb.checked) {
-                                state[cb.value] = existing[cb.value] || { updatedAt: cb.dataset.updatedAt, name: cb.dataset.name || '' };
-                            }
-                        });
 
                         selectedLessonsInput.value = JSON.stringify(state);
                     }
@@ -1145,6 +1218,21 @@ class mod_skilland_mod_form extends moodleform_mod {
                 }
             } catch (moodle_exception $e) {
                 $errors['skilland_topicid'] = $e->getMessage();
+            }
+
+            // The submitted lessons must belong to the submitted topic. Against an empty lesson
+            // list the helper returns every submitted ID, so this skips the fetch when none were sent.
+            $selectedlessons = (string)($data['selected_lessons'] ?? '');
+            if (empty($errors['skilland_topicid']) && skilland_lessons_outside_topic($selectedlessons, []) !== []) {
+                try {
+                    $topiclessons = mod_skilland_fetch_lessons((string)$topicid);
+                    if (skilland_lessons_outside_topic($selectedlessons, $topiclessons) !== []) {
+                        $errors['skilland_topicid'] = get_string('error_lessons_not_in_topic', 'mod_skilland');
+                    }
+                } catch (moodle_exception $e) {
+                    // The topic check just passed against the same API: fail open rather than block the save.
+                    logger::debug('Form', 'validation - lesson/topic check skipped: ' . $e->getMessage());
+                }
             }
         }
 
