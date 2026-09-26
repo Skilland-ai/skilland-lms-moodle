@@ -469,6 +469,79 @@ class integrity_test extends TestCase {
         );
     }
 
+    /**
+     * The blocks in xmldb_skilland_upgrade() must appear in strictly ascending savepoint
+     * order. Moodie core throws a downgrade_exception the instant upgrade_mod_savepoint()
+     * is called with a version that is not strictly greater than the currently stored one,
+     * so an out-of-order block would break every site whose oldversion falls between the
+     * misordered savepoints.
+     */
+    public function test_upgrade_savepoints_are_strictly_ascending(): void {
+        $upgradeSource = file_get_contents(self::$srcDir . '/db/upgrade.php');
+
+        preg_match_all('/upgrade_mod_savepoint\s*\(\s*true\s*,\s*(\d+)/', $upgradeSource, $savepoints);
+        $savepointVersions = array_map('intval', $savepoints[1]);
+
+        $this->assertNotEmpty($savepointVersions, 'No savepoints found in upgrade.php');
+
+        for ($i = 1; $i < count($savepointVersions); $i++) {
+            $this->assertGreaterThan(
+                $savepointVersions[$i - 1],
+                $savepointVersions[$i],
+                "Savepoint block " . ($i + 1) . " ({$savepointVersions[$i]}) must come after " .
+                "block $i ({$savepointVersions[$i - 1]}) — blocks must run in ascending version order"
+            );
+        }
+    }
+
+    /**
+     * Simulates upgrading from a fresh install (oldversion = 0) and from every intermediate
+     * stored version this plugin has ever shipped as a savepoint. For each starting point,
+     * the blocks whose condition is satisfied must execute in non-decreasing savepoint order
+     * and land on the current highest savepoint — mirroring what
+     * upgrade_mod_savepoint()/upgrade_plugins() enforce at runtime (a savepoint value that is
+     * not strictly greater than the last one recorded raises a downgrade_exception).
+     */
+    public function test_upgrade_reaches_current_version_from_any_stored_version(): void {
+        $upgradeSource = file_get_contents(self::$srcDir . '/db/upgrade.php');
+
+        preg_match_all('/\$oldversion\s*<\s*(\d+)/', $upgradeSource, $conditions);
+        preg_match_all('/upgrade_mod_savepoint\s*\(\s*true\s*,\s*(\d+)/', $upgradeSource, $savepoints);
+
+        $conditionVersions = array_map('intval', $conditions[1]);
+        $savepointVersions = array_map('intval', $savepoints[1]);
+        $maxSavepoint = max($savepointVersions);
+
+        // Every stored version a real site could have, plus a fresh install.
+        $startingPoints = array_merge([0], $savepointVersions);
+
+        foreach ($startingPoints as $oldversion) {
+            $lastApplied = $oldversion;
+            for ($i = 0; $i < count($conditionVersions); $i++) {
+                if ($oldversion < $conditionVersions[$i]) {
+                    $thisSavepoint = $savepointVersions[$i];
+
+                    // This is exactly what upgrade_mod_savepoint() guards against: applying a
+                    // savepoint that does not move the stored version strictly forward.
+                    $this->assertGreaterThan(
+                        $lastApplied,
+                        $thisSavepoint,
+                        "Simulated upgrade from oldversion=$oldversion would call " .
+                        "upgrade_mod_savepoint(true, $thisSavepoint, ...) after already reaching " .
+                        "$lastApplied — this raises a downgrade_exception at runtime"
+                    );
+                    $lastApplied = $thisSavepoint;
+                }
+            }
+
+            $this->assertEquals(
+                $maxSavepoint,
+                $lastApplied,
+                "Simulated upgrade from oldversion=$oldversion did not reach the current version ($maxSavepoint)"
+            );
+        }
+    }
+
     // ---------------------------------------------------------------
     // Logger method calls reference real methods
     // ---------------------------------------------------------------
