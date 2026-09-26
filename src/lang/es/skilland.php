@@ -151,6 +151,12 @@ $string['update_from_skilland'] = 'Actualizar Desde Skilland';
 $string['updating'] = 'Actualizando...';
 $string['update_confirm_title'] = '¿Actualizar Contenido?';
 $string['update_confirm_message'] = 'Esto descargará el contenido más reciente de Skilland y reemplazará el paquete SCORM actual. ADVERTENCIA: Todo el progreso y las calificaciones de los estudiantes para este tema se eliminarán permanentemente. Esta acción no se puede deshacer. ¿Está seguro de que desea continuar?';
+
+// Topic change and SCO reconciliation (SKL-655).
+$string['topic_change_confirm_title'] = '¿Cambiar el tema?';
+$string['topic_change_confirm'] = 'Cambiar el tema reemplaza el contenido y reinicia todo el progreso de los estudiantes en esta actividad.';
+$string['topic_changed_reprovision_failed'] = 'Se ha cambiado el tema, pero no se ha podido generar su contenido. Abre la actividad y usa Provisionar Contenido del Tema para crearlo.';
+$string['lesson_sco_missing'] = 'Esta lección no está en el paquete de contenido actual. Usa Actualizar Desde Skilland en los ajustes de la actividad para regenerarlo.';
 $string['update_success'] = 'Contenido actualizado exitosamente desde Skilland.';
 $string['update_error'] = 'Error al actualizar el contenido';
 

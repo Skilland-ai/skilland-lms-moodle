@@ -167,6 +167,13 @@ function skilland_update_instance($skilland, $mform = null) {
     unset($skilland->skilland_courseid);
     unset($skilland->skilland_courseid_readonly);
 
+    $old = $DB->get_record('skilland', ['id' => $skilland->id], 'id, skilland_topicid, scormcmid', IGNORE_MISSING);
+    $topicchanged = $old && (string) $old->skilland_topicid !== (string) ($skilland->skilland_topicid ?? '');
+    if ($topicchanged) {
+        // The stored snapshot belongs to the old topic; cron must never compare the new one against it.
+        $skilland->snapshotid = null;
+    }
+
     $result = $DB->update_record('skilland', $skilland);
 
     // Process selected lessons with topic order index for proper numbering.
@@ -174,7 +181,54 @@ function skilland_update_instance($skilland, $mform = null) {
         skilland_process_selected_lessons($skilland->id, $selected_lessons);
     }
 
+    if ($result && $old && !empty($old->scormcmid)) {
+        skilland_reconcile_scorm_after_update((int) $skilland->id, $topicchanged);
+    }
+
     return $result;
+}
+
+/**
+ * Bring a provisioned activity's SCORM in line with its saved settings. Never throws, so the
+ * settings save never fails because the SCORM could not be rebuilt.
+ *
+ * - Topic changed: rebuild the SCORM for the new topic; when that fails, drop back to the
+ *   unprovisioned ("Provision") state with the old module gone and warn the teacher.
+ * - Topic unchanged: map lessons ticked after provisioning to the installed package's SCOs.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @param bool $topicchanged Whether the save changed the activity's topic.
+ */
+function skilland_reconcile_scorm_after_update(int $skillandid, bool $topicchanged): void {
+    global $DB;
+
+    try {
+        if (!$topicchanged) {
+            skilland_resolve_lesson_scos($skillandid);
+            return;
+        }
+
+        $current = $DB->get_record('skilland', ['id' => $skillandid], '*', MUST_EXIST);
+        try {
+            $cm = get_coursemodule_from_instance('skilland', $skillandid, $current->course, false, MUST_EXIST);
+            $course = get_course($cm->course);
+            $sectionnum = (int) $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
+            skilland_update_topic_scorm($current, $course, $sectionnum);
+        } catch (\Throwable $e) {
+            logger::error('SCORM', 'Re-provisioning after a topic change failed for skilland id ' . $skillandid .
+                ' - resetting to the unprovisioned state: ' . $e->getMessage());
+            try {
+                skilland_reset_topic_scorm($current);
+            } catch (\Throwable $reseterror) {
+                logger::error('SCORM', 'Resetting skilland id ' . $skillandid . ' failed: ' .
+                    $reseterror->getMessage());
+            }
+            \core\notification::warning(get_string('topic_changed_reprovision_failed', 'mod_skilland'));
+        }
+    } catch (\Throwable $e) {
+        logger::error('SCORM', 'Reconciling the SCORM of skilland id ' . $skillandid . ' failed: ' .
+            $e->getMessage());
+    }
 }
 
 /**
@@ -281,6 +335,7 @@ function skilland_unlink_scorm(int $skillandid): void {
         'id' => $skillandid,
         'scormcmid' => null,
         'scorm_provisioned' => null,
+        'scomappings' => null,
         'snapshotid' => null,
         'snapshotcreatedat' => null,
     ]);

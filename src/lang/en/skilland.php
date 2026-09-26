@@ -150,6 +150,12 @@ $string['update_from_skilland'] = 'Update From Skilland';
 $string['updating'] = 'Updating...';
 $string['update_confirm_title'] = 'Update Content?';
 $string['update_confirm_message'] = 'This will download the latest content from Skilland and replace the current SCORM package. WARNING: All student progress and grades for this topic will be permanently deleted. This action cannot be undone. Are you sure you want to continue?';
+
+// Topic change and SCO reconciliation (SKL-655).
+$string['topic_change_confirm_title'] = 'Change the topic?';
+$string['topic_change_confirm'] = 'Changing the topic replaces the content and resets all student progress for this activity.';
+$string['topic_changed_reprovision_failed'] = 'The topic was changed, but its content could not be built. Open the activity and use Provision Topic Content to create it.';
+$string['lesson_sco_missing'] = 'This lesson is not in the current content package. Use Update From Skilland in the activity settings to rebuild it.';
 $string['update_success'] = 'Content updated successfully from Skilland.';
 $string['update_error'] = 'Failed to update content';
 
