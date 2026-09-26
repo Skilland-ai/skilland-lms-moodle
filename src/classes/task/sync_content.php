@@ -134,9 +134,15 @@ class sync_content extends \core\task\scheduled_task {
             return 0;
         }
 
+        $tracksbyuser = skilland_read_scorm_progress($skilland);
+        if (!$tracksbyuser) {
+            return 0;
+        }
+        $existingbyuser = skilland_get_progress_rows_by_user((int) $skilland->id);
+
         $changed = 0;
-        foreach (skilland_read_scorm_progress($skilland) as $userid => $tracks) {
-            if (skilland_refresh_progress($skilland, (int) $userid, $tracks)) {
+        foreach ($tracksbyuser as $userid => $tracks) {
+            if (skilland_refresh_progress($skilland, (int) $userid, $tracks, $existingbyuser[(int) $userid] ?? [])) {
                 skilland_recompute_user($skilland, (int) $userid);
                 $changed++;
             }

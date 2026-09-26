@@ -1678,9 +1678,12 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
  * @param stdClass $skilland The skilland activity record.
  * @param int $userid The learner.
  * @param array|null $tracks That user's entry of skilland_read_scorm_progress(), or null to read it.
+ * @param array|null $existing That user's stored rows keyed by lesson row id (an entry of
+ *        skilland_get_progress_rows_by_user()), or null to read them.
  * @return bool Whether any row was inserted or changed.
  */
-function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $tracks = null): bool {
+function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $tracks = null,
+        ?array $existing = null): bool {
     global $DB;
 
     if ($tracks === null) {
@@ -1690,8 +1693,10 @@ function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $trac
         return false;
     }
 
-    $existing = $DB->get_records('skilland_progress', ['skillandid' => $skilland->id, 'userid' => $userid], '',
-        'lessonid, id, status, score');
+    if ($existing === null) {
+        $existing = $DB->get_records('skilland_progress', ['skillandid' => $skilland->id, 'userid' => $userid], '',
+            'lessonid, id, status, score');
+    }
     $changed = false;
     $now = time();
 
@@ -1737,6 +1742,23 @@ function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $trac
     }
 
     return $changed;
+}
+
+/**
+ * Every stored progress row of an activity, in one read.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @return array [userid => [lesson row id => row]]
+ */
+function skilland_get_progress_rows_by_user(int $skillandid): array {
+    global $DB;
+
+    $byuser = [];
+    foreach ($DB->get_records('skilland_progress', ['skillandid' => $skillandid], '',
+            'id, userid, lessonid, status, score') as $row) {
+        $byuser[(int) $row->userid][(int) $row->lessonid] = $row;
+    }
+    return $byuser;
 }
 
 /**
