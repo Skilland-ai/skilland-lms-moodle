@@ -233,6 +233,19 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092608, 'skilland');
     }
 
+    // The admin settings page no longer creates the course custom field on a GET request: recreate it here.
+    if ($oldversion < 2026092613) {
+        require_once($CFG->dirroot . '/mod/skilland/locallib.php');
+
+        try {
+            skilland_ensure_course_customfield();
+        } catch (\Throwable $e) {
+            debugging('mod_skilland: could not ensure the Skilland course custom field: ' . $e->getMessage(), DEBUG_NORMAL);
+        }
+
+        upgrade_mod_savepoint(true, 2026092613, 'skilland');
+    }
+
     return true;
 }
 

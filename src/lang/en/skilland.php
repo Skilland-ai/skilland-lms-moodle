@@ -97,13 +97,10 @@ $string['error_config_missing_topicid'] = 'Skilland Topic ID is required to fetc
 $string['error_config_missing_lessonid'] = 'Skilland Lesson ID is required to fetch SCORM package.';
 $string['configure_plugin_settings'] = 'Configure plugin settings';
 
-// Custom field creation in settings.
+// Course custom field status in settings.
 $string['customfield_status'] = 'Course Custom Field Status';
 $string['customfield_exists'] = 'Custom field exists';
-$string['customfield_missing'] = 'Custom field not found - click button below to create it';
-$string['create_customfield_button'] = 'Create Custom Field';
-$string['customfield_created'] = 'Custom field created successfully!';
-$string['customfield_create_failed'] = 'Failed to create custom field. Please check error logs or create it manually.';
+$string['customfield_missing'] = 'Custom field not found. It is recreated on the next plugin upgrade or the first time a course is mapped to a SkilLand course.';
 
 // View page.
 $string['no_lessons_configured'] = 'No lessons have been selected for this topic yet. Edit the activity settings to add lessons.';
