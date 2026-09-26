@@ -13,6 +13,7 @@
     "test:e2e:headed": "npx playwright test --config=tests/e2e/playwright.config.js --headed",
     "test:e2e:debug": "npx playwright test --config=tests/e2e/playwright.config.js --debug",
     "test:unit": "docker run --rm -v \"$(pwd)\":/app -w /app -e COMPOSER_VENDOR_DIR=vendor-test composer:2 install --no-interaction --quiet && docker run --rm -v \"$(pwd)\":/app -w /app php:8.2-cli vendor-test/bin/phpunit -c phpunit.xml",
+    "check:vendor-drift": "node scripts/check_vendor_drift.js",
     "prepare": "husky"
   },
   "devDependencies": {
