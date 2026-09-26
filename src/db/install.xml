@@ -45,6 +45,8 @@
                        COMMENT="Course module ID of the topic SCORM package (one per topic)"/>
                 <FIELD NAME="scorm_provisioned" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
                        COMMENT="Unix timestamp when the topic SCORM was provisioned"/>
+                <FIELD NAME="scomappings" TYPE="text" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="JSON map of Skilland lesson id to SCO identifier for the provisioned package"/>
 
                 <!-- Standard timestamps -->
                 <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
