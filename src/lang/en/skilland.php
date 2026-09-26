@@ -145,6 +145,9 @@ $string['provision_topic_desc'] = 'Download and create the SCORM package contain
 $string['provisioning'] = 'Provisioning content...';
 $string['provision_success'] = 'Content provisioned successfully!';
 $string['provision_failed'] = 'Failed to provision content: {$a}';
+$string['provisioning_wait_hint'] = 'This can take several minutes for large topics. Keep this page open.';
+$string['provisioning_elapsed'] = 'Preparing content… {$a}';
+$string['provisioning_timeout_message'] = 'This is taking longer than expected. It keeps running in the background — you can refresh this page in a few minutes to check on it.';
 
 // New content indicator.
 $string['new_content_available'] = 'New Content Available';
@@ -153,11 +156,17 @@ $string['new_content_available'] = 'New Content Available';
 $string['update_from_skilland'] = 'Update From Skilland';
 $string['updating'] = 'Updating...';
 $string['update_confirm_title'] = 'Update Content?';
-$string['update_confirm_message'] = 'This will download the latest content from Skilland and replace the current SCORM package. WARNING: All student progress and grades for this topic will be permanently deleted. This action cannot be undone. Are you sure you want to continue?';
+$string['update_confirm_message'] = 'This will download the latest content from Skilland and replace the current SCORM package.';
+$string['update_confirm_message_students'] = 'This will download the latest content from Skilland and replace the current SCORM package. {$a} student(s) have progress on this topic that will be permanently deleted and cannot be recovered.';
+
+// Destructive confirmation styling (SKL-697).
+$string['destructive_confirm_action'] = 'Replace content and delete progress';
+$string['lockafterfirstaccess_hint'] = 'To keep the current content unchanged for students who have already started, turn on "{$a}" in the activity settings instead.';
 
 // Topic change and SCO reconciliation (SKL-655).
 $string['topic_change_confirm_title'] = 'Change the topic?';
-$string['topic_change_confirm'] = 'Changing the topic replaces the content and resets all student progress for this activity.';
+$string['topic_change_confirm'] = 'Changing the topic replaces the content for this activity.';
+$string['topic_change_confirm_students'] = 'Changing the topic replaces the content for this activity. {$a} student(s) have progress that will be permanently deleted.';
 $string['topic_changed_reprovision_failed'] = 'The topic was changed, but its content could not be built. Open the activity and use Provision Topic Content to create it.';
 $string['lesson_sco_missing'] = 'This lesson is not in the current content package. Use Update From Skilland in the activity settings to rebuild it.';
 $string['update_success'] = 'Content updated successfully from Skilland.';
