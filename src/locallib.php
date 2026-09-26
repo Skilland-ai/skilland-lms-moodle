@@ -361,9 +361,10 @@ function skilland_topic_belongs_to_course(string $topicid, string $skillandcours
  * List the submitted lesson IDs that are not lessons of the topic.
  *
  * The activity form posts `selected_lessons` as a JSON object keyed by lesson ID.
- * IDs are compared as strings, so numeric and string IDs match. Anything that is
- * not a JSON object (empty, '{}', 'array()', invalid JSON, a JSON list) yields no
- * foreign IDs and leaves skilland_process_selected_lessons() to handle it.
+ * IDs are compared as strings, so numeric and string IDs match. A non-empty JSON
+ * list is not a lesson map: its indexes are returned, as strings, as foreign IDs.
+ * Anything else that is not a non-empty JSON object ('', '{}', '[]', 'array()',
+ * invalid JSON, a scalar) yields no foreign IDs.
  *
  * @param string $json Submitted selected_lessons value
  * @param array $topiclessons Lessons of the topic, as returned by mod_skilland_fetch_lessons()
@@ -371,12 +372,17 @@ function skilland_topic_belongs_to_course(string $topicid, string $skillandcours
  */
 function skilland_lessons_outside_topic(string $json, array $topiclessons): array {
     $trimmed = ltrim($json);
-    if ($trimmed === '' || $trimmed[0] !== '{') {
+    if ($trimmed === '' || ($trimmed[0] !== '{' && $trimmed[0] !== '[')) {
         return [];
     }
     $selected = json_decode($trimmed, true);
     if (!is_array($selected) || empty($selected)) {
         return [];
+    }
+    if ($trimmed[0] === '[') {
+        // A JSON list is not a lesson map: skilland_process_selected_lessons() would save its
+        // indexes as lesson IDs, so every one of them counts as outside the topic.
+        return array_map('strval', array_keys($selected));
     }
 
     $known = [];

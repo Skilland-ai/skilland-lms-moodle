@@ -70,7 +70,7 @@ class form_lesson_selection_test extends TestCase {
             'empty string' => [''],
             'php array()' => ['array()'],
             'invalid json' => ['{"a":'],
-            'json list' => ['["a","b"]'],
+            'empty json list' => ['[]'],
             'json scalar' => ['42'],
             'whitespace' => ['   '],
         ];
@@ -81,6 +81,24 @@ class form_lesson_selection_test extends TestCase {
      */
     public function test_non_object_values_return_empty(string $json): void {
         $this->assertSame([], skilland_lessons_outside_topic($json, self::lessons(['a'])));
+    }
+
+    public function test_non_empty_json_list_is_reported_as_outside_the_topic(): void {
+        // skilland_process_selected_lessons() would save the indexes 0, 1 as lesson IDs.
+        $this->assertSame(['0', '1'], skilland_lessons_outside_topic('["a","b"]', self::lessons(['a', 'b'])));
+        $this->assertSame(['0', '1'], skilland_lessons_outside_topic(' [{"x":1},{"y":2}]', self::lessons([0, 1])));
+    }
+
+    public function test_validation_fetches_and_rejects_a_json_list(): void {
+        // validation() only fetches the topic's lessons when the pre-check against [] is non-empty.
+        $this->assertNotSame([], skilland_lessons_outside_topic('["a"]', []));
+        $this->assertSame([], skilland_lessons_outside_topic('[]', []));
+        $validation = $this->method_body('validation');
+        $this->assertStringContainsString('skilland_lessons_outside_topic($selectedlessons, []) !== []', $validation);
+        $this->assertMatchesRegularExpression(
+            '/if \(skilland_lessons_outside_topic\(\$selectedlessons, \$topiclessons\) !== \[\]\) \{\s*\$errors\[\'skilland_topicid\'\] = get_string\(\'error_lessons_not_in_topic\'/',
+            $validation
+        );
     }
 
     public function test_numeric_and_string_ids_compare_equal(): void {
