@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
  */
 class sso_token_claims_test extends TestCase {
 
-    private const SECRET = 'test-secret-key-for-jwt-signing-32-bytes-long';
+    private const FIXTURE_SECRET = 'fixture-sso-signing-secret-not-a-real-one-0123456789';
 
     protected function setUp(): void {
         parent::setUp();
@@ -28,10 +28,10 @@ class sso_token_claims_test extends TestCase {
     }
 
     private function mint(array $config): \stdClass {
-        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object) array_merge(['sso_secret' => self::SECRET], $config);
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object) array_merge(['sso_secret' => self::FIXTURE_SECRET], $config);
         $user = (object) ['id' => 7, 'email' => 'teacher@school.com', 'firstname' => 'Jane', 'lastname' => 'Doe'];
         $token = skilland_generate_sso_token($user, 'org-9');
-        return JWT::decode($token, new Key(self::SECRET, 'HS256'));
+        return JWT::decode($token, new Key(self::FIXTURE_SECRET, 'HS256'));
     }
 
     public function test_token_expires_sixty_seconds_after_issue(): void {
