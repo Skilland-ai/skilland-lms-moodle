@@ -7,7 +7,5 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'mod_skilland\\' => array($baseDir . '/classes'),
-    'PhpParser\\' => array($vendorDir . '/nikic/php-parser/lib/PhpParser'),
     'Firebase\\JWT\\' => array($vendorDir . '/firebase/php-jwt/src'),
-    'DeepCopy\\' => array($vendorDir . '/myclabs/deep-copy/src/DeepCopy'),
 );
