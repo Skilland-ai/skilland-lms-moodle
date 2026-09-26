@@ -845,37 +845,53 @@ GRAPHQL;
 }
 
 /**
- * Provision a topic-level SCORM package containing all lessons as SCOs.
+ * Load the core course and SCORM APIs used by provisioning.
  *
- * This function:
- * 1. Fetches the topic SCORM package info from Skilland API (with lesson->SCO mappings)
- * 2. Downloads the single SCORM zip file
- * 3. Verifies the package hash
- * 4. Creates one hidden SCORM activity in Moodle
- * 5. Parses the SCORM package and extracts SCO identifiers
- * 6. Maps Skilland lesson IDs to Moodle SCO IDs using the API mappings
- * 7. Updates skilland_lesson records with scoid and sco_identifier
- * 8. Updates the skilland activity with scormcmid
- *
- * @param stdClass $skilland The skilland activity record
- * @param stdClass $course The Moodle course record
- * @param int $sectionnum The section number to add the SCORM to
- * @return int The new SCORM course module ID
- * @throws moodle_exception If provisioning fails
+ * Each require is skipped when the API is already defined, so standalone tests can stub it.
  */
-function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
-    global $DB, $CFG, $USER;
+function skilland_require_scorm_apis(): void {
+    global $CFG;
 
-    require_once($CFG->dirroot . '/course/lib.php');
-    require_once($CFG->dirroot . '/mod/scorm/lib.php');
-    require_once($CFG->dirroot . '/mod/scorm/locallib.php');
-    require_once($CFG->libdir . '/filelib.php');
+    if (!function_exists('course_delete_module')) {
+        require_once($CFG->dirroot . '/course/lib.php');
+    }
+    if (!function_exists('create_module')) {
+        require_once($CFG->dirroot . '/course/modlib.php');
+    }
+    if (!defined('SCORM_TYPE_LOCAL')) {
+        require_once($CFG->dirroot . '/mod/scorm/lib.php');
+    }
+    if (!defined('GRADESCOES')) {
+        require_once($CFG->dirroot . '/mod/scorm/locallib.php');
+    }
+    if (!function_exists('file_get_unused_draft_itemid')) {
+        require_once($CFG->libdir . '/filelib.php');
+    }
+}
 
-    // Step 1: Fetch topic SCORM package info from Skilland.
-    logger::debug('SCORM', 'Provisioning topic SCORM for topic ' . $skilland->skilland_topicid);
+/**
+ * Name of the hidden SCORM activity for a topic, capped at the 255 characters Moodle stores.
+ *
+ * @param string $name The skilland activity name.
+ * @return string
+ */
+function skilland_scorm_module_name(string $name): string {
+    $suffix = ' (SCORM)';
+    return core_text::substr($name, 0, 255 - core_text::strlen($suffix)) . $suffix;
+}
+
+/**
+ * Fetch the topic SCORM package info from Skilland, download the zip and verify its hash.
+ *
+ * @param string $topicid Skilland topic id.
+ * @return array ['path' => temp zip path (the caller deletes it), 'info' => package info with mappings]
+ * @throws moodle_exception On any failure; the temp file is removed first.
+ */
+function skilland_download_topic_scorm_package(string $topicid): array {
+    logger::debug('SCORM', 'Provisioning topic SCORM for topic ' . $topicid);
 
     try {
-        $scorminfo = mod_skilland_fetch_topic_scorm($skilland->skilland_topicid);
+        $scorminfo = mod_skilland_fetch_topic_scorm($topicid);
     } catch (moodle_exception $e) {
         logger::error('SCORM', 'Failed to fetch topic SCORM info - ' . $e->getMessage());
         throw $e;
@@ -885,7 +901,6 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
         throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
     }
 
-    // Step 2: Download the SCORM package to temp directory.
     $packageurl = $scorminfo['packageUrl'];
     $expectedhash = $scorminfo['packageHash'] ?? '';
 
@@ -893,197 +908,364 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
 
     $tempfile = mod_skilland_download_package($packageurl);
 
-    logger::debug('SCORM', 'Downloaded topic SCORM package (' . filesize($tempfile) . ' bytes)');
+    try {
+        logger::debug('SCORM', 'Downloaded topic SCORM package (' . filesize($tempfile) . ' bytes)');
 
-    // Step 3: Verify the package hash (if provided).
-    if (!empty($expectedhash)) {
-        $hashparts = explode(':', $expectedhash, 2);
-        $algorithm = count($hashparts) === 2 ? $hashparts[0] : 'sha256';
-        $expected = count($hashparts) === 2 ? $hashparts[1] : $expectedhash;
+        if (!empty($expectedhash)) {
+            $hashparts = explode(':', $expectedhash, 2);
+            $algorithm = count($hashparts) === 2 ? $hashparts[0] : 'sha256';
+            $expected = count($hashparts) === 2 ? $hashparts[1] : $expectedhash;
 
-        $actualhash = hash_file($algorithm, $tempfile);
-        if (strcasecmp($actualhash, $expected) !== 0) {
-            @unlink($tempfile);
-            logger::error('SCORM', 'Hash mismatch - expected ' . $expected . ', got ' . $actualhash);
-            throw new moodle_exception('error_scorm_hash_mismatch', 'mod_skilland');
+            if (!in_array(strtolower($algorithm), hash_algos(), true)) {
+                throw new moodle_exception('error_scorm_hash_mismatch', 'mod_skilland');
+            }
+            $actualhash = hash_file($algorithm, $tempfile);
+            if ($actualhash === false || strcasecmp($actualhash, $expected) !== 0) {
+                logger::error('SCORM', 'Hash mismatch - expected ' . $expected . ', got ' . $actualhash);
+                throw new moodle_exception('error_scorm_hash_mismatch', 'mod_skilland');
+            }
+            logger::debug('SCORM', 'Package hash verified successfully');
         }
-        logger::debug('SCORM', 'Package hash verified successfully');
+    } catch (\Throwable $e) {
+        @unlink($tempfile);
+        throw $e;
     }
 
-    // Step 4: Create the SCORM activity in Moodle.
-    $scormname = $skilland->name . ' (SCORM)';
+    return ['path' => $tempfile, 'info' => $scorminfo];
+}
 
-    // Get the SCORM module.
-    $module = $DB->get_record('modules', ['name' => 'scorm'], '*', MUST_EXIST);
+/**
+ * Create the hidden (stealth) SCORM activity for a topic through core create_module().
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param stdClass $course The Moodle course record.
+ * @param int $sectionnum Section number the activity goes into.
+ * @param string $packagepath Local path of the SCORM zip.
+ * @return int The new SCORM course module id.
+ * @throws moodle_exception When the package cannot be staged or the module cannot be created.
+ */
+function skilland_create_topic_scorm_module(stdClass $skilland, stdClass $course, int $sectionnum,
+        string $packagepath): int {
+    global $DB, $USER;
 
-    // Get the section.
-    $section = $DB->get_record('course_sections', [
-        'course' => $course->id,
-        'section' => $sectionnum
-    ], '*', MUST_EXIST);
+    skilland_require_scorm_apis();
 
-    // Create the course_modules record (hidden).
-    $cm = new stdClass();
-    $cm->course = $course->id;
-    $cm->module = $module->id;
-    $cm->instance = 0;
-    $cm->section = $section->id;
-    $cm->idnumber = 'skilland_topic_' . $skilland->id;
-    $cm->added = time();
-    $cm->visible = 1;  // Available to students but not shown on course page (stealth mode).
-    $cm->visibleoncoursepage = 0;  // Not shown on course page.
-    $cm->groupmode = 0;
-    $cm->groupingid = 0;
-    $cm->completion = 0;
-    $cm->deletioninprogress = 0;
+    $idnumber = 'skilland_topic_' . $skilland->id;
+    $usercontext = context_user::instance($USER->id);
+    $draftitemid = file_get_unused_draft_itemid();
 
-    $cmid = $DB->insert_record('course_modules', $cm);
-    logger::debug('SCORM', 'Created course_modules record with id ' . $cmid);
-
-    // Create the SCORM instance record.
-    $scorm = new stdClass();
-    $scorm->course = $course->id;
-    $scorm->name = $scormname;
-    $scorm->intro = '';
-    $scorm->introformat = FORMAT_HTML;
-    $scorm->scormtype = SCORM_TYPE_LOCAL;
-    $scorm->reference = '';
-    $scorm->version = 'SCORM_1.2';
-    $scorm->maxgrade = 100;
-    $scorm->grademethod = GRADESCOES;
-    $scorm->whatgrade = HIGHESTATTEMPT;
-    $scorm->maxattempt = 0;
-    $scorm->forcecompleted = 0;
-    $scorm->forcenewattempt = 0;
-    $scorm->lastattemptlock = 0;
-    $scorm->displayattemptstatus = 0;  // Don't show attempt status - managed by Skilland.
-    $scorm->displaycoursestructure = 0;
-    $scorm->updatefreq = SCORM_UPDATE_NEVER;
-    $scorm->skipview = 2;  // Skip entry page.
-    $scorm->hidebrowse = 1;
-    $scorm->hidetoc = SCORM_TOC_DISABLED;  // Hide TOC - Skilland manages navigation.
-    $scorm->nav = SCORM_NAV_DISABLED;  // No nav - single SCO per view.
-    $scorm->navpositionleft = -100;
-    $scorm->navpositiontop = -100;
-    $scorm->auto = 0;
-    $scorm->popup = 0;
-    $scorm->width = 100;
-    $scorm->height = 500;
-    $scorm->timeopen = 0;
-    $scorm->timeclose = 0;
-    $scorm->displayactivityname = 0;  // Don't show name - Skilland shows it.
-    $scorm->autocommit = 1;  // Auto-commit for better tracking.
-    $scorm->masteryoverride = 1;
-    $scorm->sha1hash = '';
-    $scorm->revision = 0;
-    $scorm->launch = 0;
-    $scorm->timemodified = time();
-
-    $scormid = $DB->insert_record('scorm', $scorm);
-    $scorm->id = $scormid;
-    logger::debug('SCORM', 'Created scorm record with id ' . $scormid);
-
-    // Update course_modules with the instance id.
-    $DB->set_field('course_modules', 'instance', $scormid, ['id' => $cmid]);
-
-    // Add the SCORM to the section sequence.
-    // Even with visibleoncoursepage=0 (stealth mode), activity MUST be in sequence
-    // for Moodle's course_modinfo->get_cm() to work (required by SCORM player).
-    $sequence = $section->sequence;
-    if (!empty($sequence)) {
-        $sequence .= ',' . $cmid;
-    } else {
-        $sequence = $cmid;
-    }
-    $DB->set_field('course_sections', 'sequence', $sequence, ['id' => $section->id]);
-
-    // Rebuild the course cache.
-    rebuild_course_cache($course->id, true);
-
-    $context = context_module::instance($cmid);
-    logger::debug('SCORM', 'Created SCORM activity with cmid ' . $cmid . ' (stealth mode)');
-
-    // Step 5: Upload the SCORM package to the new activity.
-    $fs = get_file_storage();
-
-    $filerecord = [
-        'contextid' => $context->id,
-        'component' => 'mod_scorm',
-        'filearea' => 'package',
-        'itemid' => 0,
+    $storedfile = get_file_storage()->create_file_from_pathname([
+        'contextid' => $usercontext->id,
+        'component' => 'user',
+        'filearea' => 'draft',
+        'itemid' => $draftitemid,
         'filepath' => '/',
         'filename' => 'scorm_package.zip',
         'userid' => $USER->id,
-    ];
-
-    $fs->delete_area_files($context->id, 'mod_scorm', 'package', 0);
-    $storedfile = $fs->create_file_from_pathname($filerecord, $tempfile);
-    @unlink($tempfile);
-
+    ], $packagepath);
     if (!$storedfile) {
         throw new moodle_exception('error_scorm_upload_failed', 'mod_skilland');
     }
 
-    logger::debug('SCORM', 'Uploaded SCORM package to file storage');
+    $moduleinfo = new stdClass();
+    $moduleinfo->modulename = 'scorm';
+    $moduleinfo->course = $course->id;
+    $moduleinfo->section = $sectionnum;
+    $moduleinfo->visible = 1;  // Available to students but not shown on course page (stealth mode).
+    $moduleinfo->visibleoncoursepage = 0;
+    $moduleinfo->idnumber = $idnumber;
+    $moduleinfo->cmidnumber = $idnumber;
+    $moduleinfo->name = skilland_scorm_module_name((string) $skilland->name);
+    $moduleinfo->introeditor = ['text' => '', 'format' => FORMAT_HTML, 'itemid' => file_get_unused_draft_itemid()];
+    $moduleinfo->groupmode = 0;
+    $moduleinfo->groupingid = 0;
+    $moduleinfo->completion = 0;
+    $moduleinfo->scormtype = SCORM_TYPE_LOCAL;
+    $moduleinfo->packagefile = $draftitemid;
+    $moduleinfo->version = 'SCORM_1.2';
+    $moduleinfo->maxgrade = 100;
+    $moduleinfo->grademethod = GRADESCOES;
+    $moduleinfo->whatgrade = HIGHESTATTEMPT;
+    $moduleinfo->maxattempt = 0;
+    $moduleinfo->forcecompleted = 0;
+    $moduleinfo->forcenewattempt = 0;
+    $moduleinfo->lastattemptlock = 0;
+    $moduleinfo->displayattemptstatus = 0;  // Don't show attempt status - managed by Skilland.
+    $moduleinfo->displaycoursestructure = 0;
+    $moduleinfo->updatefreq = SCORM_UPDATE_NEVER;
+    $moduleinfo->skipview = 2;  // Skip entry page.
+    $moduleinfo->hidebrowse = 1;
+    $moduleinfo->hidetoc = SCORM_TOC_DISABLED;  // Hide TOC - Skilland manages navigation.
+    $moduleinfo->nav = SCORM_NAV_DISABLED;  // No nav - single SCO per view.
+    $moduleinfo->navpositionleft = -100;
+    $moduleinfo->navpositiontop = -100;
+    $moduleinfo->auto = 0;
+    $moduleinfo->popup = 0;
+    $moduleinfo->width = 100;
+    $moduleinfo->height = 500;
+    $moduleinfo->timeopen = 0;
+    $moduleinfo->timeclose = 0;
+    $moduleinfo->displayactivityname = 0;  // Don't show name - Skilland shows it.
+    $moduleinfo->autocommit = 1;  // Auto-commit for better tracking.
+    $moduleinfo->masteryoverride = 1;
 
-    // Step 6: Parse the SCORM package to create SCOs.
-    $scorm->reference = $storedfile->get_filename();
-    $scorm->cmid = $cmid;
+    // A create_module() that fails half way can leave a course module behind; remember what
+    // already carries our idnumber so only a module this call created is cleaned up.
+    $cmconditions = ['course' => $course->id, 'idnumber' => $idnumber];
+    $existing = array_keys($DB->get_records('course_modules', $cmconditions, '', 'id'));
 
-    scorm_parse($scorm, true);
-    $DB->update_record('scorm', $scorm);
+    try {
+        $created = create_module($moduleinfo);
+    } catch (\Throwable $e) {
+        $leftover = array_diff(array_keys($DB->get_records('course_modules', $cmconditions, '', 'id')), $existing);
+        foreach ($leftover as $leftovercmid) {
+            skilland_delete_scorm_module((int) $leftovercmid);
+        }
+        logger::error('SCORM', 'create_module failed - ' . $e->getMessage());
+        throw $e;
+    }
 
-    logger::debug('SCORM', 'Parsed SCORM package successfully');
+    $cmid = (int) $created->coursemodule;
 
-    // Step 7: Map API lesson->SCO mappings to Moodle SCO records.
-    // Get all SCOs created by the parse.
+    $visibleoncoursepage = $DB->get_field('course_modules', 'visibleoncoursepage', ['id' => $cmid]);
+    if ($visibleoncoursepage === false || (int) $visibleoncoursepage !== 0) {
+        set_coursemodule_visible($cmid, 1, 0);
+    }
+
+    logger::debug('SCORM', 'Created SCORM activity with cmid ' . $cmid . ' (stealth mode)');
+
+    return $cmid;
+}
+
+/**
+ * Delete a SCORM course module if it still exists, never throwing.
+ *
+ * Used as compensating cleanup, so a failure here is logged and swallowed rather than
+ * masking the exception that triggered it.
+ *
+ * @param int $cmid The SCORM course module id.
+ */
+function skilland_delete_scorm_module(int $cmid): void {
+    global $DB;
+
+    if ($cmid <= 0) {
+        return;
+    }
+
+    try {
+        skilland_require_scorm_apis();
+        if (!$DB->record_exists('course_modules', ['id' => $cmid])) {
+            return;
+        }
+        course_delete_module($cmid);
+        logger::debug('SCORM', 'Deleted SCORM activity cmid ' . $cmid);
+    } catch (\Throwable $e) {
+        debugging('mod_skilland: could not delete SCORM course module ' . $cmid . ': ' . $e->getMessage(),
+            DEBUG_DEVELOPER);
+    }
+}
+
+/**
+ * Map the activity's visible lessons to the SCOs Moodle parsed from the package.
+ *
+ * Every check runs before anything is written, so a failed check leaves the lessons untouched.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int $scormid The scorm instance id.
+ * @param array $mappings Skilland lesson id => SCO identifier, as returned by the API.
+ * @throws moodle_exception error_scorm_parse_failed when no SCO is launchable or a mapped
+ *         lesson's SCO identifier is missing from the parsed package.
+ */
+function skilland_map_topic_scos(stdClass $skilland, int $scormid, array $mappings): void {
+    global $DB;
+
     $scos = $DB->get_records('scorm_scoes', ['scorm' => $scormid], 'id ASC');
     logger::debug('SCORM', 'Found ' . count($scos) . ' SCOs in parsed package');
 
-    // Build a map of SCO identifier to Moodle SCO ID.
-    $scoByIdentifier = [];
+    $launchable = false;
+    $scobyidentifier = [];
     foreach ($scos as $sco) {
+        if (!empty($sco->launch)) {
+            $launchable = true;
+        }
         if (!empty($sco->identifier)) {
-            $scoByIdentifier[$sco->identifier] = $sco->id;
+            $scobyidentifier[$sco->identifier] = $sco->id;
         }
     }
+    if (!$launchable) {
+        logger::error('SCORM', 'Parsed package has no launchable SCO');
+        throw new moodle_exception('error_scorm_parse_failed', 'mod_skilland', '', '');
+    }
 
-    // Get API mappings (lessonId => scoId/identifier).
-    $mappings = $scorminfo['mappings'] ?? [];
     logger::debug('SCORM', 'API provided ' . count($mappings) . ' lesson->SCO mappings');
 
-    // Get all lessons for this Skilland activity.
     $lessons = $DB->get_records('skilland_lesson', ['skillandid' => $skilland->id, 'visible' => 1]);
     logger::debug('SCORM', 'Found ' . count($lessons) . ' lessons to map');
 
-    // Update each lesson with its corresponding SCO ID.
+    $resolved = [];
+    $missing = [];
     foreach ($lessons as $lesson) {
-        $skillandLessonId = $lesson->skilland_lessonid;
-
-        if (isset($mappings[$skillandLessonId])) {
-            $scoIdentifier = $mappings[$skillandLessonId];
-            $lesson->sco_identifier = $scoIdentifier;
-
-            // Find the Moodle SCO ID by identifier.
-            if (isset($scoByIdentifier[$scoIdentifier])) {
-                $lesson->scoid = $scoByIdentifier[$scoIdentifier];
-                logger::debug('SCORM', 'Mapped lesson ' . $skillandLessonId . ' to SCO ' . $lesson->scoid . ' (identifier: ' . $scoIdentifier . ')');
-            } else {
-                logger::warn('SCORM', 'SCO identifier ' . $scoIdentifier . ' not found in parsed SCOs for lesson ' . $skillandLessonId);
-            }
-
-            $DB->update_record('skilland_lesson', $lesson);
-        } else {
-            logger::warn('SCORM', 'No mapping found for lesson ' . $skillandLessonId);
+        $lessonid = $lesson->skilland_lessonid;
+        if (!isset($mappings[$lessonid])) {
+            logger::warn('SCORM', 'No mapping found for lesson ' . $lessonid);
+            continue;
         }
+        $identifier = $mappings[$lessonid];
+        if (!isset($scobyidentifier[$identifier])) {
+            $missing[] = $identifier;
+            continue;
+        }
+        $resolved[$lesson->id] = ['scoid' => $scobyidentifier[$identifier], 'identifier' => $identifier];
     }
 
-    // Step 8: Update the skilland activity record with the SCORM cmid.
-    $skilland->scormcmid = $cmid;
-    $skilland->scorm_provisioned = time();
-    $skilland->snapshotcreatedat = !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time();
-    $DB->update_record('skilland', $skilland);
+    if ($missing) {
+        logger::error('SCORM', 'SCO identifiers not found in parsed package: ' . implode(', ', $missing));
+        throw new moodle_exception('error_scorm_parse_failed', 'mod_skilland', '', implode(', ', $missing));
+    }
 
+    foreach ($resolved as $lessonrowid => $sco) {
+        $DB->set_field('skilland_lesson', 'scoid', $sco['scoid'], ['id' => $lessonrowid]);
+        $DB->set_field('skilland_lesson', 'sco_identifier', $sco['identifier'], ['id' => $lessonrowid]);
+        logger::debug('SCORM', 'Mapped lesson row ' . $lessonrowid . ' to SCO ' . $sco['scoid'] .
+            ' (identifier: ' . $sco['identifier'] . ')');
+    }
+}
+
+/**
+ * Clear the SCO mapping of every lesson of an activity.
+ *
+ * @param int $skillandid The skilland activity id.
+ */
+function skilland_clear_lesson_scos(int $skillandid): void {
+    global $DB;
+
+    $DB->set_field('skilland_lesson', 'scoid', null, ['skillandid' => $skillandid]);
+    $DB->set_field('skilland_lesson', 'sco_identifier', null, ['skillandid' => $skillandid]);
+}
+
+/**
+ * Take the per-activity provisioning lock.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @return \core\lock\lock
+ * @throws moodle_exception error_provision_in_progress when another request holds it.
+ */
+function skilland_get_provision_lock(int $skillandid) {
+    $factory = \core\lock\lock_config::get_lock_factory('mod_skilland');
+    $lock = $factory->get_lock('provision_' . $skillandid, 10);
+    if (!$lock) {
+        logger::warn('SCORM', 'Provisioning already in progress for skilland id ' . $skillandid);
+        throw new moodle_exception('error_provision_in_progress', 'mod_skilland');
+    }
+    return $lock;
+}
+
+/**
+ * Copy the SCORM provisioning fields of a record onto another.
+ *
+ * @param stdClass $from Source record.
+ * @param stdClass $to Destination record.
+ */
+function skilland_copy_provisioning_fields(stdClass $from, stdClass $to): void {
+    foreach (['scormcmid', 'scorm_provisioned', 'snapshotcreatedat'] as $field) {
+        $to->$field = $from->$field ?? null;
+    }
+}
+
+/**
+ * Provision a topic-level SCORM package containing all lessons as SCOs.
+ *
+ * Serialized per activity with a Moodle lock and idempotent: when the activity already has a
+ * SCORM module that still exists, its cmid is returned and nothing is created.
+ *
+ * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
+ * @param stdClass $course The Moodle course record
+ * @param int $sectionnum The section number to add the SCORM to
+ * @return int The SCORM course module ID
+ * @throws moodle_exception If provisioning fails or is already in progress
+ */
+function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
+    global $DB;
+
+    skilland_require_scorm_apis();
+
+    $lock = skilland_get_provision_lock((int) $skilland->id);
+    try {
+        $current = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
+
+        if (!empty($current->scormcmid)) {
+            $existing = get_coursemodule_from_id('scorm', $current->scormcmid, 0, false, IGNORE_MISSING);
+            if ($existing) {
+                logger::debug('SCORM', 'Activity ' . $skilland->id . ' already provisioned (cmid ' .
+                    $current->scormcmid . ')');
+                skilland_copy_provisioning_fields($current, $skilland);
+                return (int) $current->scormcmid;
+            }
+
+            logger::warn('SCORM', 'scormcmid ' . $current->scormcmid . ' points at a missing module - re-provisioning');
+            $DB->update_record('skilland', (object) [
+                'id' => $current->id,
+                'scormcmid' => null,
+                'scorm_provisioned' => null,
+            ]);
+            skilland_clear_lesson_scos((int) $current->id);
+            $current->scormcmid = null;
+            $current->scorm_provisioned = null;
+        }
+
+        $cmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
+        skilland_copy_provisioning_fields($current, $skilland);
+        return $cmid;
+    } finally {
+        $lock->release();
+    }
+}
+
+/**
+ * Provision the topic SCORM package. The caller holds the provisioning lock.
+ *
+ * Download, create the module through create_module(), map the SCOs, then write the
+ * provisioning fields last. Any failure after the module exists deletes it again and clears
+ * the lesson SCO mapping, so a failed run leaves nothing behind.
+ *
+ * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
+ * @param stdClass $course The Moodle course record.
+ * @param int $sectionnum Section number the SCORM goes into.
+ * @return int The new SCORM course module id.
+ * @throws moodle_exception If provisioning fails.
+ */
+function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $course, int $sectionnum): int {
+    global $DB;
+
+    $package = skilland_download_topic_scorm_package((string) $skilland->skilland_topicid);
+    $scorminfo = $package['info'];
+
+    try {
+        $cmid = skilland_create_topic_scorm_module($skilland, $course, $sectionnum, $package['path']);
+
+        try {
+            $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
+            skilland_map_topic_scos($skilland, $scormid, $scorminfo['mappings'] ?? []);
+
+            $fields = (object) [
+                'id' => $skilland->id,
+                'scormcmid' => $cmid,
+                'scorm_provisioned' => time(),
+                'snapshotcreatedat' => !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time(),
+            ];
+            $DB->update_record('skilland', $fields);
+        } catch (\Throwable $e) {
+            logger::error('SCORM', 'Provisioning failed after creating cmid ' . $cmid . ' - rolling back: ' .
+                $e->getMessage());
+            skilland_delete_scorm_module($cmid);
+            skilland_clear_lesson_scos((int) $skilland->id);
+            throw $e;
+        }
+    } finally {
+        @unlink($package['path']);
+    }
+
+    skilland_copy_provisioning_fields($fields, $skilland);
     logger::debug('SCORM', 'Updated skilland activity with scormcmid ' . $cmid);
 
     return $cmid;
@@ -1134,18 +1316,18 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
 /**
  * Update an existing topic SCORM package with the latest content from Skilland.
  *
- * This function:
+ * Under the same per-activity lock as provisioning, this function:
  * 1. Deletes the old SCORM activity and all its tracking data
- * 2. Creates a new SCORM package using skilland_provision_topic_scorm()
- * 3. Updates lesson timestamps to match current Skilland values
+ * 2. Updates lesson timestamps to match current Skilland values
+ * 3. Provisions a new SCORM package with skilland_provision_topic_scorm_locked()
  *
  * WARNING: This will delete all student progress/grades for this topic!
  *
- * @param stdClass $skilland The skilland activity record
+ * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
  * @param stdClass $course The Moodle course record
  * @param int $sectionnum The section number for the SCORM
  * @return int The new SCORM course module ID
- * @throws moodle_exception If update fails
+ * @throws moodle_exception If update fails or provisioning is already in progress
  */
 function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
     // Test hook: return override value if set (used by PHPUnit tests).
@@ -1153,49 +1335,52 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
         return $GLOBALS['_test_update_topic_scorm'];
     }
 
-    global $DB, $CFG;
+    global $DB;
 
-    require_once($CFG->dirroot . '/course/lib.php');
+    skilland_require_scorm_apis();
 
     logger::debug('SCORM', 'Updating topic SCORM for skilland id ' . $skilland->id);
 
-    // Step 1: Delete the old SCORM activity if it exists
-    if (!empty($skilland->scormcmid)) {
-        $oldcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
-        if ($oldcm) {
-            logger::debug('SCORM', 'Deleting old SCORM activity cmid ' . $skilland->scormcmid);
+    $lock = skilland_get_provision_lock((int) $skilland->id);
+    try {
+        $current = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
 
-            // Delete the course module (this also deletes SCORM tracking data)
-            course_delete_module($oldcm->id);
+        // Step 1: Delete the old SCORM activity if there is one.
+        if (!empty($current->scormcmid)) {
+            logger::debug('SCORM', 'Deleting old SCORM activity cmid ' . $current->scormcmid);
+            skilland_delete_scorm_module((int) $current->scormcmid);
 
-            // Clear the scormcmid from skilland record
-            $skilland->scormcmid = null;
-            $skilland->scorm_provisioned = null;
-            $DB->update_record('skilland', $skilland);
-
-            // Clear SCO IDs from lesson records
-            $DB->set_field('skilland_lesson', 'scoid', null, ['skillandid' => $skilland->id]);
-            $DB->set_field('skilland_lesson', 'sco_identifier', null, ['skillandid' => $skilland->id]);
+            $DB->update_record('skilland', (object) [
+                'id' => $current->id,
+                'scormcmid' => null,
+                'scorm_provisioned' => null,
+            ]);
+            skilland_clear_lesson_scos((int) $current->id);
+            $current->scormcmid = null;
+            $current->scorm_provisioned = null;
+            skilland_copy_provisioning_fields($current, $skilland);
 
             logger::debug('SCORM', 'Old SCORM activity deleted');
         }
+
+        // Step 2: Fetch fresh lesson data from Skilland to get updated timestamps.
+        $lessons = mod_skilland_fetch_lessons($current->skilland_topicid);
+
+        foreach ($lessons as $lesson) {
+            $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
+            $DB->set_field('skilland_lesson', 'updatedat', $updatedAt, [
+                'skillandid' => $current->id,
+                'skilland_lessonid' => $lesson['id']
+            ]);
+        }
+        logger::debug('SCORM', 'Updated lesson timestamps from Skilland API');
+
+        // Step 3: Provision the new SCORM package (the lock is already held).
+        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
+        skilland_copy_provisioning_fields($current, $skilland);
+    } finally {
+        $lock->release();
     }
-
-    // Step 2: Fetch fresh lesson data from Skilland to get updated timestamps
-    $lessons = mod_skilland_fetch_lessons($skilland->skilland_topicid);
-
-    // Step 3: Update lesson timestamps in the database
-    foreach ($lessons as $lesson) {
-        $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
-        $DB->set_field('skilland_lesson', 'updatedat', $updatedAt, [
-            'skillandid' => $skilland->id,
-            'skilland_lessonid' => $lesson['id']
-        ]);
-    }
-    logger::debug('SCORM', 'Updated lesson timestamps from Skilland API');
-
-    // Step 4: Provision new SCORM package
-    $newcmid = skilland_provision_topic_scorm($skilland, $course, $sectionnum);
 
     logger::debug('SCORM', 'Topic SCORM updated successfully, new cmid = ' . $newcmid);
 

@@ -304,6 +304,32 @@ class integrity_test extends TestCase {
         $this->assertObjectHasProperty('requires', $plugin, 'version.php must define $plugin->requires');
     }
 
+    public function test_version_file_declares_mod_scorm_dependency(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+
+        $this->assertObjectHasProperty('dependencies', $plugin, 'version.php must declare $plugin->dependencies');
+        $this->assertArrayHasKey('mod_scorm', $plugin->dependencies,
+            'Provisioning creates mod_scorm activities, so mod_scorm must be a declared dependency');
+        $this->assertGreaterThanOrEqual(2026092601, $plugin->version);
+    }
+
+    public function test_provisioning_error_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            require self::$srcDir . "/lang/$lang/skilland.php";
+            foreach (['error_provision_in_progress', 'error_scorm_parse_failed'] as $key) {
+                $this->assertArrayHasKey($key, $string, "$lang missing $key");
+                $this->assertNotSame('', trim($string[$key]), "$lang $key is empty");
+            }
+            $this->assertStringContainsString('{$a}', $string['error_scorm_parse_failed'],
+                "$lang error_scorm_parse_failed must show the missing SCO identifiers");
+        }
+    }
+
     // ---------------------------------------------------------------
     // Placeholder parameters in lang strings
     // ---------------------------------------------------------------

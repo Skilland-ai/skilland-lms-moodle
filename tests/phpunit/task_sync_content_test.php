@@ -19,6 +19,7 @@ class task_sync_content_test extends TestCase {
         // Reset configurable stubs.
         unset($GLOBALS['_test_topic_snapshot']);
         unset($GLOBALS['_test_update_topic_scorm']);
+        unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
         unset($GLOBALS['_test_get_coursemodule_from_id']);
         unset($GLOBALS['_test_get_coursemodule_from_instance']);
         unset($GLOBALS['_test_get_course']);
@@ -314,6 +315,98 @@ class task_sync_content_test extends TestCase {
         $updates = $this->db->get_calls_for('update_record');
         $lastUpdate = end($updates);
         $this->assertEquals('newhash', $lastUpdate['data']->snapshotid);
+    }
+
+    public function test_check_and_update_skips_when_provisioning_lock_is_busy(): void {
+        $activity = (object)[
+            'id' => 1,
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => 100,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'oldhash',
+        ];
+
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_lock_available'] = false;
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+
+        $task = $this->makeTask();
+        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
+
+        $this->assertEquals('skipped', $result);
+        $this->assertSame('mod_skilland/provision_1', $GLOBALS['_test_lock_calls'][0]['key']);
+        $snapshotwrites = array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => isset($c['data']->snapshotid));
+        $this->assertEmpty($snapshotwrites, 'A skipped activity keeps its old snapshot so the next run retries');
+        unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
+    }
+
+    public function test_check_and_update_rethrows_other_provisioning_failures(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => 'key',
+            'orgid' => 'org',
+            'graphql_endpoint' => 'https://api.skilland.ai/graphql',
+        ];
+        $activity = (object)[
+            'id' => 1,
+            'name' => 'Topic',
+            'skilland_topicid' => 'topic1',
+            'lastsynced' => time() - 600,
+            'scormcmid' => null,
+            'scorm_provisioned' => null,
+            'lockafterfirstaccess' => 0,
+            'snapshotid' => 'oldhash',
+        ];
+        $this->db->seed('skilland', [clone $activity]);
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+        $ok = fn(array $data) => ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+        $GLOBALS['_test_curl_responses'] = [
+            $ok(['topic' => ['id' => 'topic1', 'name' => 'T', 'lessons' => []]]),
+            $ok(['topicScorm' => ['packageUrl' => '', 'mappings' => []]]),
+        ];
+
+        $task = $this->makeTask();
+        try {
+            $this->invokePrivate($task, 'check_and_update', [$activity]);
+            $this->fail('A non-lock provisioning failure must propagate');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_scorm_not_available', $e->errorcode);
+        } finally {
+            unset($GLOBALS['_test_curl_responses'], $GLOBALS['_test_curl_response'], $GLOBALS['_test_curl_requests'],
+                $GLOBALS['_test_curl_last']);
+        }
+
+        $releases = array_filter($GLOBALS['_test_lock_calls'], fn($c) => $c['action'] === 'release');
+        $this->assertCount(1, $releases, 'The lock is released on failure');
+        $snapshotwrites = array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => isset($c['data']->snapshotid));
+        $this->assertEmpty($snapshotwrites);
+        unset($GLOBALS['_test_lock_calls']);
+    }
+
+    public function test_execute_counts_a_busy_lock_as_skipped_not_error(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'apikey' => 'key',
+            'orgid' => 'org',
+            'graphql_endpoint' => 'https://localhost/graphql',
+        ];
+        $this->db->seed('skilland', [
+            (object)['id' => 1, 'autoupdate' => 1, 'scormcmid' => 100, 'skilland_topicid' => 'topic1',
+                'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
+        ]);
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_lock_available'] = false;
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+
+        $this->makeTask()->execute();
+
+        $complete = array_values(array_filter($GLOBALS['_test_debug_messages'],
+            fn($m) => str_contains($m['message'], 'Sync complete')));
+        $this->assertNotEmpty($complete);
+        $this->assertStringContainsString('1 skipped, 0 errors', $complete[0]['message']);
+        unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
     }
 
     // ---------------------------------------------------------------

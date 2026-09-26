@@ -124,7 +124,12 @@ class FakeDatabase {
     public function update_record(string $table, $dataobject): bool {
         $obj = is_object($dataobject) ? $dataobject : (object)$dataobject;
         if (isset($obj->id) && isset($this->tables[$table][$obj->id])) {
-            $this->tables[$table][$obj->id] = clone $obj;
+            // Like Moodle, only the fields present on the object are written.
+            $merged = clone $this->tables[$table][$obj->id];
+            foreach (get_object_vars($obj) as $field => $value) {
+                $merged->$field = $value;
+            }
+            $this->tables[$table][$obj->id] = $merged;
         }
         $this->calls[] = ['method' => 'update_record', 'table' => $table, 'data' => clone $obj];
         return true;
