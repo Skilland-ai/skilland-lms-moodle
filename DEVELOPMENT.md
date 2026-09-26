@@ -81,6 +81,26 @@ docker exec -it skilland-back node /app/db/generate-api-key.js <YOUR_ORG_ID>
 
 This will output an API key that you can use in the Moodle plugin settings.
 
+#### Setting them from the command line
+
+`cli/configure_api.php` is a development-only helper: `npm run build` leaves it out of
+`dist/`, so it is never in the release zip. It writes only the settings you pass and never
+takes the key as an option (`--apikey` is rejected): the key comes from the
+`SKILLAND_API_KEY` environment variable or, on a terminal, from a prompt with echo off, and
+is never printed.
+
+```bash
+SKILLAND_API_KEY=... php mod/skilland/cli/configure_api.php \
+    --endpoint=http://host.docker.internal:8000/graphql --allow-insecure --orgid=<YOUR_ORG_ID>
+```
+
+An `http://` endpoint needs `--allow-insecure` (or `$CFG->mod_skilland_allow_http` in
+`config.php`); anything else must be `https://`.
+
+The course custom field (`skilland_course_id`) is created on install, recreated on every
+plugin upgrade and the first time a course is mapped; the settings page only reports
+whether it exists.
+
 ## Testing SSO Login
 
 ### 1. Create a Course in Moodle
