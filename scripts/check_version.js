@@ -1,57 +1,94 @@
-const fs = require('fs');
-const { execSync } = require('child_process');
+/**
+ * Version gate for src/version.php.
+ *
+ * Every merge to main publishes a release tagged v<$plugin->version>, so a change must:
+ *   1. raise $plugin->version above the base,
+ *   2. change the $plugin->release string,
+ *   3. keep $plugin->release and $plugin->maturity in agreement
+ *      (alpha -> MATURITY_ALPHA, beta -> MATURITY_BETA, rc -> MATURITY_RC, else MATURITY_STABLE).
+ *
+ * The base is `git show $BASE_REF:src/version.php` (CI passes the PR base sha); without
+ * BASE_REF it is HEAD, i.e. the last commit, for local use. SKIP_VERSION_CHECK=1 skips it.
+ */
+const fs = require('fs')
+const { execFileSync } = require('child_process')
+
+const VERSION_FILE = 'src/version.php'
 
 if (process.env.SKIP_VERSION_CHECK) {
-    console.log('⏭️ SKIP_VERSION_CHECK set. Skipping version check.');
-    process.exit(0);
+  console.log('SKIP_VERSION_CHECK set. Skipping version check.')
+  process.exit(0)
 }
 
+function parse(content) {
+  const version = content.match(/\$plugin->version\s*=\s*(\d+)/)
+  const release = content.match(/\$plugin->release\s*=\s*'([^']+)'/)
+  const maturity = content.match(/\$plugin->maturity\s*=\s*(MATURITY_\w+)/)
+  return {
+    version: version ? parseInt(version[1], 10) : null,
+    release: release ? release[1] : null,
+    maturity: maturity ? maturity[1] : null,
+  }
+}
+
+function expectedMaturity(release) {
+  const r = release.toLowerCase()
+  if (r.includes('beta')) return 'MATURITY_BETA'
+  if (r.includes('alpha')) return 'MATURITY_ALPHA'
+  if (r.includes('rc')) return 'MATURITY_RC'
+  return 'MATURITY_STABLE'
+}
+
+const errors = []
+const fail = (msg) => errors.push(msg)
+
+const head = parse(fs.readFileSync(VERSION_FILE, 'utf8'))
+if (head.version === null) fail(`Could not find $plugin->version in ${VERSION_FILE}`)
+if (head.release === null) fail(`Could not find $plugin->release in ${VERSION_FILE}`)
+if (head.maturity === null) fail(`Could not find $plugin->maturity in ${VERSION_FILE}`)
+
+if (head.release !== null && head.maturity !== null) {
+  const expected = expectedMaturity(head.release)
+  if (head.maturity !== expected) {
+    fail(`Release '${head.release}' requires ${expected}, but maturity is ${head.maturity}`)
+  }
+}
+
+const baseRef = process.env.BASE_REF || 'HEAD'
+let baseContent = null
 try {
-    // 1. Get current version
-    const versionFile = 'src/version.php';
-    const content = fs.readFileSync(versionFile, 'utf8');
-    const versionMatch = content.match(/\$plugin->version\s*=\s*(\d+)/);
+  baseContent = execFileSync('git', ['show', `${baseRef}:${VERSION_FILE}`], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).toString()
+} catch (e) {
+  fail(`Could not read ${VERSION_FILE} at ${baseRef}: ${e.stderr ? e.stderr.toString().trim() : e.message}`)
+}
 
-    if (!versionMatch) {
-        console.error('❌ Error: Could not find version in src/version.php');
-        process.exit(1);
+if (baseContent !== null) {
+  const base = parse(baseContent)
+  if (base.version === null || base.release === null) {
+    fail(`Could not parse $plugin->version / $plugin->release at ${baseRef}`)
+  } else if (head.version !== null && head.release !== null) {
+    if (head.version <= base.version) {
+      fail(`$plugin->version must increase: base ${base.version}, head ${head.version}`)
     }
-
-    const currentVersion = parseInt(versionMatch[1]);
-
-    // 2. Get previous version from git (safely)
-    let previousContent;
-    try {
-        previousContent = execSync(`git show HEAD:${versionFile}`, { stdio: ['pipe', 'pipe', 'ignore'] }).toString();
-    } catch (e) {
-        // If file didn't exist in HEAD (new file), allows pass
-        console.log('⚠️ New file or git error, skipping version check.');
-        process.exit(0);
+    if (head.release === base.release) {
+      fail(`$plugin->release must change: still '${head.release}' (as at ${baseRef})`)
     }
-
-    const previousMatch = previousContent.match(/\$plugin->version\s*=\s*(\d+)/);
-
-    if (!previousMatch) {
-        console.log('⚠️ Could not find previous version, skipping check.');
-        process.exit(0);
+    if (errors.length === 0) {
+      console.log(`Version bumped: ${base.version} (${base.release}) -> ${head.version} (${head.release}, ${head.maturity})`)
     }
+  }
+}
 
-    const previousVersion = parseInt(previousMatch[1]);
-
-    // 3. Compare
-    if (currentVersion > previousVersion) {
-        console.log(`✅ Version bumped: ${previousVersion} -> ${currentVersion}`);
-        process.exit(0);
-    } else {
-        console.error(`\n❌ ERROR: Version bump required!`);
-        console.error(`Current:  ${currentVersion}`);
-        console.error(`Previous: ${previousVersion}`);
-        console.error(`\nPlease update $plugin->version in src/version.php before committing.`);
-        console.error(`(To bypass: git commit --no-verify)\n`);
-        process.exit(1);
-    }
-
-} catch (err) {
-    console.error('❌ Version check failed with error:', err.message);
-    process.exit(1);
+if (errors.length > 0) {
+  for (const msg of errors) {
+    console.error(process.env.GITHUB_ACTIONS ? `::error file=${VERSION_FILE}::${msg}` : `ERROR: ${msg}`)
+  }
+  console.error('')
+  console.error('Every merge to main publishes a release tagged v<$plugin->version>. In src/version.php update:')
+  console.error('  $plugin->version  (YYYYMMDDXX, higher than main)')
+  console.error('  $plugin->release  (new version string, e.g. 0.9.8-beta)')
+  console.error('  $plugin->maturity (MATURITY_ALPHA|BETA|RC|STABLE, matching the release string)')
+  process.exit(1)
 }
