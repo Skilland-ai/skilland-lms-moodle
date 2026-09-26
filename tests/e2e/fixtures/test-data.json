@@ -21,20 +21,7 @@
     }
   },
   "skilland": {
-    "baseUrl": "http://localhost:3000",
-    "apiUrl": "http://localhost:8000/api",
-    "testOrganization": {
-      "id": "test-org-id",
-      "name": "Test Organization"
-    },
-    "testSkill": {
-      "id": "test-skill-id",
-      "name": "Test Skill"
-    },
-    "testTopic": {
-      "id": "test-topic-id",
-      "name": "Test Topic"
-    }
+    "baseUrl": "http://localhost:3000"
   },
   "testCourse": {
     "fullname": "E2E Test Course",

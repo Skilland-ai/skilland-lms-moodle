@@ -1,258 +1,146 @@
 // @ts-check
 const { expect } = require('@playwright/test')
-const { test, testData, loginToMoodle } = require('../fixtures/auth')
+const { test } = require('../fixtures/auth')
 const {
-  createCourse,
-  deleteCourse,
-  goToCourseEditPage,
-  expandSkillandSection,
-  waitForSkillandDropdownLoaded,
-  getSkillandDropdown
+  goToAddSkillandActivity,
+  waitForTopicsLoaded,
+  getEditInSkillandButton
 } = require('../helpers/moodle-helpers')
-const {
-  isEdukmiUrl,
-  waitForEdukmiLoad,
-  isOnSkillsStudio,
-  isOnTopicPage
-} = require('../helpers/skilland-helpers')
+const skillandData = require('../fixtures/skilland-data')
 
 /**
- * Test suite: SCORM Provisioning
+ * Test suite: SCORM provisioning setup (activity form)
  *
- * Tests the SCORM content provisioning flow between Moodle and Skilland.
- * Verifies that Skilland activities can be created and content is properly loaded.
+ * Adding a Skilland activity starts in the activity form: the topic dropdown is fed
+ * by mod_skilland_fetch_topics_ajax and the lesson picker by
+ * mod_skilland_fetch_lessons_ajax, both answered by the SkilLand mock.
+ *
+ * Saving the form and provisioning the SCORM package validate the topic against
+ * SkilLand's GraphQL API from PHP, which the browser mock cannot answer; that part
+ * is covered by PHPUnit (tests/phpunit).
  */
-test.describe('SCORM Provisioning', () => {
-  test.describe.configure({ mode: 'serial' })
+test.describe('SCORM provisioning setup', () => {
+  test.describe.configure({ mode: 'parallel' })
 
-  let courseId = ''
+  test('Activity form asks to link the course to SkilLand first', async ({
+    authenticatedPage,
+    skillandMock,
+    moodleCourse
+  }) => {
+    const courseId = await moodleCourse.create()
 
-  test.beforeAll(async ({ browser }) => {
-    const page = await browser.newPage()
-    await loginToMoodle(page, testData.moodle.admin.username, testData.moodle.admin.password)
+    await goToAddSkillandActivity(authenticatedPage, courseId)
 
-    try {
-      courseId = await createCourse(page, {
-        fullname: 'SCORM Test Course',
-        shortname: `scorm-test-${Date.now()}`
-      })
-      console.log(`Created test course: ${courseId}`)
-    } catch (error) {
-      console.log('Course creation failed:', error)
-    }
-
-    await page.close()
+    const warning = authenticatedPage.locator('.alert-warning')
+    await expect(warning).toContainText('you must first set the Skilland Course ID')
+    await expect(warning.getByRole('link', { name: 'Set Skilland Course ID in course settings' })).toBeVisible()
+    await expect(authenticatedPage.locator('select#id_skilland_topicid')).toHaveCount(0)
+    expect(skillandMock.calls('mod_skilland_fetch_topics_ajax')).toEqual([])
   })
 
-  test.afterAll(async ({ browser }) => {
-    if (courseId) {
-      const page = await browser.newPage()
-      await loginToMoodle(page, testData.moodle.admin.username, testData.moodle.admin.password)
-      try {
-        await deleteCourse(page, courseId)
-        console.log(`Deleted test course: ${courseId}`)
-      } catch {
-        console.log('Course cleanup skipped')
-      }
-      await page.close()
-    }
+  test('Activity form lists the SkilLand topics of the linked course', async ({
+    authenticatedPage,
+    skillandMock,
+    moodleCourse
+  }) => {
+    const courseId = await moodleCourse.create({ skillId: skillandData.SKILL_ID })
+    skillandMock
+      .on('mod_skilland_fetch_topics_ajax', skillandData.topics())
+      .on('mod_skilland_fetch_lessons_ajax', skillandData.lessons())
+
+    await goToAddSkillandActivity(authenticatedPage, courseId)
+    await waitForTopicsLoaded(authenticatedPage, skillandData.TOPIC_ID)
+
+    await expect(authenticatedPage.locator('select#id_skilland_topicid option')).toHaveText([
+      /Select/,
+      `T1 - Getting started (${skillandData.TOPIC_ID})`,
+      `T2 - Going further (${skillandData.SECOND_TOPIC_ID})`
+    ])
+    await expect(authenticatedPage.locator('.skilland-course-name')).toHaveText('E2E Skill One')
+    expect(skillandMock.calls('mod_skilland_fetch_topics_ajax')).toEqual([
+      // The activity form passes the Moodle course id as a string.
+      { courseid: skillandData.SKILL_ID, moodlecourseid: courseId }
+    ])
   })
 
-  test('Can create Skilland activity in course', async ({ authenticatedPage }) => {
-    test.skip(!courseId, 'No test course available')
+  test('Choosing a topic loads its lessons and selects all of them', async ({
+    authenticatedPage,
+    skillandMock,
+    moodleCourse
+  }) => {
+    const page = authenticatedPage
+    const courseId = await moodleCourse.create({ skillId: skillandData.SKILL_ID })
+    const lessons = skillandData.lessons().lessons
+    skillandMock
+      .on('mod_skilland_fetch_topics_ajax', skillandData.topics())
+      .on('mod_skilland_fetch_lessons_ajax', skillandData.lessons())
 
-    // First, link the course to Skilland by setting the Skilland Course ID
-    await goToCourseEditPage(authenticatedPage, courseId)
-    await authenticatedPage.waitForLoadState('networkidle')
+    await goToAddSkillandActivity(page, courseId)
+    await waitForTopicsLoaded(page, skillandData.TOPIC_ID)
+    await page.locator('select#id_skilland_topicid').selectOption(skillandData.TOPIC_ID)
 
-    // Expand Skilland section and wait for dropdown
-    await expandSkillandSection(authenticatedPage)
+    const cards = page.locator('#id_lessons_container .skilland-lesson-card')
+    await expect(cards).toHaveCount(2)
+    await expect(cards.locator('.skilland-lesson-title')).toHaveText([
+      'L1.1 - What is testing?',
+      'L1.2 - Writing a first test'
+    ])
+    await expect(page.locator('#id_lessons_container .skilland-lesson-checkbox:checked')).toHaveCount(2)
+    await expect(page.locator('#id_name')).toHaveValue('T1 - Getting started')
 
-    const dropdown = getSkillandDropdown(authenticatedPage)
-    const dropdownVisible = await dropdown.isVisible().catch(() => false)
+    const selected = JSON.parse(await page.locator('#id_selected_lessons').inputValue())
+    expect(Object.keys(selected)).toEqual(lessons.map(lesson => lesson.id))
+    expect(skillandMock.calls('mod_skilland_fetch_lessons_ajax')).toEqual([
+      { topicid: skillandData.TOPIC_ID, moodlecourseid: courseId }
+    ])
 
-    if (dropdownVisible) {
-      // Wait for dropdown to load
-      await waitForSkillandDropdownLoaded(authenticatedPage)
-
-      // Select "Create New" option if available, otherwise use first available option
-      const options = await dropdown.locator('option').all()
-      let selectedValue = ''
-
-      for (const option of options) {
-        const value = await option.getAttribute('value')
-        if (value === '__create_new__') {
-          await dropdown.selectOption({ value: '__create_new__' })
-          selectedValue = '__create_new__'
-          break
-        } else if (value && value !== '') {
-          selectedValue = value
-          break
-        }
-      }
-
-      // If we selected create new, wait for the new option to appear
-      if (selectedValue === '__create_new__') {
-        await authenticatedPage.waitForTimeout(2000)  // Wait for AJAX to complete
-      } else if (selectedValue) {
-        await dropdown.selectOption({ value: selectedValue })
-      }
-
-      // Save the course settings
-      const saveButton = authenticatedPage.locator('#id_saveanddisplay, #id_submitbutton')
-      await saveButton.first().click()
-      await authenticatedPage.waitForLoadState('networkidle')
-    }
-
-    // Now try to add the Skilland activity
-    await authenticatedPage.goto(`/course/modedit.php?add=skilland&course=${courseId}&section=0`)
-    await authenticatedPage.waitForLoadState('networkidle')
-
-    // Check if we're on the activity form or redirected
-    const pageContent = await authenticatedPage.content()
-    const nameField = authenticatedPage.locator('#id_name')
-
-    // If the name field is visible, we can create the activity
-    if (await nameField.isVisible().catch(() => false)) {
-      await nameField.fill('Test SCORM Activity')
-
-      const skillandSkillField = authenticatedPage.locator(
-        '#id_skilland_skill, [name="skilland_skill"], #id_config_skillid'
-      )
-      if (await skillandSkillField.isVisible()) {
-        await skillandSkillField.fill(testData.skilland.testSkill.id)
-      }
-
-      // Note: Moodle 4.x uses #id_submitbutton2 for activity forms
-      const submitButton = authenticatedPage.locator('#id_submitbutton2, #id_submitbutton')
-      await submitButton.first().click()
-      await authenticatedPage.waitForLoadState('networkidle')
-
-      const url = authenticatedPage.url()
-      const finalContent = await authenticatedPage.content()
-
-      const success =
-        url.includes('view.php') ||
-        url.includes('course/view.php') ||
-        finalContent.includes('Test SCORM Activity')
-
-      expect(success).toBeTruthy()
-    } else {
-      // Course might not be linked to Skilland yet - check for the redirect message
-      const hasRedirectMessage = pageContent.includes('Set Skilland Course ID') ||
-        pageContent.includes('must first set the Skilland Course ID')
-
-      // If we see the redirect message, the test setup couldn't link the course
-      // This is expected when Skilland API is not properly configured
-      test.skip(hasRedirectMessage, 'Course could not be linked to Skilland - API configuration may be missing')
-
-      // Otherwise, unexpected state
-      expect(await nameField.isVisible()).toBeTruthy()
-    }
+    // Unticking a lesson drops it from the selection that is saved with the form.
+    await page.locator(`#lesson_${lessons[0].id}`).uncheck()
+    await expect.poll(async () =>
+      Object.keys(JSON.parse(await page.locator('#id_selected_lessons').inputValue()))
+    ).toEqual([lessons[1].id])
   })
 
-  test('Skilland activity displays launch button', async ({ authenticatedPage }) => {
-    test.skip(!courseId, 'No test course available')
+  test('"Edit in Skilland" points the SSO redirect at the chosen topic', async ({
+    authenticatedPage,
+    skillandMock,
+    moodleCourse
+  }) => {
+    const page = authenticatedPage
+    const courseId = await moodleCourse.create({ skillId: skillandData.SKILL_ID })
+    skillandMock
+      .on('mod_skilland_fetch_topics_ajax', skillandData.topics())
+      .on('mod_skilland_fetch_lessons_ajax', skillandData.lessons())
 
-    await authenticatedPage.goto(`/course/view.php?id=${courseId}`)
-    await authenticatedPage.waitForLoadState('domcontentloaded')
+    await goToAddSkillandActivity(page, courseId)
+    await waitForTopicsLoaded(page, skillandData.TOPIC_ID)
+    await page.locator('select#id_skilland_topicid').selectOption(skillandData.SECOND_TOPIC_ID)
 
-    const activityLink = authenticatedPage.locator('a.aalink:has-text("skilland"), a[href*="mod/skilland"]')
-
-    if (await activityLink.count() > 0) {
-      await activityLink.first().click()
-      await authenticatedPage.waitForLoadState('domcontentloaded')
-
-      const pageContent = await authenticatedPage.content()
-      const hasLaunchElements =
-        pageContent.includes('launch') ||
-        pageContent.includes('Launch') ||
-        pageContent.includes('Start') ||
-        pageContent.includes('Enter')
-
-      expect(hasLaunchElements).toBeTruthy()
-    } else {
-      test.skip(true, 'No Skilland activity found in course')
-    }
+    const editLink = getEditInSkillandButton(page)
+    await expect(editLink).toBeVisible()
+    const href = new URL(/** @type {string} */ (await editLink.getAttribute('href')))
+    expect(href.pathname).toBe('/mod/skilland/sso_redirect.php')
+    expect(href.searchParams.get('topicid')).toBe(skillandData.SECOND_TOPIC_ID)
+    expect(href.searchParams.get('courseid')).toBe(courseId)
+    expect(href.searchParams.get('sesskey')).toBeTruthy()
   })
 
-  test('Activity view page loads correctly', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/mod/skilland/index.php?id=1')
-    await authenticatedPage.waitForLoadState('domcontentloaded')
+  test('A lessons error from SkilLand is shown in the lesson picker', async ({
+    authenticatedPage,
+    skillandMock,
+    moodleCourse
+  }) => {
+    const page = authenticatedPage
+    const courseId = await moodleCourse.create({ skillId: skillandData.SKILL_ID })
+    skillandMock
+      .on('mod_skilland_fetch_topics_ajax', skillandData.topics())
+      .on('mod_skilland_fetch_lessons_ajax', { lessons: [], error: 'Topic has no published lessons' })
 
-    const status = authenticatedPage.url().includes('skilland') ||
-      (await authenticatedPage.content()).includes('Skilland')
+    await goToAddSkillandActivity(page, courseId)
+    await waitForTopicsLoaded(page, skillandData.TOPIC_ID)
+    await page.locator('select#id_skilland_topicid').selectOption(skillandData.TOPIC_ID)
 
-    expect(status).toBeTruthy()
-  })
-
-  test('Activity configuration is preserved', async ({ authenticatedPage }) => {
-    test.skip(!courseId, 'No test course available')
-
-    await authenticatedPage.goto(`/course/view.php?id=${courseId}`)
-    await authenticatedPage.waitForLoadState('domcontentloaded')
-
-    const editModeToggle = authenticatedPage.locator('[data-action="setmode"]')
-    if (await editModeToggle.isVisible()) {
-      const isEditing = await authenticatedPage.locator('.editing').count() > 0
-      if (!isEditing) {
-        await editModeToggle.click()
-        await authenticatedPage.waitForLoadState('networkidle')
-      }
-    }
-
-    const activitySettings = authenticatedPage.locator(
-      '[data-action="cmEdit"], a[href*="modedit.php"]:has-text("Edit")'
-    )
-
-    if (await activitySettings.count() > 0) {
-      await activitySettings.first().click()
-      await authenticatedPage.waitForLoadState('domcontentloaded')
-
-      const nameField = authenticatedPage.locator('#id_name')
-      if (await nameField.isVisible()) {
-        const value = await nameField.inputValue()
-        expect(value).toBeTruthy()
-      }
-    }
-  })
-
-  test('SCORM player loads on activity launch', async ({ authenticatedPage }) => {
-    test.skip(!courseId, 'No test course available')
-
-    await authenticatedPage.goto(`/course/view.php?id=${courseId}`)
-    await authenticatedPage.waitForLoadState('domcontentloaded')
-
-    const activityLink = authenticatedPage.locator('a.aalink:has-text("skilland"), a[href*="mod/skilland/view"]')
-
-    if (await activityLink.count() > 0) {
-      await activityLink.first().click()
-      await authenticatedPage.waitForLoadState('domcontentloaded')
-
-      const launchButton = authenticatedPage.locator(
-        'button:has-text("Launch"), a:has-text("Launch"), button:has-text("Start"), a:has-text("Enter")'
-      )
-
-      if (await launchButton.count() > 0) {
-        const [newPage] = await Promise.all([
-          authenticatedPage.context().waitForEvent('page').catch(() => null),
-          launchButton.first().click()
-        ])
-
-        if (newPage) {
-          await newPage.waitForLoadState('domcontentloaded')
-          const url = newPage.url()
-
-          if (isEdukmiUrl(url)) {
-            await waitForEdukmiLoad(newPage)
-            const isStudio = await isOnSkillsStudio(newPage)
-            const isTopic = await isOnTopicPage(newPage)
-            expect(isStudio || isTopic).toBeTruthy()
-          }
-
-          await newPage.close()
-        }
-      }
-    }
+    await expect(page.locator('#id_lessons_container .text-danger')).toHaveText('Topic has no published lessons')
+    await expect(page.locator('#id_lessons_container .skilland-lesson-card')).toHaveCount(0)
   })
 })

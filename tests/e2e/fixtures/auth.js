@@ -1,33 +1,106 @@
 // @ts-check
-const { test: base } = require('@playwright/test')
+const { test: base, expect } = require('@playwright/test')
 const testData = require('./test-data.json')
+const { installSkillandMock } = require('./skilland-mock')
+const { createCourse, deleteCourse, enrolUser, linkCourseToSkill } = require('../helpers/moodle-helpers')
+
+const MOODLE_URL = process.env.MOODLE_URL || testData.moodle.baseUrl
 
 /**
- * Custom test fixture that provides authenticated Moodle session
+ * Test fixtures for the Moodle side of the suite.
+ *
+ * `skillandMock` is set up for every test (auto fixture): SkilLand is always mocked
+ * at the Moodle AJAX boundary, and the test fails on unmocked SkilLand calls,
+ * console errors or uncaught page errors (see fixtures/skilland-mock.js).
  */
 const test = base.extend({
+  skillandMock: [async ({ context }, use) => {
+    const mock = await installSkillandMock(context)
+    await use(mock)
+    await context.unrouteAll({ behavior: 'ignoreErrors' })
+    mock.assertClean()
+  }, { auto: true }],
+
   /**
-   * Authenticated page - logs in before each test
+   * Allow browser errors matching `pattern` in the current test.
    */
-  authenticatedPage: async ({ page }, use) => {
+  expectConsoleError: async ({ skillandMock }, use) => {
+    await use(/** @param {RegExp} pattern */ pattern => { skillandMock.expectConsoleError(pattern) })
+  },
+
+  /**
+   * Page logged in as the site admin.
+   */
+  authenticatedPage: async ({ page, skillandMock: _mock }, use) => {
     await loginToMoodle(page, testData.moodle.admin.username, testData.moodle.admin.password)
     await use(page)
   },
 
   /**
-   * Teacher page - logs in as teacher (editing teacher role)
+   * Page logged in as teacher1 (editing teacher at system level).
    */
-  teacherPage: async ({ page }, use) => {
+  teacherPage: async ({ page, skillandMock: _mock }, use) => {
     await loginToMoodle(page, testData.moodle.teacher.username, testData.moodle.teacher.password)
     await use(page)
   },
 
   /**
-   * Student page - logs in as student
+   * Page logged in as student1.
    */
-  studentPage: async ({ page }, use) => {
+  studentPage: async ({ page, skillandMock: _mock }, use) => {
     await loginToMoodle(page, testData.moodle.student.username, testData.moodle.student.password)
     await use(page)
+  },
+
+  /**
+   * Creates Moodle courses for the current test from a separate admin session and
+   * deletes them when the test ends. That session has its own SkilLand mock, so
+   * creating a course never reaches a SkilLand backend either.
+   */
+  moodleCourse: async ({ browser }, use) => {
+    const context = await browser.newContext()
+    const adminMock = await installSkillandMock(context)
+    const page = await context.newPage()
+    /** @type {string[]} */
+    const created = []
+    let loggedIn = false
+
+    await use({
+      /**
+       * @param {{ fullname?: string, shortname?: string, skillId?: string, enrolTeacher?: boolean }} [options]
+       *   `skillId` links the course to that SkilLand skill (it must be in the
+       *   default mod_skilland_fetch_courses_ajax answer); `enrolTeacher` enrols
+       *   the test teacher as an editing teacher.
+       * @returns {Promise<string>} The Moodle course id
+       */
+      async create(options = {}) {
+        if (!loggedIn) {
+          await loginToMoodle(page, testData.moodle.admin.username, testData.moodle.admin.password)
+          loggedIn = true
+        }
+        const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+        const courseId = await createCourse(page, {
+          fullname: options.fullname || `E2E course ${suffix}`,
+          shortname: options.shortname || `e2e-${suffix}`
+        })
+        created.push(courseId)
+        if (options.skillId) {
+          await linkCourseToSkill(page, courseId, options.skillId)
+        }
+        if (options.enrolTeacher) {
+          const { firstname, lastname } = testData.moodle.teacher
+          await enrolUser(page, courseId, `${firstname} ${lastname}`, 'Teacher')
+        }
+        return courseId
+      }
+    })
+
+    for (const courseId of created) {
+      await deleteCourse(page, courseId)
+    }
+    await context.unrouteAll({ behavior: 'ignoreErrors' })
+    await context.close()
+    adminMock.assertClean()
   },
 
   /**
@@ -39,62 +112,35 @@ const test = base.extend({
 })
 
 /**
- * Login to Moodle with credentials
+ * Log in to Moodle and assert that the session is really open.
+ *
  * @param {import('@playwright/test').Page} page
  * @param {string} username
  * @param {string} password
- * @param {number} retries - Number of retry attempts (default: 3)
+ * @param {number} [attempts]
  */
-async function loginToMoodle(page, username, password, retries = 3) {
-  const baseUrl = process.env.MOODLE_URL || testData.moodle.baseUrl
+async function loginToMoodle(page, username, password, attempts = 3) {
+  const loginForm = page.locator('#login')
+  const loggedInMarker = page.locator('#user-menu-toggle')
+  const loginErrors = page.locator('#loginerrormessage, .loginerrors')
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    await page.goto(`${baseUrl}/login/index.php`)
-    await page.waitForLoadState('networkidle')
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    await page.goto(`${MOODLE_URL}/login/index.php`)
+    await expect(loginForm).toBeVisible()
+    await expect(loginForm.locator('input[name="logintoken"]')).toBeAttached()
 
-    const usernameInput = page.locator('#username')
-    const passwordInput = page.locator('#password')
+    await page.locator('#username').fill(username)
+    await page.locator('#password').fill(password)
+    await page.locator('#loginbtn').click()
+    await expect(loggedInMarker.or(loginErrors)).toBeVisible().catch(() => {})
 
-    if (await usernameInput.isVisible()) {
-      // Wait for login token to be present (CSRF protection)
-      await page.waitForSelector('#login input[name="logintoken"]', { state: 'attached' })
-
-      await usernameInput.fill(username)
-      await passwordInput.fill(password)
-      await page.locator('#loginbtn').click()
-      await page.waitForLoadState('networkidle')
-
-      // Check for successful login - multiple indicators
-      const currentUrl = page.url()
-
-      // Admin redirected to admin page means login succeeded
-      if (currentUrl.includes('/admin/')) {
-        return
-      }
-
-      // Check for user menu (standard indicator)
-      const userMenu = page.locator('.usermenu, #user-menu-toggle, .userbutton')
-      if (await userMenu.count() > 0) {
-        return
-      }
-
-      // Check for logout link as fallback
-      const logoutLink = page.locator('a[href*="logout"]')
-      if (await logoutLink.count() > 0) {
-        return
-      }
-
-      // Check for error message
-      const errorMessage = page.locator('.loginerrors, .alert-danger, #loginerrormessage')
-      if (await errorMessage.count() > 0 && attempt < retries) {
-        console.log(`Login attempt ${attempt} failed, retrying...`)
-        await page.waitForTimeout(2000)
-        continue
-      }
+    const onAdminPage = new URL(page.url()).pathname.includes('/admin/')
+    if (onAdminPage || await loggedInMarker.isVisible()) {
+      return
     }
   }
 
-  console.warn(`Login may have failed after ${retries} attempts`)
+  throw new Error(`Moodle login failed for ${username} after ${attempts} attempts (last URL: ${page.url()})`)
 }
 
 /**
@@ -111,6 +157,7 @@ async function logoutFromMoodle(page) {
 
 module.exports = {
   test,
+  expect,
   loginToMoodle,
   logoutFromMoodle,
   testData

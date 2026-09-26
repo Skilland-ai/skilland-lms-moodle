@@ -2,8 +2,8 @@
 const { expect } = require('@playwright/test')
 const { test, testData } = require('../fixtures/auth')
 const {
-  goToEdukmiSettings,
-  isEdukmiPluginInstalled,
+  goToSkillandSettings,
+  isSkillandPluginInstalled,
   isLoggedIn
 } = require('../helpers/moodle-helpers')
 
@@ -18,7 +18,6 @@ test.describe('Moodle Setup Verification', () => {
 
   test('Moodle is accessible', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('domcontentloaded')
 
     const title = await page.title()
     expect(title).toBeTruthy()
@@ -30,37 +29,25 @@ test.describe('Moodle Setup Verification', () => {
 
   test('Admin can login to Moodle', async ({ page }) => {
     await page.goto('/login/index.php')
-    await page.waitForLoadState('networkidle')
-
-    // Wait for login form to be fully loaded
-    await page.waitForSelector('#username', { state: 'visible' })
-    await page.waitForSelector('#login input[name="logintoken"]', { state: 'attached' })
+    await expect(page.locator('#login input[name="logintoken"]')).toBeAttached()
 
     await page.locator('#username').fill(testData.moodle.admin.username)
     await page.locator('#password').fill(testData.moodle.admin.password)
     await page.locator('#loginbtn').click()
-
-    await page.waitForLoadState('networkidle')
-
-    // Check for login errors
-    const errorMessage = page.locator('.loginerrors, .alert-danger, #loginerrormessage')
-    if (await errorMessage.count() > 0) {
-      const errorText = await errorMessage.textContent()
-      console.log(`Login failed with error: ${errorText}`)
-      console.log(`URL after login attempt: ${page.url()}`)
-    }
+    await expect(page.locator('#user-menu-toggle')).toBeVisible()
 
     const loggedIn = await isLoggedIn(page)
     expect(loggedIn).toBeTruthy()
   })
 
   test('Skilland plugin is installed', async ({ authenticatedPage }) => {
-    const installed = await isEdukmiPluginInstalled(authenticatedPage)
+    const installed = await isSkillandPluginInstalled(authenticatedPage)
     expect(installed).toBeTruthy()
   })
 
   test('Skilland plugin settings page is accessible', async ({ authenticatedPage }) => {
-    await goToEdukmiSettings(authenticatedPage)
+    await goToSkillandSettings(authenticatedPage)
+    await expect(authenticatedPage.locator('#id_s_mod_skilland_orgid')).toBeAttached()
 
     const pageContent = await authenticatedPage.content()
     const hasSettings =
@@ -72,24 +59,14 @@ test.describe('Moodle Setup Verification', () => {
   })
 
   test('Skilland activity type is available', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/course/view.php?id=1')
-    await authenticatedPage.waitForLoadState('domcontentloaded')
-
-    const editModeToggle = authenticatedPage.locator('[data-action="setmode"]')
-    if (await editModeToggle.isVisible()) {
-      await editModeToggle.click()
-      await authenticatedPage.waitForLoadState('networkidle')
-    }
-
     await authenticatedPage.goto('/course/modedit.php?add=skilland&course=1&section=0')
-    await authenticatedPage.waitForLoadState('domcontentloaded')
 
     const pageContent = await authenticatedPage.content()
-    const hasEdukmiForm =
+    const hasSkillandForm =
       pageContent.includes('skilland') ||
       pageContent.includes('Skilland') ||
       authenticatedPage.url().includes('skilland')
 
-    expect(hasEdukmiForm).toBeTruthy()
+    expect(hasSkillandForm).toBeTruthy()
   })
 })
