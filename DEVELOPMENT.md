@@ -191,6 +191,8 @@ Provisioning is serialized per activity with a Moodle lock (`mod_skilland/provis
 
 Changing a provisioned activity's topic rebuilds its SCORM on save (student progress is reset; the form confirms first, and a failed rebuild drops the activity back to the Provision state with a warning). Lessons ticked later in the same topic get their SCO from the installed package through the stored lesson-to-SCO map (`skilland.scomappings`); a lesson missing from the package is flagged to teachers until Update From Skilland rebuilds it (SKL-655).
 
+`skilland_lesson.updatedat` is the lesson version inside the installed SCORM: only `skilland_update_topic_scorm()`, after a successful build, advances it; the settings form never does (new lessons are inserted with the submitted value) (SKL-683).
+
 ### Updating Language Strings
 
 1. Edit `lang/en/skilland.php` and `lang/es/skilland.php`
