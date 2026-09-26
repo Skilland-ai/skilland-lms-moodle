@@ -189,6 +189,8 @@ Enable debug mode in Moodle plugin settings and check:
 
 Provisioning is serialized per activity with a Moodle lock (`mod_skilland/provision_<id>`), is idempotent (a repeat call returns the existing SCORM cmid), creates the module through core `create_module()` and deletes it again if the package does not parse; `mod_scorm` is a declared dependency in `version.php`.
 
+Changing a provisioned activity's topic rebuilds its SCORM on save (student progress is reset; the form confirms first, and a failed rebuild drops the activity back to the Provision state with a warning). Lessons ticked later in the same topic get their SCO from the installed package through the stored lesson-to-SCO map (`skilland.scomappings`); a lesson missing from the package is flagged to teachers until Update From Skilland rebuilds it (SKL-655).
+
 ### Updating Language Strings
 
 1. Edit `lang/en/skilland.php` and `lang/es/skilland.php`
