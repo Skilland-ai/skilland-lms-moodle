@@ -95,12 +95,15 @@ const test = base.extend({
       }
     })
 
-    for (const courseId of created) {
-      await deleteCourse(page, courseId)
+    try {
+      for (const courseId of created) {
+        await deleteCourse(page, courseId)
+      }
+    } finally {
+      await context.unrouteAll({ behavior: 'ignoreErrors' })
+      await context.close()
+      adminMock.assertClean()
     }
-    await context.unrouteAll({ behavior: 'ignoreErrors' })
-    await context.close()
-    adminMock.assertClean()
   },
 
   /**
