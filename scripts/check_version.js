@@ -31,12 +31,12 @@ function parse(content) {
   }
 }
 
+// Pre-release suffix: -alpha, -beta or -rc, optionally followed by a number (-rc1, -beta.2).
+const PRERELEASE_SUFFIX = /-(alpha|beta|rc)(\.?\d+)?$/i
+
 function expectedMaturity(release) {
-  const r = release.toLowerCase()
-  if (r.includes('beta')) return 'MATURITY_BETA'
-  if (r.includes('alpha')) return 'MATURITY_ALPHA'
-  if (r.includes('rc')) return 'MATURITY_RC'
-  return 'MATURITY_STABLE'
+  const m = release.match(PRERELEASE_SUFFIX)
+  return m ? `MATURITY_${m[1].toUpperCase()}` : 'MATURITY_STABLE'
 }
 
 const errors = []
