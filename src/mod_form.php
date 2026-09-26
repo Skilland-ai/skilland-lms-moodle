@@ -446,8 +446,17 @@ class mod_skilland_mod_form extends moodleform_mod {
                 }
             }
 
+            $debug = json_encode((bool) get_config('mod_skilland', 'devmode'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT |
+                JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
             $js = "
             (function() {
+                var debug = " . $debug . ";
+                function log() {
+                    if (debug && window.console) {
+                        console.log.apply(console, arguments);
+                    }
+                }
+
                 function escapeHtml(str) {
                     return String(str === undefined || str === null ? '' : str)
                         .replace(/&/g, '&amp;')
@@ -496,25 +505,9 @@ class mod_skilland_mod_form extends moodleform_mod {
                 }
 
                 function initForm() {
-                    console.log('Skilland: Initialising form with currentTopicId:', currentTopicId);
-                    console.log('Skilland: currentSelectedLessons:', currentSelectedLessons);
+                    log('Skilland: Initialising form with currentTopicId:', currentTopicId);
+                    log('Skilland: currentSelectedLessons:', currentSelectedLessons);
                     initTopicSelect();
-
-                    // Debug: Log form values on submit
-                    var form = document.getElementById('id_skilland_topicid') ? document.getElementById('id_skilland_topicid').form : null;
-                    if (form) {
-                        form.addEventListener('submit', function() {
-                            var topicSelect = document.getElementById('id_skilland_topicid');
-                            var savedTopicInput = document.getElementById('id_skilland_topicid_saved') ||
-                                                  form.querySelector('input[name=\"skilland_topicid_saved\"]');
-                            var selectedLessonsInput = document.getElementById('id_selected_lessons') ||
-                                                       form.querySelector('input[name=\"selected_lessons\"]');
-                            console.log('Skilland: Form submitting with:');
-                            console.log('  - skilland_topicid:', topicSelect ? topicSelect.value : 'NOT FOUND');
-                            console.log('  - skilland_topicid_saved:', savedTopicInput ? savedTopicInput.value : 'NOT FOUND');
-                            console.log('  - selected_lessons:', selectedLessonsInput ? selectedLessonsInput.value : 'NOT FOUND');
-                        });
-                    }
                 }
 
                 function initTopicSelect() {
@@ -523,7 +516,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                     var selectedLessonsInput = document.getElementById('id_selected_lessons');
 
                     if (!topicSelect) {
-                        console.error('Skilland: Topic select field not found');
+                        log('Skilland: Topic select field not found');
                         return;
                     }
 
@@ -537,7 +530,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                         selectedLessonsInput.id = 'id_selected_lessons';
                         selectedLessonsInput.value = '{}';
                         topicSelect.form.appendChild(selectedLessonsInput);
-                        console.log('Skilland: Created selected_lessons hidden input');
+                        log('Skilland: Created selected_lessons hidden input');
                     }
 
                     // Find or create the saved topic ID hidden field
@@ -553,12 +546,12 @@ class mod_skilland_mod_form extends moodleform_mod {
                         savedTopicInput.id = 'id_skilland_topicid_saved';
                         savedTopicInput.value = currentTopicId || '';
                         topicSelect.form.appendChild(savedTopicInput);
-                        console.log('Skilland: Created skilland_topicid_saved hidden input with value:', savedTopicInput.value);
+                        log('Skilland: Created skilland_topicid_saved hidden input with value:', savedTopicInput.value);
                     }
 
                     if (!currentTopicId && savedTopicInput && savedTopicInput.value) {
                         currentTopicId = savedTopicInput.value;
-                        console.log('Skilland: Restored currentTopicId from savedTopicInput:', currentTopicId);
+                        log('Skilland: Restored currentTopicId from savedTopicInput:', currentTopicId);
                     }
 
                     var loadingText = " . json_encode(get_string('loading', 'mod_skilland')) . ";
@@ -716,20 +709,20 @@ class mod_skilland_mod_form extends moodleform_mod {
                         confirmedTopicId = null;
                         if (savedTopicInput) {
                             savedTopicInput.value = topicId;
-                            console.log('Skilland: Updated savedTopicInput to:', topicId);
+                            log('Skilland: Updated savedTopicInput to:', topicId);
                         } else {
-                            console.warn('Skilland: savedTopicInput not found, cannot save topic ID');
+                            log('Skilland: savedTopicInput not found, cannot save topic ID');
                         }
                         if (topicId && topicsMap[topicId]) {
                             var topic = topicsMap[topicId];
-                            console.log('Skilland: Topic selected', topicId, topic);
+                            log('Skilland: Topic selected', topicId);
 
                             // Update topic order index hidden field.
                             var topicOrderInput = document.getElementById('id_topic_orderindex') ||
                                                   topicSelect.form.querySelector('input[name=\"topic_orderindex\"]');
                             if (topicOrderInput) {
                                 topicOrderInput.value = topic.orderIndex || 1;
-                                console.log('Skilland: Updated topic_orderindex to:', topicOrderInput.value);
+                                log('Skilland: Updated topic_orderindex to:', topicOrderInput.value);
                             }
 
                             // Keep the rendered topic's ticks for a later visit. The synthetic change of the
@@ -857,7 +850,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                         setLessonsLoading(true);
 
                         require(['core/ajax', 'core/notification'], function(ajax, notification) {
-                            console.log('Skilland: Fetching lessons for topic', topicId);
+                            log('Skilland: Fetching lessons for topic', topicId);
                             ajax.call([{
                                 methodname: 'mod_skilland_fetch_lessons_ajax',
                                 args: {
@@ -885,7 +878,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                     return;
                                 }
 
-                                console.log('Skilland: Lessons response received', response);
+                                log('Skilland: Lessons response received');
                                 renderLessons(response.lessons, topicId);
                                 setLessonsLoading(false);
                             }).catch(function(error) {
@@ -1085,7 +1078,7 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                             editLink.href = baseUrl + '?' + queryString;
 
-                            console.log('Skilland: Edit button updated for topic', topic.id);
+                            log('Skilland: Edit button updated for topic', topic.id);
                         } else {
                             // Hide the button
                             editButtonContainer.style.display = 'none';
@@ -1094,8 +1087,8 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                     // Fetch topics via AJAX.
                     require(['core/ajax', 'core/notification'], function(ajax, notification) {
-                        console.log('Skilland: Fetching topics for course', skillandCourseId);
-                        console.log('Skilland: About to call mod_skilland_fetch_topics_ajax');
+                        log('Skilland: Fetching topics for course', skillandCourseId);
+                        log('Skilland: About to call mod_skilland_fetch_topics_ajax');
                         ajax.call([{
                             methodname: 'mod_skilland_fetch_topics_ajax',
                             args: {
@@ -1103,7 +1096,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 moodlecourseid: moodleCourseId
                             }
                         }])[0].then(function(response) {
-                            console.log('Skilland: Topics response received', response);
+                            log('Skilland: Topics response received');
 
                             if (response.error) {
                                 showTopicSelectError(topicSelect, errorText);
@@ -1152,7 +1145,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 option.textContent = optionText;
                                 option.value = topic.id;
                                 if (String(topic.id) === String(currentTopicId)) {
-                                    console.log('Skilland: Found matching topic option', topic.id);
+                                    log('Skilland: Found matching topic option', topic.id);
                                     option.selected = true;
                                 }
                                 topicSelect.appendChild(option);
@@ -1167,7 +1160,7 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                             // If we have a current topic ID, fetch its lessons immediately
                         if (currentTopicId) {
-                            console.log('Skilland: Attempting to restore topic selection', currentTopicId);
+                            log('Skilland: Attempting to restore topic selection', currentTopicId);
                             topicSelect.value = String(currentTopicId);
                             if (savedTopicInput) {
                                 savedTopicInput.value = currentTopicId;
@@ -1177,10 +1170,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                         }
 
                         }).catch(function(error) {
-                            console.error('Skilland: AJAX error - Full error object:', error);
-                            console.error('Skilland: Error message:', error.message);
-                            console.error('Skilland: Error type:', typeof error);
-                            console.error('Skilland: Error keys:', Object.keys(error));
+                            log('Skilland: AJAX error', error && error.message);
                             showTopicSelectError(topicSelect, errorText);
                             notification.addNotification({
                                 message: escapeHtml('Failed to fetch topics from Skilland: ' + (error.message || JSON.stringify(error))),

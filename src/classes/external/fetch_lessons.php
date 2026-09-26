@@ -101,17 +101,10 @@ class fetch_lessons extends base {
                 'lessons' => $formatted,
                 'error' => null,
             ];
-        } catch (\moodle_exception $e) {
-            logger::error('AJAX', 'fetch_lessons error: ' . $e->getMessage());
-            return [
-                'lessons' => [],
-                'error' => $e->getMessage(),
-            ];
         } catch (\Exception $e) {
-            logger::error('AJAX', 'fetch_lessons error: ' . $e->getMessage());
             return [
                 'lessons' => [],
-                'error' => $e->getMessage(),
+                'error' => self::client_error($e, 'fetch_lessons'),
             ];
         }
     }

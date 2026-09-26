@@ -387,10 +387,14 @@ class locallib_http_security_test extends TestCase {
     public function test_graphql_curl_error_surfaces_as_exception(): void {
         $this->config('https://api.skilland.ai/graphql');
         $GLOBALS['_test_curl_response'] = ['body' => '', 'http_code' => 0, 'errno' => 60, 'error' => 'SSL certificate problem'];
+        $GLOBALS['_test_debug_messages'] = [];
 
         $e = $this->expect_code(fn() => mod_skilland_graphql('{ ok }'), 'error_graphql_http');
-        $this->assertStringContainsString('SSL certificate problem', (string) $e->a);
-        $this->assertStringContainsString('errno: 60', (string) $e->a);
+        // SKL-670: the exception carries only the status; the curl details go to the log.
+        $this->assertSame('HTTP 0', $e->a);
+        $log = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+        $this->assertStringContainsString('SSL certificate problem', $log);
+        $this->assertStringContainsString('errno: 60', $log);
     }
 
     public function test_download_404_throws_and_removes_temp_file(): void {

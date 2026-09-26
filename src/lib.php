@@ -89,10 +89,6 @@ function skilland_add_instance($skilland, $mform = null) {
     global $DB;
     require_once(__DIR__ . '/locallib.php');
 
-    logger::debug('Instance', 'skilland_add_instance called');
-    logger::debug('Instance', 'skilland_topicid = ' . (isset($skilland->skilland_topicid) ? $skilland->skilland_topicid : 'NOT SET'));
-    logger::debug('Instance', 'skilland_topicid_saved = ' . (isset($skilland->skilland_topicid_saved) ? $skilland->skilland_topicid_saved : 'NOT SET'));
-
     $skilland->timecreated = time();
     $skilland->timemodified = time();
 
@@ -104,11 +100,10 @@ function skilland_add_instance($skilland, $mform = null) {
     // that don't match original options defined at PHP time).
     if (!empty($skilland->skilland_topicid_saved)) {
         $skilland->skilland_topicid = $skilland->skilland_topicid_saved;
-        logger::debug('Instance', 'Using skilland_topicid_saved: ' . $skilland->skilland_topicid);
     }
     unset($skilland->skilland_topicid_saved);
 
-    logger::debug('Instance', 'Final skilland_topicid = ' . (isset($skilland->skilland_topicid) ? $skilland->skilland_topicid : 'EMPTY'));
+    logger::debug('Instance', 'skilland_add_instance topic ' . ($skilland->skilland_topicid ?? ''));
 
     skilland_require_topic_in_mapped_course((int)($skilland->course ?? 0), (string)($skilland->skilland_topicid ?? ''));
 
@@ -154,10 +149,6 @@ function skilland_update_instance($skilland, $mform = null) {
     global $DB;
     require_once(__DIR__ . '/locallib.php');
 
-    logger::debug('Instance', 'skilland_update_instance called');
-    logger::debug('Instance', 'skilland_topicid = ' . (isset($skilland->skilland_topicid) ? $skilland->skilland_topicid : 'NOT SET'));
-    logger::debug('Instance', 'skilland_topicid_saved = ' . (isset($skilland->skilland_topicid_saved) ? $skilland->skilland_topicid_saved : 'NOT SET'));
-
     $skilland->timemodified = time();
     $skilland->id = $skilland->instance;
 
@@ -169,11 +160,10 @@ function skilland_update_instance($skilland, $mform = null) {
     // that don't match original options defined at PHP time).
     if (!empty($skilland->skilland_topicid_saved)) {
         $skilland->skilland_topicid = $skilland->skilland_topicid_saved;
-        logger::debug('Instance', 'Using skilland_topicid_saved: ' . $skilland->skilland_topicid);
     }
     unset($skilland->skilland_topicid_saved);
 
-    logger::debug('Instance', 'Final skilland_topicid = ' . (isset($skilland->skilland_topicid) ? $skilland->skilland_topicid : 'EMPTY'));
+    logger::debug('Instance', 'skilland_update_instance topic ' . ($skilland->skilland_topicid ?? ''));
 
     skilland_require_topic_in_mapped_course((int)($skilland->course ?? 0), (string)($skilland->skilland_topicid ?? ''));
 

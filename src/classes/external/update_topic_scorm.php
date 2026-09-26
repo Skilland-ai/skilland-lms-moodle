@@ -104,19 +104,11 @@ class update_topic_scorm extends base {
                 'scormcmid' => $scormcmid,
                 'error' => null,
             ];
-        } catch (\moodle_exception $e) {
-            logger::error('AJAX', 'update_topic_scorm error: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'scormcmid' => 0,
-                'error' => $e->getMessage(),
-            ];
         } catch (\Exception $e) {
-            logger::error('AJAX', 'update_topic_scorm error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'scormcmid' => 0,
-                'error' => $e->getMessage(),
+                'error' => self::client_error($e, 'update_topic_scorm'),
             ];
         }
     }

@@ -76,7 +76,7 @@ try {
     // Get SSO URL
     $ssourl = skilland_get_sso_url($token, $redirect);
 
-    logger::debug('SSO', 'Redirecting user ' . $USER->email . ' to topic ' . $topicid);
+    logger::debug('SSO', 'Redirecting user ' . $USER->id . ' to topic ' . $topicid);
 
     // Redirect to Skilland
     redirect($ssourl);

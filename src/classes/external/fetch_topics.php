@@ -105,19 +105,11 @@ class fetch_topics extends base {
                 'topics' => $formatted,
                 'error' => null,
             ];
-        } catch (\moodle_exception $e) {
-            logger::error('AJAX', 'fetch_topics error: ' . $e->getMessage());
-            return [
-                'course' => null,
-                'topics' => [],
-                'error' => $e->getMessage(),
-            ];
         } catch (\Exception $e) {
-            logger::error('AJAX', 'fetch_topics error: ' . $e->getMessage());
             return [
                 'course' => null,
                 'topics' => [],
-                'error' => $e->getMessage(),
+                'error' => self::client_error($e, 'fetch_topics'),
             ];
         }
     }

@@ -105,7 +105,7 @@ class check_topic_snapshot extends base {
             return [
                 'isstale' => false,
                 'contenthash' => '',
-                'error' => $e->getMessage(),
+                'error' => self::client_error($e, 'check_topic_snapshot'),
             ];
         }
     }

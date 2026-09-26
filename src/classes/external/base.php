@@ -18,6 +18,7 @@
 namespace mod_skilland\external;
 
 use core_external\external_api;
+use mod_skilland\logger;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -44,5 +45,20 @@ abstract class base extends external_api {
         if (!skilland_is_enabled()) {
             throw new \moodle_exception('error_plugin_disabled', 'mod_skilland');
         }
+    }
+
+    /**
+     * Log a failure in full and return the message that is safe to show the client.
+     *
+     * The raw exception message (endpoint, curl error, SQL) only goes to the log; the
+     * client gets mod_skilland_client_error_message().
+     *
+     * @param \Throwable $e The caught exception.
+     * @param string $fn The external function name, for the log line.
+     * @return string
+     */
+    protected static function client_error(\Throwable $e, string $fn): string {
+        logger::error('AJAX', $fn . ' error: ' . $e->getMessage());
+        return mod_skilland_client_error_message($e);
     }
 }

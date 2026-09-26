@@ -118,17 +118,10 @@ class fetch_courses extends base {
                 'courses' => $formatted,
                 'error' => null,
             ];
-        } catch (\moodle_exception $e) {
-            logger::error('AJAX', 'fetch_courses error: ' . $e->getMessage());
-            return [
-                'courses' => [],
-                'error' => $e->getMessage(),
-            ];
         } catch (\Exception $e) {
-            logger::error('AJAX', 'fetch_courses error: ' . $e->getMessage());
             return [
                 'courses' => [],
-                'error' => $e->getMessage(),
+                'error' => self::client_error($e, 'fetch_courses'),
             ];
         }
     }

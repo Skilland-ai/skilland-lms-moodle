@@ -97,21 +97,12 @@ class create_course extends base {
                 'redirect_url' => $redirecturl,
                 'error' => null,
             ];
-        } catch (\moodle_exception $e) {
-            logger::error('AJAX', 'create_course error: ' . $e->getMessage());
-            return [
-                'skillid' => '',
-                'name' => '',
-                'redirect_url' => '',
-                'error' => $e->getMessage(),
-            ];
         } catch (\Exception $e) {
-            logger::error('AJAX', 'create_course error: ' . $e->getMessage());
             return [
                 'skillid' => '',
                 'name' => '',
                 'redirect_url' => '',
-                'error' => $e->getMessage(),
+                'error' => self::client_error($e, 'create_course'),
             ];
         }
     }

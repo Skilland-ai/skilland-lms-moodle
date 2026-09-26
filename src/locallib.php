@@ -421,7 +421,7 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     $apikey = $config->apikey ?? '';
     $endpoint = $config->graphql_endpoint ?? '';
 
-    logger::debug('GraphQL', 'Starting request to ' . $endpoint);
+    logger::debug('GraphQL', 'Starting request to ' . mod_skilland_redact_url($endpoint));
     logger::debug('GraphQL', 'Org ID: ' . ($orgid ? 'SET' : 'MISSING'));
     logger::debug('GraphQL', 'API Key: ' . ($apikey ? 'SET' : 'MISSING'));
 
@@ -466,7 +466,7 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
         'X-Skilland-Api-Key: ' . $apikey
     ];
     $curl->setHeader($headers);
-    logger::debug('GraphQL', 'Headers set, making POST request to ' . $endpoint);
+    logger::debug('GraphQL', 'Headers set, making POST request to ' . mod_skilland_redact_url($endpoint));
     logger::debug('GraphQL', 'Payload length: ' . strlen($jsonpayload));
 
     // Make POST request.
@@ -488,7 +488,6 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     logger::debug('GraphQL', 'HTTP code: ' . $httpcode);
     logger::debug('GraphQL', 'CURL errno: ' . $errno);
     logger::debug('GraphQL', 'CURL error: ' . $curlerror);
-    logger::debug('GraphQL', 'CURL info dump: ' . print_r($info, true));
 
     if ($httpcode >= 300 && $httpcode < 400) {
         logger::error('GraphQL', 'Refusing redirect (HTTP ' . $httpcode . ') from ' . mod_skilland_redact_url($endpoint));
@@ -496,53 +495,30 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     }
 
     if ($httpcode < 200 || $httpcode >= 300) {
-        if ($errno) {
-            // CURL error occurred (connection failed, DNS, SSL, etc.)
-            $errormsg = 'HTTP error when calling Skilland API at ' . $endpoint . ': ' . $curlerror . ' (errno: ' . $errno . ')';
-
-            // Check if this is a connection refused error and suggest Docker host fix
-            if ($errno == 7 || (strpos($curlerror, 'Connection refused') !== false || strpos($curlerror, 'Could not connect') !== false)) {
-                $parsed = parse_url($endpoint);
-                $host = $parsed['host'] ?? '';
-
-                // If using localhost and connection fails, suggest host.docker.internal for Docker
-                if ($host === 'localhost' || $host === '127.0.0.1') {
-                    $suggestedEndpoint = str_replace($host, 'host.docker.internal', $endpoint);
-                    $errormsg .= ' If Moodle is running in Docker, try using "host.docker.internal" instead of "localhost" in the GraphQL endpoint setting. Suggested endpoint: ' . $suggestedEndpoint;
-                }
-            }
-
-            logger::error('GraphQL', 'CURL error - ' . $errormsg);
-        } else if ($httpcode == 0) {
-            // HTTP 0 usually means connection failed - include curl error details if available
+        // The exception carries only the status: the endpoint and curl details go to the log.
+        $safeendpoint = mod_skilland_redact_url($endpoint);
+        if ($errno || $httpcode == 0) {
             $details = '';
             if ($errno) {
-                $details = ' CURL errno: ' . $errno;
+                $details .= ' (errno: ' . $errno . ')';
             }
             if ($curlerror && $curlerror !== 'Unknown error') {
-                $details .= ' CURL error: ' . $curlerror;
+                $details .= ' ' . $curlerror;
             }
+            logger::error('GraphQL', 'Connection to Skilland API at ' . $safeendpoint . ' failed: HTTP ' . $httpcode .
+                $details);
 
-            $errormsg = 'HTTP error when calling Skilland API at ' . $endpoint . ': HTTP 0 (Connection failed.' . $details . ' Check endpoint URL and network connectivity.)';
-
-            // Check if this is a connection refused error and suggest Docker host fix
-            if ($errno == 7 || (strpos($curlerror, 'Connection refused') !== false || strpos($curlerror, 'Could not connect') !== false)) {
-                $parsed = parse_url($endpoint);
-                $host = $parsed['host'] ?? '';
-
-                // If using localhost and connection fails, suggest host.docker.internal for Docker
-                if ($host === 'localhost' || $host === '127.0.0.1') {
-                    $suggestedEndpoint = str_replace($host, 'host.docker.internal', $endpoint);
-                    $errormsg .= ' If Moodle is running in Docker, try using "host.docker.internal" instead of "localhost" in the GraphQL endpoint setting. Suggested endpoint: ' . $suggestedEndpoint;
-                }
+            $refused = $errno == 7 || strpos($curlerror, 'Connection refused') !== false ||
+                strpos($curlerror, 'Could not connect') !== false;
+            $host = (string) parse_url($endpoint, PHP_URL_HOST);
+            if ($refused && ($host === 'localhost' || $host === '127.0.0.1')) {
+                logger::debug('GraphQL', 'If Moodle is running in Docker, use "host.docker.internal" instead of "' .
+                    $host . '" in the GraphQL endpoint setting.');
             }
-
-            logger::error('GraphQL', 'HTTP 0 error - Connection failed to ' . $endpoint . $details);
         } else {
-            $errormsg = 'HTTP error when calling Skilland API at ' . $endpoint . ': HTTP ' . $httpcode;
-            logger::error('GraphQL', 'HTTP error - ' . $httpcode . ' for endpoint ' . $endpoint);
+            logger::error('GraphQL', 'HTTP error ' . $httpcode . ' from Skilland API at ' . $safeendpoint);
         }
-        throw new moodle_exception('error_graphql_http', 'mod_skilland', '', $errormsg);
+        throw new moodle_exception('error_graphql_http', 'mod_skilland', '', 'HTTP ' . $httpcode);
     }
 
     // Decode JSON response.
@@ -875,6 +851,10 @@ GRAPHQL;
             'mappings' => $mappings,
         ];
     } catch (moodle_exception $e) {
+        // A user-facing error (not available, configuration) keeps its own code.
+        if ($e->module === 'mod_skilland' && in_array($e->errorcode, MOD_SKILLAND_CLIENT_ERROR_CODES, true)) {
+            throw $e;
+        }
         // Check for specific error codes in the message.
         $message = $e->getMessage();
         if (strpos($message, 'SCORM_NOT_AVAILABLE') !== false) {
@@ -883,8 +863,8 @@ GRAPHQL;
         if (strpos($message, 'TOPIC_NOT_FOUND') !== false) {
             throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
         }
-        // Re-throw with context.
-        throw new moodle_exception('error_scorm_fetch_failed', 'mod_skilland', '', $e->getMessage());
+        logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . $message);
+        throw new moodle_exception('error_scorm_fetch_failed', 'mod_skilland');
     }
 }
 
@@ -2179,4 +2159,57 @@ function mod_skilland_map_graphql_error(array $error): never {
             $finalMessage = $errordetails ?: $errormessage;
             throw new moodle_exception('error_graphql', 'mod_skilland', '', $finalMessage);
     }
+}
+
+/** Error codes whose language string is safe and useful to show a client as is. */
+const MOD_SKILLAND_CLIENT_ERROR_CODES = [
+    'error_config_missing_orgid',
+    'error_config_missing_apikey',
+    'error_config_missing_endpoint',
+    'error_config_invalid_credentials',
+    'error_config_missing_topicid',
+    'error_config_missing_courseid',
+    'error_config_missing_lessonid',
+    'error_http_redirect',
+    'error_scorm_not_available',
+    'error_plugin_disabled',
+    'error_course_not_mapped',
+    'error_course_not_mapped_to_skill',
+    'error_lessons_not_in_topic',
+    'error_provision_in_progress',
+];
+
+/**
+ * The message a web service may return to the browser for a caught exception.
+ *
+ * Only mod_skilland errors that tell the user what to fix pass through, as their language
+ * string without $a or debuginfo (error_http_redirect keeps its numeric status). Anything else
+ * (error_graphql, error_graphql_http, error_graphql_invalid_json, error_scorm_fetch_failed,
+ * dml_exception, plain exceptions) becomes error_api_unavailable, so endpoints, curl errors and
+ * SQL never reach the client. With devmode on, the raw message is appended for debugging.
+ *
+ * Pass-through allowlist: error_config_missing_orgid, error_config_missing_apikey,
+ * error_config_missing_endpoint, error_config_invalid_credentials, error_config_missing_topicid,
+ * error_config_missing_courseid, error_config_missing_lessonid, error_http_redirect,
+ * error_scorm_not_available, error_plugin_disabled, error_course_not_mapped,
+ * error_course_not_mapped_to_skill, error_lessons_not_in_topic, error_provision_in_progress.
+ * Add any future user-facing error code to MOD_SKILLAND_CLIENT_ERROR_CODES.
+ *
+ * @param \Throwable $e The caught exception.
+ * @return string
+ */
+function mod_skilland_client_error_message(\Throwable $e): string {
+    $message = get_string('error_api_unavailable', 'mod_skilland');
+    if ($e instanceof moodle_exception && !($e instanceof dml_exception) && $e->module === 'mod_skilland' &&
+            in_array($e->errorcode, MOD_SKILLAND_CLIENT_ERROR_CODES, true)) {
+        $a = null;
+        if ($e->errorcode === 'error_http_redirect' && is_numeric($e->a)) {
+            $a = (int) $e->a;
+        }
+        $message = get_string($e->errorcode, 'mod_skilland', $a);
+    }
+    if (get_config('mod_skilland', 'devmode')) {
+        $message .= ' (' . $e->getMessage() . ')';
+    }
+    return $message;
 }

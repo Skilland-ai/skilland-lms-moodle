@@ -85,6 +85,7 @@ $string['error_http_redirect'] = 'El servidor de Skilland respondió con una red
 $string['error_package_host_not_allowed'] = 'No se pueden descargar paquetes SCORM desde {$a}. Añade el host al ajuste de hosts de paquetes SCORM si es de confianza.';
 $string['error_package_too_large'] = 'El paquete SCORM supera el límite de {$a} MB.';
 $string['error_package_not_zip'] = 'El paquete SCORM descargado no es un archivo zip válido.';
+$string['error_api_unavailable'] = 'No se pudo contactar con el servicio de SkilLand. Inténtalo más tarde o pide al administrador del sitio que revise la configuración del plugin de SkilLand.';
 $string['error_graphql_http'] = 'Error HTTP al llamar a la API de Skilland: {$a}';
 $string['error_graphql_invalid_json'] = 'Respuesta JSON inválida de la API de Skilland';
 $string['error_graphql'] = 'Error de GraphQL: {$a}';
@@ -126,7 +127,7 @@ $string['scorm_missing_reprovision'] = 'El paquete de contenido de esta activida
 
 // SCORM integration.
 $string['error_scorm_not_available'] = 'El contenido SCORM no está disponible para esta lección.';
-$string['error_scorm_fetch_failed'] = 'Error al obtener el paquete SCORM de Skilland: {$a}';
+$string['error_scorm_fetch_failed'] = 'Error al obtener el paquete SCORM de Skilland.';
 $string['error_scorm_download_failed'] = 'Error al descargar el paquete SCORM: {$a}';
 $string['error_scorm_hash_mismatch'] = 'La verificación de integridad del paquete SCORM falló. El archivo descargado puede estar corrupto.';
 $string['error_scorm_create_failed'] = 'Error al crear la actividad SCORM: {$a}';

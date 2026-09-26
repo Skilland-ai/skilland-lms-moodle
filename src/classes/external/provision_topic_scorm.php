@@ -102,19 +102,11 @@ class provision_topic_scorm extends base {
                 'scormcmid' => $scormcmid,
                 'error' => null,
             ];
-        } catch (\moodle_exception $e) {
-            logger::error('AJAX', 'provision_topic_scorm error: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'scormcmid' => 0,
-                'error' => $e->getMessage(),
-            ];
         } catch (\Exception $e) {
-            logger::error('AJAX', 'provision_topic_scorm error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'scormcmid' => 0,
-                'error' => $e->getMessage(),
+                'error' => self::client_error($e, 'provision_topic_scorm'),
             ];
         }
     }
