@@ -103,7 +103,7 @@ class lib_update_instance_reconcile_test extends TestCase {
             ]]]);
         $GLOBALS['_test_curl_responses'][] = $this->response(['topicScorm' => [
             'packageUrl' => 'https://cdn.skilland.ai/topic2.zip',
-            'packageSize' => 100,
+            'packageSize' => strlen($this->zipbytes()),
             'packageHash' => '',
             'generatedAt' => '2026-01-02T00:00:00Z',
             'expiresAt' => '',

@@ -15,7 +15,8 @@ class locallib_graphql_test extends TestCase {
     }
 
     protected function tearDown(): void {
-        unset($GLOBALS['_test_curl_response']);
+        unset($GLOBALS['_test_curl_response'], $GLOBALS['_test_curl_responses'], $GLOBALS['_test_curl_requests']);
+        $GLOBALS['_test_skilland_sleeps'] = [];
         parent::tearDown();
     }
 
@@ -562,6 +563,321 @@ class locallib_graphql_test extends TestCase {
             'array entry' => [[['message' => 'm']], ['message' => 'm']],
             'string entry' => [['boom'], ['message' => 'boom']],
             'int entry' => [[42], ['message' => '42']],
+        ];
+    }
+
+    // ---------------------------------------------------------------
+    // Non-2xx bodies and retries (SKL-672)
+    // ---------------------------------------------------------------
+
+    /**
+     * Queue one curl response per request and start recording requests and sleeps.
+     *
+     * @param array ...$responses
+     */
+    private function queue(array ...$responses): void {
+        $this->setValidConfig();
+        unset($GLOBALS['_test_curl_response']);
+        $GLOBALS['_test_curl_responses'] = $responses;
+        $GLOBALS['_test_curl_requests'] = [];
+        $GLOBALS['_test_skilland_sleeps'] = [];
+    }
+
+    private static function resp(int $code, string $body = '', int $errno = 0, array $headers = []): array {
+        return ['body' => $body, 'http_code' => $code, 'errno' => $errno, 'error' => '', 'headers' => $headers];
+    }
+
+    private static function ok(): array {
+        return self::resp(200, json_encode(['data' => ['courses' => [['id' => '1']]]]));
+    }
+
+    private static function errors_body(string $code): string {
+        return json_encode(['errors' => [['message' => 'Denied', 'extensions' => ['code' => $code]]]]);
+    }
+
+    private function graphql_failure(string $query = 'query MoodleListCourses { courses { id } }'): \moodle_exception {
+        try {
+            mod_skilland_graphql($query);
+        } catch (\moodle_exception $e) {
+            return $e;
+        }
+        $this->fail('Expected moodle_exception');
+    }
+
+    private function requests(): int {
+        return count($GLOBALS['_test_curl_requests'] ?? []);
+    }
+
+    public function test_401_with_graphql_errors_carries_the_graphql_code(): void {
+        $this->queue(self::resp(401, self::errors_body('SKILLAND_API_KEY_INACTIVE')));
+
+        $e = $this->graphql_failure();
+
+        $this->assertInstanceOf(\mod_skilland\graphql_exception::class, $e);
+        $this->assertSame('SKILLAND_API_KEY_INACTIVE', $e->graphqlcode);
+        $this->assertSame('error_graphql', $e->errorcode);
+        $this->assertSame(1, $this->requests());
+    }
+
+    public function test_403_invalid_api_key_maps_to_invalid_credentials(): void {
+        $this->queue(self::resp(403, self::errors_body('SKILLAND_INVALID_API_KEY')));
+
+        $e = $this->graphql_failure();
+
+        $this->assertInstanceOf(\mod_skilland\graphql_exception::class, $e);
+        $this->assertSame('error_config_invalid_credentials', $e->errorcode);
+        $this->assertSame('SKILLAND_INVALID_API_KEY', $e->graphqlcode);
+    }
+
+    /**
+     * @dataProvider plain_http_failures
+     */
+    public function test_non_2xx_without_usable_errors_is_error_graphql_http(int $code, string $body): void {
+        $this->queue(self::resp($code, $body));
+
+        $e = $this->graphql_failure();
+
+        $this->assertSame('error_graphql_http', $e->errorcode);
+        $this->assertSame('HTTP ' . $code, $e->a);
+        $this->assertSame(1, $this->requests());
+    }
+
+    public static function plain_http_failures(): array {
+        return [
+            '400 with empty errors' => [400, json_encode(['errors' => []])],
+            '400 with malformed errors' => [400, json_encode(['errors' => 'nope'])],
+            '401 html' => [401, '<html><body>Unauthorized</body></html>'],
+            '404 empty' => [404, ''],
+        ];
+    }
+
+    public function test_body_snippet_goes_to_the_debug_log_only(): void {
+        $this->queue(self::resp(401, '<html>BODYSECRET ' . str_repeat('x', 500) . '</html>'));
+        $GLOBALS['_test_plugin_config']['mod_skilland']->devmode = 1;
+        \mod_skilland\logger::reset_cache();
+
+        $e = $this->graphql_failure();
+
+        $this->assertSame('HTTP 401', $e->a);
+        foreach ([(string) $e->a, $e->getMessage(), (string) $e->debuginfo] as $text) {
+            $this->assertStringNotContainsString('BODYSECRET', $text);
+            $this->assertStringNotContainsString('localhost', $text);
+        }
+        $log = $this->debug_log();
+        $this->assertStringContainsString('BODYSECRET', $log);
+        $this->assertStringNotContainsString(str_repeat('x', 200), $log);
+    }
+
+    public function test_body_snippet_is_not_logged_without_devmode(): void {
+        $this->queue(self::resp(401, 'BODYSECRET'));
+
+        $this->graphql_failure();
+
+        $this->assertStringNotContainsString('BODYSECRET', $this->debug_log());
+    }
+
+    public function test_503_then_200_retries_once(): void {
+        $this->queue(self::resp(503, 'busy'), self::ok());
+
+        $data = mod_skilland_graphql('query MoodleListCourses { courses { id } }');
+
+        $this->assertSame('1', $data['courses'][0]['id']);
+        $this->assertSame(2, $this->requests());
+        $this->assertCount(1, $GLOBALS['_test_skilland_sleeps']);
+        $this->assertGreaterThanOrEqual(250, $GLOBALS['_test_skilland_sleeps'][0]);
+        $this->assertLessThanOrEqual(500, $GLOBALS['_test_skilland_sleeps'][0]);
+    }
+
+    public function test_retry_is_logged_as_a_warning_without_the_endpoint(): void {
+        $this->queue(self::resp(503, 'busy'), self::ok());
+
+        mod_skilland_graphql('query MoodleListCourses { courses { id } }');
+
+        $warnings = array_values(array_filter($GLOBALS['_test_debug_messages'],
+            fn($m) => strpos($m['message'], 'Retrying') !== false));
+        $this->assertCount(1, $warnings);
+        $this->assertStringContainsString('WARNING: Retrying MoodleListCourses after HTTP 503 (attempt 2/3)',
+            $warnings[0]['message']);
+        $this->assertStringNotContainsString('localhost', $warnings[0]['message']);
+    }
+
+    public function test_gateway_errors_give_up_after_three_attempts(): void {
+        $this->queue(self::resp(502), self::resp(504), self::resp(504));
+
+        $e = $this->graphql_failure();
+
+        $this->assertSame('error_graphql_http', $e->errorcode);
+        $this->assertSame('HTTP 504', $e->a);
+        $this->assertSame(3, $this->requests());
+        $this->assertCount(2, $GLOBALS['_test_skilland_sleeps']);
+        $this->assertGreaterThanOrEqual(500, $GLOBALS['_test_skilland_sleeps'][1]);
+        $this->assertLessThanOrEqual(750, $GLOBALS['_test_skilland_sleeps'][1]);
+    }
+
+    public function test_connection_refused_then_200_succeeds(): void {
+        $this->queue(self::resp(0, '', 7), self::ok());
+
+        $data = mod_skilland_graphql('query MoodleListCourses { courses { id } }');
+
+        $this->assertSame('1', $data['courses'][0]['id']);
+        $this->assertSame(2, $this->requests());
+    }
+
+    public function test_tls_certificate_error_is_not_retried(): void {
+        $this->queue(self::resp(0, '', 60), self::ok());
+
+        $this->assertSame('HTTP 0', $this->graphql_failure()->a);
+        $this->assertSame(1, $this->requests());
+    }
+
+    /**
+     * @dataProvider retry_after_cases
+     */
+    public function test_retry_after_on_429_and_503(int $code, array $headers, int $min, int $max): void {
+        $this->queue(self::resp($code, '', 0, $headers), self::ok());
+
+        mod_skilland_graphql('query MoodleListCourses { courses { id } }');
+
+        $this->assertCount(1, $GLOBALS['_test_skilland_sleeps']);
+        $this->assertGreaterThanOrEqual($min, $GLOBALS['_test_skilland_sleeps'][0]);
+        $this->assertLessThanOrEqual($max, $GLOBALS['_test_skilland_sleeps'][0]);
+    }
+
+    public static function retry_after_cases(): array {
+        return [
+            '429 two seconds' => [429, ['Retry-After' => '2'], 2000, 2000],
+            '429 lower-case header' => [429, ['retry-after' => '2'], 2000, 2000],
+            '503 capped at five seconds' => [503, ['Retry-After' => '60'], 5000, 5000],
+            '429 http-date is ignored' => [429, ['Retry-After' => 'Wed, 21 Oct 2026 07:28:00 GMT'], 250, 500],
+            '429 garbage is ignored' => [429, ['Retry-After' => '1.5s'], 250, 500],
+            '502 ignores retry-after' => [502, ['Retry-After' => '2'], 250, 500],
+        ];
+    }
+
+    public function test_500_with_graphql_errors_is_mapped_without_retry(): void {
+        $this->queue(self::resp(500, self::errors_body('SKILLAND_ORG_NOT_FOUND')), self::ok());
+
+        $e = $this->graphql_failure();
+
+        $this->assertInstanceOf(\mod_skilland\graphql_exception::class, $e);
+        $this->assertSame('SKILLAND_ORG_NOT_FOUND', $e->graphqlcode);
+        $this->assertSame(1, $this->requests());
+        $this->assertSame([], $GLOBALS['_test_skilland_sleeps']);
+    }
+
+    public function test_500_without_graphql_errors_is_retried(): void {
+        $this->queue(self::resp(500, 'Internal Server Error'), self::ok());
+
+        mod_skilland_graphql('query MoodleListCourses { courses { id } }');
+
+        $this->assertSame(2, $this->requests());
+    }
+
+    /**
+     * @dataProvider non_retried_client_errors
+     */
+    public function test_client_errors_are_not_retried(int $code): void {
+        $this->queue(self::resp($code, 'nope'), self::ok());
+
+        $this->assertSame('HTTP ' . $code, $this->graphql_failure()->a);
+        $this->assertSame(1, $this->requests());
+    }
+
+    public static function non_retried_client_errors(): array {
+        return ['400' => [400], '401' => [401], '403' => [403], '404' => [404]];
+    }
+
+    public function test_2xx_with_graphql_errors_is_not_retried(): void {
+        $this->queue(self::resp(200, self::errors_body('SKILLAND_ORG_NOT_FOUND')), self::ok());
+
+        $this->graphql_failure();
+
+        $this->assertSame(1, $this->requests());
+    }
+
+    public function test_create_course_mutation_is_not_retried(): void {
+        $this->queue(self::resp(503, 'busy'), self::ok());
+
+        try {
+            mod_skilland_create_course('Course', 'teacher@example.com');
+            $this->fail('Expected moodle_exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_graphql_http', $e->errorcode);
+        }
+        $this->assertSame(1, $this->requests());
+        $this->assertSame([], $GLOBALS['_test_skilland_sleeps']);
+    }
+
+    public function test_commented_mutation_is_not_retried(): void {
+        $this->queue(self::resp(503, 'busy'), self::ok());
+
+        $e = $this->graphql_failure("  \n  # creates a course\nmutation MoodleCreateCourse { createSkillFromMoodle { id } }");
+
+        $this->assertSame('HTTP 503', $e->a);
+        $this->assertSame(1, $this->requests());
+    }
+
+    public function test_retry_delay_ms_bounds(): void {
+        for ($i = 0; $i < 50; $i++) {
+            $first = mod_skilland_retry_delay_ms(1, null);
+            $second = mod_skilland_retry_delay_ms(2, null);
+            $this->assertGreaterThanOrEqual(250, $first);
+            $this->assertLessThanOrEqual(500, $first);
+            $this->assertGreaterThanOrEqual(500, $second);
+            $this->assertLessThanOrEqual(750, $second);
+        }
+        $this->assertSame(0, mod_skilland_retry_delay_ms(1, '0'));
+        $this->assertSame(3000, mod_skilland_retry_delay_ms(2, ' 3 '));
+        $this->assertSame(5000, mod_skilland_retry_delay_ms(1, '3600'));
+    }
+
+    /**
+     * @dataProvider mutation_cases
+     */
+    public function test_graphql_is_mutation(string $query, bool $expected): void {
+        $this->assertSame($expected, mod_skilland_graphql_is_mutation($query));
+    }
+
+    public static function mutation_cases(): array {
+        return [
+            'named mutation' => ['mutation Foo { a }', true],
+            'leading spaces, no name' => ['  mutation{ a }', true],
+            'comment line first' => ["# c\nmutation X { a }", true],
+            'named query' => ['query X { a }', false],
+            'shorthand query' => ['{ a }', false],
+            'query named like a mutation' => ['query mutationLike { a }', false],
+            'mutation prefix of a longer word' => ['mutations { a }', false],
+            'only a comment' => ['# mutation', false],
+        ];
+    }
+
+    /**
+     * @dataProvider transient_cases
+     */
+    public function test_is_transient(int $code, int $errno, ?array $body, bool $expected): void {
+        $this->assertSame($expected, mod_skilland_is_transient($code, $errno, $body));
+    }
+
+    public static function transient_cases(): array {
+        return [
+            'dns' => [0, 6, null, true],
+            'refused' => [0, 7, null, true],
+            'timeout' => [0, 28, null, true],
+            'tls handshake' => [0, 35, null, true],
+            'empty reply' => [0, 52, null, true],
+            'recv error' => [0, 56, null, true],
+            'certificate' => [0, 60, null, false],
+            'no errno' => [0, 0, null, false],
+            '429' => [429, 0, null, true],
+            '502' => [502, 0, null, true],
+            '503' => [503, 0, null, true],
+            '504' => [504, 0, null, true],
+            '500 plain' => [500, 0, null, true],
+            '500 empty errors' => [500, 0, ['errors' => []], true],
+            '500 graphql errors' => [500, 0, ['errors' => [['message' => 'x']]], false],
+            '501' => [501, 0, null, false],
+            '400' => [400, 0, null, false],
+            '401' => [401, 0, null, false],
         ];
     }
 }

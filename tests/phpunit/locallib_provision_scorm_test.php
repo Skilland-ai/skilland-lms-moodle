@@ -93,14 +93,15 @@ class locallib_provision_scorm_test extends TestCase {
     }
 
     /** Queue the topicScorm GraphQL answer and the package download. */
-    private function queue_package(array $mappings = ['L1' => 'sco_1', 'L2' => 'sco_2'], string $hash = ''): void {
+    private function queue_package(array $mappings = ['L1' => 'sco_1', 'L2' => 'sco_2'], string $hash = '',
+            ?int $size = null): void {
         $list = [];
         foreach ($mappings as $lessonid => $scoid) {
             $list[] = ['lessonId' => $lessonid, 'scoId' => $scoid];
         }
         $GLOBALS['_test_curl_responses'][] = $this->response(['topicScorm' => [
             'packageUrl' => 'https://cdn.skilland.ai/topic1.zip',
-            'packageSize' => 100,
+            'packageSize' => $size ?? strlen($this->zipbytes()),
             'packageHash' => $hash,
             'generatedAt' => '2026-01-02T00:00:00Z',
             'expiresAt' => '',
@@ -880,5 +881,18 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertCount(1, $clears);
         $this->assertNull($clears[0]['data']->scomappings);
         $this->assertSame(['L1' => 'sco_1'], json_decode($this->skilland()->scomappings, true));
+    }
+
+    public function test_package_size_mismatch_creates_no_module_and_removes_temp_file(): void {
+        $before = $this->tempfiles();
+        $this->queue_package(['L1' => 'sco_1', 'L2' => 'sco_2'], '', strlen($this->zipbytes()) + 1);
+
+        $e = $this->expect_code(fn() => skilland_provision_topic_scorm($this->skilland(), $this->course(), 0),
+            'error_scorm_download_failed');
+
+        $this->assertSame('Size mismatch', $e->a);
+        $this->assertEmpty($GLOBALS['_test_create_module_calls'] ?? []);
+        $this->assertEmpty($this->skilland()->scormcmid);
+        $this->assertSame($before, $this->tempfiles());
     }
 }
