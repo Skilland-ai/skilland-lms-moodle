@@ -769,4 +769,38 @@ class integrity_test extends TestCase {
                 "$lang error_scorm_fetch_failed carries no inner message");
         }
     }
+
+    // ---------------------------------------------------------------
+    // Course mapping field (SKL-664)
+    // ---------------------------------------------------------------
+
+    public function test_events_file_declares_course_updated_observer(): void {
+        $observers = null;
+        require self::$srcDir . '/db/events.php';
+        $found = array_values(array_filter($observers,
+            fn($o) => ($o['eventname'] ?? '') === '\\core\\event\\course_updated'));
+        $this->assertCount(1, $found);
+        $this->assertFalse($found[0]['internal']);
+
+        [$class, $method] = explode('::', $found[0]['callback']);
+        $class = ltrim($class, '\\');
+        $this->assertTrue(class_exists($class), "Observer class $class not found");
+        $this->assertTrue(method_exists($class, $method), "Observer method $class::$method not found");
+    }
+
+    public function test_skl664_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include self::$srcDir . "/lang/$lang/skilland.php";
+            foreach (['create_course_confirm_title', 'create_course_confirm_body', 'create_course_confirm_replace',
+                    'create_course_confirm_yes', 'course_unknown', 'course_unknown_warning',
+                    'open_new_course_in_skilland'] as $key) {
+                $this->assertNotEmpty($string[$key] ?? '', "$lang string $key");
+            }
+            foreach (['create_course_confirm_body', 'course_unknown'] as $key) {
+                $this->assertStringContainsString('{$a}', $string[$key], "$lang string $key takes {\$a}");
+            }
+            $this->assertStringNotContainsString('+', $string['create_in_skilland'], "$lang create_in_skilland");
+        }
+    }
 }

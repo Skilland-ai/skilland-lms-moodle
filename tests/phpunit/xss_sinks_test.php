@@ -260,13 +260,10 @@ class xss_sinks_test extends TestCase {
             $returns
         );
 
+        // SKL-664: the course form never opens redirect_url; the Studio link is offered after the save.
         $hooks = $this->source('classes/hooks.php');
-        $this->assertStringContainsString('/^https?:\\/\\//i.test(pendingRedirectUrl)', $hooks);
-        $this->assertSame(1, substr_count($hooks, 'window.open(pendingRedirectUrl'));
-        $this->assertMatchesRegularExpression(
-            '/\.test\(pendingRedirectUrl\)\)\s*\{\s*window\.open\(pendingRedirectUrl/',
-            $hooks,
-            'window.open(pendingRedirectUrl) must sit behind the http(s) scheme check'
-        );
+        $this->assertStringNotContainsString('window.open', $hooks);
+        $this->assertStringNotContainsString('redirect_url', $hooks);
+        $this->assertStringNotContainsString('pendingRedirectUrl', $hooks);
     }
 }

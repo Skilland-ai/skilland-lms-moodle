@@ -670,3 +670,15 @@ if (!function_exists('scorm_grade_item_update')) {
 if (!class_exists('core_completion\\activity_custom_completion')) {
     require_once __DIR__ . '/custom_completion_stub.php';
 }
+
+// sesskey(): a fixed session key, overridable through $GLOBALS['_test_sesskey'].
+if (!function_exists('sesskey')) {
+    function sesskey() {
+        return $GLOBALS['_test_sesskey'] ?? 'testsesskey';
+    }
+}
+
+// Moodle's per-user session object.
+if (!isset($GLOBALS['SESSION'])) {
+    $GLOBALS['SESSION'] = new \stdClass();
+}

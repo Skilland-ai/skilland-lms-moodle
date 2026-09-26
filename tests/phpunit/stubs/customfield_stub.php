@@ -32,6 +32,20 @@ class data_controller {
     public function get_value() {
         return $this->value;
     }
+
+    // set() + save() write the value back to $GLOBALS['_test_customfield_value'] for the course.
+    private $pending = [];
+
+    public function set(string $name, $value) {
+        $this->pending[$name] = $value;
+    }
+
+    public function save() {
+        if (array_key_exists('value', $this->pending)) {
+            $this->value = $this->pending['value'];
+            $GLOBALS['_test_customfield_saved'][] = $this->value;
+        }
+    }
 }
 
 class handler {

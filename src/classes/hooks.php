@@ -29,11 +29,26 @@ class hooks {
             }
 
             if ($courseid) {
-                // Add JavaScript to enhance the Skilland Course ID custom field.
-                // Use inline JavaScript that directly implements the functionality
-                // without relying on AMD module loading.
+                // Turn the SkilLand course ID custom field into a dropdown plus an explicit
+                // "Create in SkilLand" button (SKL-664). Inline JavaScript, no AMD module.
                 $debug = json_encode((bool) get_config('mod_skilland', 'devmode'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT |
                     JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+
+                $course = get_course($courseid);
+                $coursename = json_encode(format_string($course->fullname, true, ['escape' => false]),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $linked = json_encode(!empty(skilland_get_course_customfield_value($courseid)),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                // Placeholders the script swaps for the (escaped) course name and the stale course id.
+                $nameplaceholder = '__SKILLAND_COURSE_NAME__';
+                $idplaceholder = '__SKILLAND_COURSE_ID__';
+                $nameplaceholderjs = json_encode($nameplaceholder, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $idplaceholderjs = json_encode($idplaceholder, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $confirmbody = json_encode(\get_string('create_course_confirm_body', 'mod_skilland', $nameplaceholder),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $unknownlabel = json_encode(\get_string('course_unknown', 'mod_skilland', $idplaceholder),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+
                 $js = "
                 (function() {
                     var debug = " . $debug . ";
@@ -52,7 +67,23 @@ class hooks {
                             .replace(/'/g, '&#39;');
                     }
 
-                    log('Skilland: Initializing course mapping field for course " . $courseid . "');
+                    var moodleCourseId = " . $courseid . ";
+                    var courseName = " . $coursename . ";
+                    var linked = " . $linked . ";
+                    var namePlaceholder = " . $nameplaceholderjs . ";
+                    var idPlaceholder = " . $idplaceholderjs . ";
+                    var strings = {
+                        createInSkilland: " . json_encode(\get_string('create_in_skilland', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
+                        creatingCourse: " . json_encode(\get_string('creating_course', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
+                        confirmTitle: " . json_encode(\get_string('create_course_confirm_title', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
+                        confirmBody: " . $confirmbody . ",
+                        confirmReplace: " . json_encode(\get_string('create_course_confirm_replace', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
+                        confirmYes: " . json_encode(\get_string('create_course_confirm_yes', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
+                        courseUnknown: " . $unknownlabel . ",
+                        courseUnknownWarning: " . json_encode(\get_string('course_unknown_warning', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . "
+                    };
+
+                    log('Skilland: Initializing course mapping field for course', moodleCourseId);
 
                     // Wait for DOM to be ready.
                     if (document.readyState === 'loading') {
@@ -62,267 +93,183 @@ class hooks {
                     }
 
                     function initSkillandField() {
-                        // Find the Skilland Course ID custom field input.
-                        var fieldInput = document.querySelector('input[id*=\"customfield_skilland_course_id\"], input[name*=\"customfield_skilland_course_id\"], input[id*=\"id_customfield_skilland_course_id\"]');
-
-                        if (!fieldInput) {
-                            // Try finding by label text.
-                            var labels = document.querySelectorAll('label');
-                            for (var i = 0; i < labels.length; i++) {
-                                if (labels[i].textContent.indexOf('Skilland Course ID') !== -1) {
-                                    var forAttr = labels[i].getAttribute('for');
-                                    if (forAttr) {
-                                        fieldInput = document.getElementById(forAttr);
-                                        if (fieldInput) break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!fieldInput) {
-                            // Last resort: find input in form item with label.
-                            var fitems = document.querySelectorAll('.fitem');
-                            for (var i = 0; i < fitems.length; i++) {
-                                var label = fitems[i].querySelector('label');
-                                if (label && label.textContent.indexOf('Skilland Course ID') !== -1) {
-                                    fieldInput = fitems[i].querySelector('input[type=\"text\"]');
-                                    if (fieldInput) break;
-                                }
-                            }
-                        }
-
+                        // Moodle names the custom field input after its shortname, whatever its label or language.
+                        var fieldInput = document.querySelector('[name=\"customfield_skilland_course_id\"]');
                         log('Skilland: Found input?', !!fieldInput);
+                        if (!fieldInput) {
+                            return;
+                        }
 
-                        if (fieldInput) {
-                            var currentValue = fieldInput.value;
-                            log('Skilland: Current value', currentValue);
+                        var currentValue = fieldInput.value;
+                        var originalId = fieldInput.id;
+                        if (currentValue !== '') {
+                            linked = true;
+                        }
 
-                            // Find the parent form item (.fitem) that contains the entire field (label + input + description).
-                            var formItem = fieldInput.closest('.fitem');
-                            if (!formItem) {
-                                // Fallback: find parent element that contains the label.
-                                var parent = fieldInput.parentElement;
-                                while (parent && !parent.classList.contains('fitem')) {
-                                    parent = parent.parentElement;
-                                }
-                                formItem = parent;
+                        // The select is the only control that submits the value: it takes the input's
+                        // name and id (so the label still points at it), the input is disabled.
+                        var container = document.createElement('div');
+                        container.className = 'skilland-course-mapping-field';
+
+                        var select = document.createElement('select');
+                        select.className = 'form-control';
+                        select.style.width = '100%';
+                        var loadingOption = document.createElement('option');
+                        loadingOption.value = currentValue;
+                        loadingOption.textContent = 'Loading courses from Skilland...';
+                        select.appendChild(loadingOption);
+
+                        var createBtn = document.createElement('button');
+                        createBtn.type = 'button';
+                        createBtn.id = 'skilland-create-course-btn';
+                        createBtn.className = 'btn btn-secondary mt-2';
+                        createBtn.textContent = strings.createInSkilland;
+                        createBtn.disabled = true;
+
+                        fieldInput.id = originalId + '_raw';
+                        fieldInput.disabled = true;
+                        fieldInput.style.display = 'none';
+                        select.id = originalId;
+                        select.name = fieldInput.name;
+
+                        fieldInput.parentNode.insertBefore(container, fieldInput.nextSibling);
+                        container.appendChild(select);
+                        container.appendChild(createBtn);
+
+                        // Falls back to the plain text input, still the only submitted control.
+                        function restoreTextInput() {
+                            if (container.parentNode) {
+                                container.parentNode.removeChild(container);
                             }
+                            fieldInput.id = originalId;
+                            fieldInput.disabled = false;
+                            fieldInput.style.display = '';
+                        }
 
-                            // Find the description element that contains the help text.
-                            // The description might be in a sibling .felement or within the .fitem.
-                            var descriptionElement = null;
-                            if (formItem) {
-                                // Look for elements containing the description text.
-                                var allElements = formItem.querySelectorAll('*');
-                                for (var i = 0; i < allElements.length; i++) {
-                                    var el = allElements[i];
-                                    var text = el.textContent || el.innerText || '';
-                                    if (text.indexOf('The Skilland Course ID associated') !== -1 ||
-                                        text.indexOf('used to link all Skilland activities') !== -1) {
-                                        descriptionElement = el;
-                                        break;
-                                    }
-                                }
-                                // If not found in formItem, check siblings.
-                                if (!descriptionElement && formItem.nextElementSibling) {
-                                    var sibling = formItem.nextElementSibling;
-                                    var siblingText = sibling.textContent || sibling.innerText || '';
-                                    if (siblingText.indexOf('The Skilland Course ID associated') !== -1) {
-                                        descriptionElement = sibling;
-                                    }
-                                }
-                                // Also check parent container - sometimes custom fields have a wrapper div.
-                                if (!descriptionElement && formItem.parentElement) {
-                                    var parent = formItem.parentElement;
-                                    var parentText = parent.textContent || parent.innerText || '';
-                                    // Check if parent contains the description text but also contains other fields.
-                                    // If parent only contains this field and its description, we can hide the parent.
-                                    if (parentText.indexOf('The Skilland Course ID associated') !== -1) {
-                                        // Count how many .fitem elements are in the parent.
-                                        var fitemCount = parent.querySelectorAll('.fitem').length;
-                                        if (fitemCount === 1) {
-                                            // Parent only contains this one field, so we can hide the parent instead.
-                                            formItem = parent;
-                                        } else {
-                                            // Parent contains multiple fields, just hide the description element.
-                                            descriptionElement = parent.querySelector('.form-text, .felement, .form-description');
-                                        }
-                                    }
-                                }
+                        function selectCourse(id, text) {
+                            var option = document.createElement('option');
+                            option.value = id;
+                            option.textContent = text;
+                            select.appendChild(option);
+                            select.value = id;
+                            var warning = container.querySelector('.skilland-course-unknown-warning');
+                            if (warning) {
+                                warning.parentNode.removeChild(warning);
                             }
+                        }
 
-                            // Pending redirect URL — opened in new tab on form submit.
-                            var pendingRedirectUrl = null;
-
-                            // Create container and select dropdown.
-                            var container = document.createElement('div');
-                            container.className = 'skilland-course-mapping-field';
-
-                            var select = document.createElement('select');
-                            select.name = fieldInput.name;
-                            select.id = fieldInput.id;
-                            select.className = 'form-control';
-                            select.style.width = '100%';
-                            select.innerHTML = '<option value=\"\">Loading courses from Skilland...</option>';
-
-                            var hiddenInput = document.createElement('input');
-                            hiddenInput.type = 'hidden';
-                            hiddenInput.name = fieldInput.name;
-                            hiddenInput.value = currentValue;
-
-                            // Insert after fieldInput.
-                            fieldInput.parentNode.insertBefore(container, fieldInput.nextSibling);
-                            container.appendChild(select);
-                            container.appendChild(hiddenInput);
-                            fieldInput.style.display = 'none';
-
-                            // Sync select to hidden input and original field.
-                            select.addEventListener('change', function() {
-                                var value = this.value;
-
-                                if (value === '__create_new__') {
-                                    // Disable select and show creating state.
-                                    select.disabled = true;
-                                    var originalText = select.options[select.selectedIndex].textContent;
-                                    select.options[select.selectedIndex].textContent = " . json_encode(\get_string('creating_course', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
-
-                                    require(['core/ajax', 'core/notification'], function(ajax, notification) {
-                                        ajax.call([{
-                                            methodname: 'mod_skilland_create_course_ajax',
-                                            args: {moodlecourseid: " . $courseid . "}
-                                        }])[0].then(function(resp) {
-                                            if (resp.error) {
-                                                notification.addNotification({
-                                                    message: escapeHtml('Failed to create course: ' + resp.error),
-                                                    type: 'error'
-                                                });
-                                                // Restore the create option text and re-enable.
-                                                select.options[select.selectedIndex].textContent = originalText;
-                                                select.value = '';
-                                                select.disabled = false;
-                                                return;
-                                            }
-
-                                            // Add the new course as an option and select it.
-                                            var newOption = document.createElement('option');
-                                            newOption.value = resp.skillid;
-                                            newOption.textContent = resp.name;
-                                            select.appendChild(newOption);
-                                            select.value = resp.skillid;
-                                            hiddenInput.value = resp.skillid;
-                                            fieldInput.value = resp.skillid;
-
-                                            // Restore the create option text.
-                                            var createOpt = select.querySelector('option[value=\"__create_new__\"]');
-                                            if (createOpt) {
-                                                createOpt.textContent = originalText;
-                                            }
-
-                                            select.disabled = false;
-
-                                            // Store redirect URL to open after form save.
-                                            if (resp.redirect_url) {
-                                                pendingRedirectUrl = resp.redirect_url;
-                                            }
-                                        }).catch(function(error) {
+                        function onCreateClick() {
+                            var body = escapeHtml(strings.confirmBody).split(namePlaceholder).join(escapeHtml(courseName));
+                            if (linked) {
+                                body += ' ' + escapeHtml(strings.confirmReplace);
+                            }
+                            require(['core/ajax', 'core/notification'], function(ajax, notification) {
+                                notification.saveCancelPromise(
+                                    escapeHtml(strings.confirmTitle),
+                                    body,
+                                    escapeHtml(strings.confirmYes)
+                                ).then(function() {
+                                    createBtn.disabled = true;
+                                    createBtn.textContent = strings.creatingCourse;
+                                    return ajax.call([{
+                                        methodname: 'mod_skilland_create_course_ajax',
+                                        args: {moodlecourseid: moodleCourseId}
+                                    }])[0].then(function(resp) {
+                                        if (resp.error) {
                                             notification.addNotification({
-                                                message: 'Failed to create course in Skilland.',
+                                                message: escapeHtml('Failed to create course: ' + resp.error),
                                                 type: 'error'
                                             });
-                                            select.options[select.selectedIndex].textContent = originalText;
-                                            select.value = '';
-                                            select.disabled = false;
+                                            return;
+                                        }
+                                        selectCourse(resp.skillid, resp.name);
+                                        linked = true;
+                                    }).catch(function() {
+                                        notification.addNotification({
+                                            message: 'Failed to create course in Skilland.',
+                                            type: 'error'
                                         });
+                                    }).then(function() {
+                                        createBtn.textContent = strings.createInSkilland;
+                                        createBtn.disabled = false;
+                                    });
+                                }, function() {
+                                    log('Skilland: course creation cancelled');
+                                });
+                            });
+                        }
+
+                        createBtn.addEventListener('click', onCreateClick);
+
+                        // Fetch courses via AJAX using Moodle's core/ajax.
+                        require(['core/ajax', 'core/notification'], function(ajax, notification) {
+                            log('Skilland: Making AJAX call to fetch courses');
+                            ajax.call([{
+                                methodname: 'mod_skilland_fetch_courses_ajax',
+                                args: {moodlecourseid: moodleCourseId}
+                            }])[0].then(function(response) {
+                                log('Skilland: AJAX response received');
+                                if (response.error) {
+                                    restoreTextInput();
+                                    notification.addNotification({
+                                        message: escapeHtml('Failed to fetch courses from Skilland: ' + response.error),
+                                        type: 'error'
                                     });
                                     return;
                                 }
 
-                                hiddenInput.value = value;
-                                fieldInput.value = value;
-                            });
+                                select.innerHTML = '<option value=\"\">Select a Skilland course...</option>';
 
-                            // Fetch courses via AJAX using Moodle's core/ajax.
-                            require(['core/ajax', 'core/notification'], function(ajax, notification) {
-                                log('Skilland: Making AJAX call to fetch courses');
-                                ajax.call([{
-                                    methodname: 'mod_skilland_fetch_courses_ajax',
-                                    args: {moodlecourseid: " . $courseid . "}
-                                }])[0].then(function(response) {
-                                    log('Skilland: AJAX response received');
-                                    // Check if there's an error in the response.
-                                    if (response.error) {
-                                        // On error, revert to text input.
-                                        fieldInput.style.display = '';
-                                        container.style.display = 'none';
+                                var found = false;
+                                (response.courses || []).forEach(function(course) {
+                                    var optionText = course.name;
+                                    if (course.code) optionText += ' (' + course.code + ')';
+                                    if (course.status) optionText += ' [' + course.status + ']';
 
-                                        notification.addNotification({
-                                            message: escapeHtml('Failed to fetch courses from Skilland: ' + response.error),
-                                            type: 'error'
-                                        });
-                                        return;
+                                    var option = document.createElement('option');
+                                    option.textContent = optionText;
+                                    option.value = course.id;
+                                    if (course.id === currentValue) {
+                                        option.selected = true;
+                                        found = true;
                                     }
+                                    select.appendChild(option);
+                                });
 
-                                    select.innerHTML = '<option value=\"\">Select a Skilland course...</option>';
+                                // A stale mapping stays visible and selected until the teacher changes it.
+                                if (currentValue !== '' && !found) {
+                                    var unknown = document.createElement('option');
+                                    unknown.value = currentValue;
+                                    unknown.textContent = strings.courseUnknown.split(idPlaceholder).join(currentValue);
+                                    unknown.selected = true;
+                                    select.appendChild(unknown);
 
-                                    // Add '+ Create in Skilland' option.
-                                    var createOption = document.createElement('option');
-                                    createOption.value = '__create_new__';
-                                    createOption.textContent = " . json_encode(\get_string('create_in_skilland', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
-                                    createOption.style.fontWeight = 'bold';
-                                    select.appendChild(createOption);
+                                    var warning = document.createElement('div');
+                                    warning.className = 'alert alert-warning mt-2 skilland-course-unknown-warning';
+                                    warning.setAttribute('role', 'status');
+                                    warning.textContent = strings.courseUnknownWarning;
+                                    container.appendChild(warning);
+                                }
 
-                                    if (response.courses && response.courses.length > 0) {
-                                        response.courses.forEach(function(course) {
-                                            var optionText = course.name;
-                                            if (course.code) optionText += ' (' + course.code + ')';
-                                            if (course.status) optionText += ' [' + course.status + ']';
-
-                                            var option = document.createElement('option');
-                                            option.textContent = optionText;
-                                            option.value = course.id;
-                                            if (course.id === currentValue) {
-                                                option.selected = true;
-                                                hiddenInput.value = course.id;
-                                            }
-                                            select.appendChild(option);
-                                        });
-                                    }
-                                }).catch(function(error) {
-                                    log('Skilland: AJAX error', error && error.message);
-                                    // On error, revert to text input.
-                                    fieldInput.style.display = '';
-                                    container.style.display = 'none';
-
-                                    notification.addNotification({
-                                        message: 'Failed to fetch courses from Skilland. Please check your API configuration.',
-                                        type: 'error'
-                                    });
+                                createBtn.disabled = false;
+                            }).catch(function(error) {
+                                log('Skilland: AJAX error', error && error.message);
+                                restoreTextInput();
+                                notification.addNotification({
+                                    message: 'Failed to fetch courses from Skilland. Please check your API configuration.',
+                                    type: 'error'
                                 });
                             });
-
-                            // On form submit, open the pending Skilland redirect in a new tab.
-                            var form = fieldInput.closest('form');
-                            if (form) {
-                                form.addEventListener('submit', function() {
-                                    if (pendingRedirectUrl) {
-                                        if (/^https?:\/\//i.test(pendingRedirectUrl)) {
-                                            window.open(pendingRedirectUrl, '_blank');
-                                        } else {
-                                            log('Skilland: ignoring non-http(s) redirect URL');
-                                        }
-                                        pendingRedirectUrl = null;
-                                    }
-                                });
-                            }
-                        }
+                        });
                     }
                 })();
                 ";
                 $PAGE->requires->js_amd_inline($js);
 
-                // Inject "Go to Skilland" button above the custom field via JS.
+                // Inject "Go to Skilland" button above the custom field via JS; it opens the linked course.
                 $ssourl = (new \moodle_url('/mod/skilland/sso_redirect.php', [
-                    'sesskey' => sesskey()
+                    'courseid' => $courseid,
+                    'sesskey' => sesskey(),
                 ]))->out(false);
                 $buttontext = json_encode(\get_string('go_to_skilland', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
                 $ssourljs = json_encode($ssourl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
@@ -330,19 +277,7 @@ class hooks {
                 $buttonjs = "
                 (function() {
                     function insertEdukamButton() {
-                        var fieldInput = document.querySelector('input[id*=\"customfield_skilland_course_id\"], input[name*=\"customfield_skilland_course_id\"], input[id*=\"id_customfield_skilland_course_id\"]');
-                        if (!fieldInput) {
-                            var labels = document.querySelectorAll('label');
-                            for (var i = 0; i < labels.length; i++) {
-                                if (labels[i].textContent.indexOf('Skilland Course ID') !== -1) {
-                                    var forAttr = labels[i].getAttribute('for');
-                                    if (forAttr) {
-                                        fieldInput = document.getElementById(forAttr);
-                                        if (fieldInput) break;
-                                    }
-                                }
-                            }
-                        }
+                        var fieldInput = document.querySelector('[name=\"customfield_skilland_course_id\"]');
                         if (!fieldInput) return;
 
                         var formItem = fieldInput.closest('.fitem');

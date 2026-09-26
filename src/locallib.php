@@ -2282,3 +2282,62 @@ function mod_skilland_client_error_message(\Throwable $e): string {
     }
     return $message;
 }
+
+/**
+ * Remembers, in the user's session, the SkilLand Studio path to open once the Moodle course form
+ * has saved (SKL-664). The SSO token is minted at click time by sso_redirect.php, never here.
+ *
+ * @param int $courseid Moodle course ID.
+ * @param string $path SkilLand Studio path; must start with /skills-studio/.
+ * @return void
+ * @throws coding_exception When the path is not a SkilLand Studio path.
+ */
+function mod_skilland_set_pending_studio_path(int $courseid, string $path): void {
+    global $SESSION;
+
+    if (strpos($path, '/skills-studio/') !== 0) {
+        throw new coding_exception('Pending SkilLand path must start with /skills-studio/');
+    }
+    if (!is_object($SESSION)) {
+        $SESSION = new stdClass();
+    }
+    if (!isset($SESSION->mod_skilland_pending_studio) || !is_array($SESSION->mod_skilland_pending_studio)) {
+        $SESSION->mod_skilland_pending_studio = [];
+    }
+    $SESSION->mod_skilland_pending_studio[$courseid] = $path;
+}
+
+/**
+ * Returns the pending SkilLand Studio path for a course without consuming it (SKL-664).
+ *
+ * @param int $courseid Moodle course ID.
+ * @return string|null The path, or null when none is pending or it is not a SkilLand Studio path.
+ */
+function mod_skilland_peek_pending_studio_path(int $courseid): ?string {
+    global $SESSION;
+
+    if (!is_object($SESSION) || empty($SESSION->mod_skilland_pending_studio[$courseid])) {
+        return null;
+    }
+    $path = $SESSION->mod_skilland_pending_studio[$courseid];
+    if (!is_string($path) || strpos($path, '/skills-studio/') !== 0) {
+        return null;
+    }
+    return $path;
+}
+
+/**
+ * Returns and clears the pending SkilLand Studio path for a course (SKL-664).
+ *
+ * @param int $courseid Moodle course ID.
+ * @return string|null The path, or null when none is pending or it is not a SkilLand Studio path.
+ */
+function mod_skilland_take_pending_studio_path(int $courseid): ?string {
+    global $SESSION;
+
+    $path = mod_skilland_peek_pending_studio_path($courseid);
+    if (is_object($SESSION) && isset($SESSION->mod_skilland_pending_studio[$courseid])) {
+        unset($SESSION->mod_skilland_pending_studio[$courseid]);
+    }
+    return $path;
+}

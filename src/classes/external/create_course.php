@@ -85,16 +85,15 @@ class create_course extends base {
             // Save mapping to course custom field.
             skilland_set_course_customfield_value($moodlecourseid, $skillid);
 
-            // Generate SSO redirect URL.
-            $orgid = get_config('mod_skilland', 'orgid');
-            $token = skilland_generate_sso_token($USER, $orgid);
-            $redirect = '/skills-studio/create/' . $creationstep . '/' . $skillid;
-            $redirecturl = skilland_get_sso_url($token, $redirect);
+            // The Studio link is offered after the course form saves (observer::course_updated);
+            // sso_redirect.php mints the SSO token when the teacher clicks it.
+            mod_skilland_set_pending_studio_path($moodlecourseid,
+                '/skills-studio/create/' . rawurlencode((string) $creationstep) . '/' . rawurlencode((string) $skillid));
 
             return [
                 'skillid' => $skillid,
                 'name' => $skillname,
-                'redirect_url' => $redirecturl,
+                'redirect_url' => '',
                 'error' => null,
             ];
         } catch (\Throwable $e) {
