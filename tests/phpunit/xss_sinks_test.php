@@ -154,13 +154,17 @@ class xss_sinks_test extends TestCase {
         $this->assertStringContainsString('errorSpan.textContent = message;', $lessons);
         $this->assertDoesNotMatchRegularExpression('/innerHTML\s*=\s*[^;]*message/', $lessons);
 
-        $topics = $this->js_function_body($source, 'showTopicSelectError');
-        $this->assertStringContainsString('errorOption.textContent = message;', $topics);
-        $this->assertDoesNotMatchRegularExpression('/innerHTML\s*=\s*[^;]*message/', $topics);
+        // SKL-688: a topic fetch failure keeps the saved topic id selectable (with a Retry
+        // control) instead of wiping the select to one non-selectable error option, but the
+        // fallback text is still assigned through textContent, never innerHTML.
+        $topics = $this->js_function_body($source, 'showTopicFetchError');
+        $this->assertStringContainsString('keepOption.textContent = currentTopicUnavailableText;', $topics);
+        $this->assertStringContainsString('errorOption.textContent = errorText;', $topics);
+        $this->assertDoesNotMatchRegularExpression('/innerHTML\s*=\s*[^;]*(currentTopicUnavailableText|errorText)/', $topics);
 
         $this->assertMatchesRegularExpression('/showLessonsError\(lessonsContainer,\s*response\.error\)/', $source);
         $this->assertMatchesRegularExpression('/showLessonsError\(lessonsContainer,\s*error\.message\)/', $source);
-        $this->assertSame(2, substr_count($source, 'showTopicSelectError(topicSelect, errorText)'));
+        $this->assertSame(2, substr_count($source, 'showTopicFetchError();'));
     }
 
     public function test_course_name_and_code_are_rendered_as_text(): void {

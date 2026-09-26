@@ -307,4 +307,138 @@ class form_lesson_selection_test extends TestCase {
         include realpath(__DIR__ . '/../../src') . '/version.php';
         $this->assertGreaterThanOrEqual(2026092605, $plugin->version);
     }
+
+    // ---------------------------------------------------------------
+    // SKL-688: the activity form stays usable when the SkilLand API fails
+    // or the saved topic/lessons vanish upstream.
+    // ---------------------------------------------------------------
+
+    public function test_topicid_has_no_client_required_rule(): void {
+        $this->assertDoesNotMatchRegularExpression(
+            "/addRule\\('skilland_topicid', null, 'required'/",
+            self::$form
+        );
+    }
+
+    public function test_validation_still_requires_a_non_empty_topic_id(): void {
+        $validation = $this->method_body('validation');
+        $this->assertMatchesRegularExpression(
+            '/if \(\$topicid === \'\'\) \{\s*\$errors\[\'skilland_topicid\'\] = get_string\(\'error_topicid_required\', \'mod_skilland\'\);/',
+            $validation
+        );
+        // The rest of the topic/lesson checks only run once a topic id is present.
+        $this->assertStringContainsString(
+            "if (\$topicid === '') {\n                \$errors['skilland_topicid'] = get_string('error_topicid_required', 'mod_skilland');\n            } else {",
+            self::$form
+        );
+    }
+
+    public function test_error_topicid_required_string_exists_in_both_languages(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include realpath(__DIR__ . '/../../src') . "/lang/$lang/skilland.php";
+            $this->assertArrayHasKey('error_topicid_required', $string, "Missing in $lang");
+            $this->assertNotSame('', trim($string['error_topicid_required']));
+        }
+    }
+
+    public function test_general_section_hidden_by_toggled_class_not_unconditional_css(): void {
+        $this->assertStringNotContainsString('#id_general { display: none; }', self::$form);
+        $this->assertStringContainsString('#id_general.skilland-hide-general { display: none; }', self::$form);
+    }
+
+    public function test_general_section_visibility_skips_hiding_on_a_name_error(): void {
+        $fn = $this->js_function_body('applyGeneralSectionVisibility');
+        $this->assertStringContainsString("getElementById('id_error_name')", $fn);
+        $this->assertStringContainsString('hasNameError', $fn);
+        $this->assertMatchesRegularExpression('/if \(hasNameError\) \{\s*return;\s*\}/', $fn);
+        $this->assertStringContainsString("classList.add('skilland-hide-general')", $fn);
+        // Only hides once the name has a value; an empty new-activity name stays visible.
+        $this->assertMatchesRegularExpression('/if \(nameField && nameField\.value\) \{\s*generalHeader\.classList\.add/', $fn);
+    }
+
+    public function test_topic_fetch_is_a_named_retryable_function(): void {
+        $this->assertMatchesRegularExpression('/^\s*function fetchTopics\(\)/m', self::$form);
+        // Called once to load the form, and once more from the Retry control's click handler.
+        $this->assertSame(2, substr_count(self::$form, 'fetchTopics();'));
+    }
+
+    public function test_topic_fetch_failure_keeps_the_select_usable_and_offers_retry(): void {
+        $fn = $this->js_function_body('showTopicFetchError');
+        $this->assertStringContainsString('currentTopicId', $fn);
+        $this->assertStringContainsString('keepOption.selected = true;', $fn);
+        $this->assertStringContainsString('showTopicRetryControl();', $fn);
+
+        $retry = $this->js_function_body('showTopicRetryControl');
+        $this->assertStringContainsString("id = 'skilland-topic-retry'", $retry);
+        $this->assertStringContainsString('fetchTopics();', $retry);
+
+        // Both the response.error and the rejected-promise branches keep the form usable.
+        $this->assertMatchesRegularExpression('/if \(response\.error\) \{\s*showTopicFetchError\(\);/', self::$form);
+        $this->assertMatchesRegularExpression('/\}\)\.catch\(function\(error\) \{\s*log\([^\n]*\);\s*showTopicFetchError\(\);/', self::$form);
+    }
+
+    public function test_stale_saved_topic_is_kept_as_a_disabled_selected_option(): void {
+        $fn = $this->js_function_body('addStaleTopicOption');
+        $this->assertStringContainsString('option.disabled = true;', $fn);
+        $this->assertStringContainsString('option.selected = true;', $fn);
+        $this->assertStringContainsString('topicNoLongerAvailableText', $fn);
+
+        // The success handler only follows the fetchLessons/dispatch path when the saved topic
+        // is still in the fresh list; otherwise it keeps the saved topic id and lessons intact.
+        $this->assertMatchesRegularExpression(
+            '/if \(topicsMap\[currentTopicId\]\) \{.*?\} else \{\s*addStaleTopicOption\(currentTopicId\);/s',
+            self::$form
+        );
+        $this->assertStringContainsString("type: 'warning'", self::$form);
+    }
+
+    public function test_stale_topic_lessons_are_not_wiped(): void {
+        $fn = $this->js_function_body('renderStaleTopicLessons');
+        $this->assertStringNotContainsString('selectedLessonsInput', $fn);
+        $this->assertStringNotContainsString('selectionsByTopic', $fn);
+        $this->assertStringContainsString('currentSelectedLessons', $fn);
+    }
+
+    public function test_missing_lessons_are_flagged_with_a_remove_action(): void {
+        $render = $this->js_function_body('renderLessons');
+        $this->assertStringContainsString('missingLessonsByTopic', $render);
+        $this->assertStringContainsString('skilland-missing-lessons-warning', $render);
+        $this->assertStringContainsString('removeMissingLessonText', $render);
+        $this->assertMatchesRegularExpression(
+            '/removeBtn\.addEventListener\(\'click\', function\(e\) \{\s*e\.preventDefault\(\);\s*removeMissingLesson\(topicId, lessonId, row\);/',
+            $render
+        );
+    }
+
+    public function test_missing_lessons_stay_selected_until_explicitly_removed(): void {
+        $update = $this->js_function_body('updateSelectedState');
+        $this->assertStringContainsString('missingLessonsByTopic[renderedTopicId]', $update);
+        $this->assertStringContainsString('state[lessonId] = pendingMissing[lessonId];', $update);
+
+        $remove = $this->js_function_body('removeMissingLesson');
+        $this->assertStringContainsString('delete currentSelectedLessons[lessonId];', $remove);
+        $this->assertStringContainsString('updateSelectedState();', $remove);
+    }
+
+    public function test_missing_lesson_strings_exist_in_both_languages(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include realpath(__DIR__ . '/../../src') . "/lang/$lang/skilland.php";
+            foreach (['missing_lessons_warning', 'remove_from_activity', 'current_topic_unavailable',
+                    'topic_no_longer_available', 'topic_no_longer_available_warning', 'retry'] as $key) {
+                $this->assertArrayHasKey($key, $string, "Missing '$key' in $lang");
+                $this->assertNotSame('', trim($string[$key]));
+            }
+        }
+    }
+
+    public function test_version_bumped_for_skl_688(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        include realpath(__DIR__ . '/../../src') . '/version.php';
+        $this->assertGreaterThan(2026092621, $plugin->version);
+    }
 }

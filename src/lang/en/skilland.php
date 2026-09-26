@@ -32,6 +32,13 @@ $string['lessonselection_help'] = 'Choose which lessons from this topic to impor
 $string['lessons'] = 'Lessons';
 $string['select_topic_first'] = 'Select a topic first to view lessons.';
 $string['no_lessons_found'] = 'No lessons found for this topic.';
+$string['error_topicid_required'] = 'A topic is required. Select one, or retry if the topic list failed to load.';
+$string['current_topic_unavailable'] = 'Current topic (SkilLand unavailable)';
+$string['topic_no_longer_available'] = '(no longer available in SkilLand)';
+$string['topic_no_longer_available_warning'] = 'The topic saved for this activity is no longer available in SkilLand. Its settings are kept; select a different topic to replace it.';
+$string['retry'] = 'Retry';
+$string['missing_lessons_warning'] = 'These lessons are no longer available in SkilLand. They stay part of this activity until you remove them.';
+$string['remove_from_activity'] = 'Remove from activity';
 
 // Behaviour settings.
 $string['behaviour'] = 'Behaviour Settings';

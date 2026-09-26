@@ -6,7 +6,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026092623;   // YYYYMMDDHH - provisioning feedback and destructive update confirmation (SKL-697)
+$plugin->version   = 2026092624;   // YYYYMMDDHH - keep the activity form usable when the SkilLand API fails or topics vanish (SKL-688)
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.26-beta';
+$plugin->release   = '0.9.27-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

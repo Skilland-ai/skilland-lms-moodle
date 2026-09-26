@@ -150,7 +150,9 @@ class mod_skilland_mod_form extends moodleform_mod {
             get_string('topicid', 'mod_skilland'),
             array('' => get_string('loading', 'mod_skilland')));
         $mform->setType('skilland_topicid', PARAM_ALPHANUMEXT);
-        $mform->addRule('skilland_topicid', null, 'required', null, 'client');
+        // No client-side 'required' rule: the topic select is populated by AJAX and stays
+        // usable (loading, then a saved/stale option) while the SkilLand API is unreachable,
+        // so an unrelated setting can still be saved. validation() below is the real guard.
         $mform->addHelpButton('skilland_topicid', 'topicid', 'mod_skilland');
 
         // Hidden field to remember last saved topic ID (used when select hasn't loaded yet).
@@ -360,8 +362,12 @@ class mod_skilland_mod_form extends moodleform_mod {
         // 2. General settings (MOVED AFTER SKILLAND, HIDDEN via CSS)
         // We hide this section because the name and description are auto-filled from the selected topic.
         $mform->addElement('header', 'general', get_string('general', 'form'));
+        // Hidden via a JS-toggled class, not unconditional CSS: the name field is normally
+        // auto-filled from the selected topic, but when the topic fetch fails (or a previous
+        // submit left a "name is required" error here) the section must stay visible so the
+        // field - and any validation error on it - is never invisible to the teacher.
         $mform->addElement('html', '<style>
-            #id_general { display: none; }
+            #id_general.skilland-hide-general { display: none; }
             /* Fix vertical alignment for Skilland Course ID display */
             #fitem_id_skilland_course_id_display .felement {
                 align-items: center !important;
@@ -499,19 +505,13 @@ class mod_skilland_mod_form extends moodleform_mod {
                     container.appendChild(errorSpan);
                 }
 
-                function showTopicSelectError(select, message) {
-                    select.innerHTML = '';
-                    var errorOption = document.createElement('option');
-                    errorOption.value = '';
-                    errorOption.textContent = message;
-                    select.appendChild(errorOption);
-                }
 
                 var skillandCourseId = " . json_encode($skillandcourseid) . ";
                 var moodleCourseId = " . json_encode($this->get_course()->id) . ";
                 var currentTopicId = " . json_encode($currenttopicid) . ";
                 var currentSelectedLessons = " . json_encode($currentSelectedLessons) . ";
                 var selectionsByTopic = {}; // Ticked lessons per topic ID, restored when the topic is shown again.
+                var missingLessonsByTopic = {}; // Per topic ID: DB-saved lessons the API no longer lists, pending an explicit Remove.
                 var renderedTopicId = null; // Topic whose lessons are rendered as checkboxes, null while loading.
                 var activeTopicId = null; // Topic last picked in the dropdown (SKL-655 reuses it as the previous value).
                 var hasScorm = " . json_encode($hasscorm) . "; // The activity has a provisioned SCORM (SKL-655).
@@ -533,7 +533,28 @@ class mod_skilland_mod_form extends moodleform_mod {
                 function initForm() {
                     log('Skilland: Initialising form with currentTopicId:', currentTopicId);
                     log('Skilland: currentSelectedLessons:', currentSelectedLessons);
+                    applyGeneralSectionVisibility();
                     initTopicSelect();
+                }
+
+                // Keep the auto-filled Name/Description section hidden only when nothing needs
+                // the teacher's attention there: a prior submit's validation error on 'name' (or
+                // the field already having no value while the topic could not be auto-filled)
+                // must keep the section visible.
+                function applyGeneralSectionVisibility() {
+                    var generalHeader = document.getElementById('id_general');
+                    if (!generalHeader) {
+                        return;
+                    }
+                    var nameField = document.getElementById('id_name');
+                    var hasNameError = !!document.getElementById('id_error_name') ||
+                        (nameField && nameField.classList && nameField.classList.contains('is-invalid'));
+                    if (hasNameError) {
+                        return;
+                    }
+                    if (nameField && nameField.value) {
+                        generalHeader.classList.add('skilland-hide-general');
+                    }
                 }
 
                 function initTopicSelect() {
@@ -584,6 +605,12 @@ class mod_skilland_mod_form extends moodleform_mod {
                     var errorText = " . json_encode(get_string('error_fetch_topics', 'mod_skilland')) . ";
                     var selectTopicText = " . json_encode(get_string('select_topic', 'mod_skilland')) . ";
                     var noTopicsText = " . json_encode(get_string('no_topics_available', 'mod_skilland')) . ";
+                    var currentTopicUnavailableText = " . json_encode(get_string('current_topic_unavailable', 'mod_skilland')) . ";
+                    var topicNoLongerAvailableText = " . json_encode(get_string('topic_no_longer_available', 'mod_skilland')) . ";
+                    var topicNoLongerAvailableWarning = " . json_encode(get_string('topic_no_longer_available_warning', 'mod_skilland')) . ";
+                    var retryText = " . json_encode(get_string('retry', 'mod_skilland')) . ";
+                    var missingLessonsWarningText = " . json_encode(get_string('missing_lessons_warning', 'mod_skilland')) . ";
+                    var removeMissingLessonText = " . json_encode(get_string('remove_from_activity', 'mod_skilland')) . ";
                     var newContentAvailableText = " . json_encode($this->get_new_content_string()) . ";
                     var updateConfirmTitle = " . json_encode(get_string('update_confirm_title', 'mod_skilland')) . ";
                     var updateConfirmMessage = " . json_encode($updateconfirmmessagetext) . ";
@@ -857,6 +884,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                             var topicLabel = 'T' + (topic.orderIndex || 1);
                             nameField.value = topicLabel + ' - ' + topic.name;
                         }
+                        applyGeneralSectionVisibility();
 
                         // Update Edit in Skilland button
                         updateEditButton(topic);
@@ -1097,6 +1125,59 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                         lessonsContainer.appendChild(list);
 
+                        // Any DB-saved lesson missing from this topic's own fresh API list is not
+                        // dropped silently (SKL-688): flag it in a warning block with an explicit
+                        // Remove-from-activity action, and keep it in updateSelectedState()'s
+                        // output until the teacher clicks Remove.
+                        missingLessonsByTopic[topicId] = {};
+                        if (String(topicId) === String(currentTopicId)) {
+                            var apiLessonIds = {};
+                            lessons.forEach(function(lesson) {
+                                apiLessonIds[String(lesson.id)] = true;
+                            });
+                            var missingIds = Object.keys(currentSelectedLessons).filter(function(lessonId) {
+                                return !apiLessonIds[String(lessonId)];
+                            });
+                            if (missingIds.length > 0) {
+                                var missingBlock = document.createElement('div');
+                                missingBlock.className = 'skilland-missing-lessons-warning alert alert-warning';
+
+                                var missingTitle = document.createElement('div');
+                                missingTitle.className = 'skilland-missing-lessons-title';
+                                missingTitle.textContent = missingLessonsWarningText;
+                                missingBlock.appendChild(missingTitle);
+
+                                missingIds.forEach(function(lessonId) {
+                                    var storedLesson = currentSelectedLessons[lessonId] || {};
+                                    missingLessonsByTopic[topicId][lessonId] = {
+                                        updatedAt: storedLesson.updatedAt,
+                                        name: storedLesson.name || ''
+                                    };
+
+                                    var row = document.createElement('div');
+                                    row.className = 'skilland-missing-lesson-row';
+
+                                    var label = document.createElement('span');
+                                    label.textContent = storedLesson.name || lessonId;
+                                    row.appendChild(label);
+
+                                    var removeBtn = document.createElement('button');
+                                    removeBtn.type = 'button';
+                                    removeBtn.className = 'btn btn-sm btn-outline-danger skilland-remove-missing-lesson';
+                                    removeBtn.textContent = removeMissingLessonText;
+                                    removeBtn.addEventListener('click', function(e) {
+                                        e.preventDefault();
+                                        removeMissingLesson(topicId, lessonId, row);
+                                    });
+                                    row.appendChild(removeBtn);
+
+                                    missingBlock.appendChild(row);
+                                });
+
+                                lessonsContainer.appendChild(missingBlock);
+                            }
+                        }
+
                         // Show/hide update button based on whether any lesson has new content
                         var updateContainer = document.getElementById('skilland-update-container');
                         if (updateContainer) {
@@ -1149,7 +1230,9 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                     function updateSelectedState() {
                         // The hidden value is always the rendered topic's ticked checkboxes, rebuilt in DOM
-                        // order (insertion order becomes orderindex). Nothing else reaches the hidden input.
+                        // order (insertion order becomes orderindex), plus any lessons missing from Skilland
+                        // that the teacher has not explicitly removed yet (SKL-688). Nothing else reaches
+                        // the hidden input.
                         var state = {};
                         if (renderedTopicId !== null) {
                             var checkboxes = document.querySelectorAll('#id_lessons_container .skilland-lesson-checkbox');
@@ -1164,10 +1247,27 @@ class mod_skilland_mod_form extends moodleform_mod {
                                     };
                                 }
                             });
+                            var pendingMissing = missingLessonsByTopic[renderedTopicId] || {};
+                            Object.keys(pendingMissing).forEach(function(lessonId) {
+                                state[lessonId] = pendingMissing[lessonId];
+                            });
                             selectionsByTopic[renderedTopicId] = state;
                         }
 
                         selectedLessonsInput.value = JSON.stringify(state);
+                    }
+
+                    // Explicitly forgets a DB-saved lesson the API no longer lists (SKL-688). This is
+                    // the only path that drops one: nothing removes it automatically on save.
+                    function removeMissingLesson(topicId, lessonId, rowEl) {
+                        delete currentSelectedLessons[lessonId];
+                        if (missingLessonsByTopic[topicId]) {
+                            delete missingLessonsByTopic[topicId][lessonId];
+                        }
+                        if (rowEl && rowEl.parentNode) {
+                            rowEl.parentNode.removeChild(rowEl);
+                        }
+                        updateSelectedState();
                     }
 
                     function updateEditButton(topic) {
@@ -1210,99 +1310,203 @@ class mod_skilland_mod_form extends moodleform_mod {
                         }
                     }
 
-                    // Fetch topics via AJAX.
-                    require(['core/ajax', 'core/notification'], function(ajax, notification) {
-                        log('Skilland: Fetching topics for course', skillandCourseId);
-                        log('Skilland: About to call mod_skilland_fetch_topics_ajax');
-                        ajax.call([{
-                            methodname: 'mod_skilland_fetch_topics_ajax',
-                            args: {
-                                courseid: skillandCourseId,
-                                moodlecourseid: moodleCourseId
-                            }
-                        }])[0].then(function(response) {
-                            log('Skilland: Topics response received');
+                    // Fetch topics via AJAX. Named so the Retry control (shown on failure) can
+                    // call it again without duplicating the request logic.
+                    function fetchTopics() {
+                        hideTopicRetryControl();
+                        require(['core/ajax', 'core/notification'], function(ajax, notification) {
+                            log('Skilland: Fetching topics for course', skillandCourseId);
+                            log('Skilland: About to call mod_skilland_fetch_topics_ajax');
+                            ajax.call([{
+                                methodname: 'mod_skilland_fetch_topics_ajax',
+                                args: {
+                                    courseid: skillandCourseId,
+                                    moodlecourseid: moodleCourseId
+                                }
+                            }])[0].then(function(response) {
+                                log('Skilland: Topics response received');
 
-                            if (response.error) {
-                                showTopicSelectError(topicSelect, errorText);
+                                if (response.error) {
+                                    showTopicFetchError();
+                                    notification.addNotification({
+                                        message: escapeHtml('Failed to fetch topics from Skilland: ' + response.error),
+                                        type: 'error'
+                                    });
+                                    return;
+                                }
+
+                                // Update Skilland Course ID display with actual course name if available.
+                                if (response.course && response.course.name) {
+                                    var courseDisplayEl = document.querySelector('#fitem_id_skilland_course_id_display .felement, #fitem_id_skilland_course_id_display .fstatic');
+                                    if (courseDisplayEl) {
+                                        courseDisplayEl.innerHTML = '';
+                                        var nameSpan = document.createElement('span');
+                                        nameSpan.className = 'skilland-course-name';
+                                        nameSpan.textContent = response.course.name;
+                                        courseDisplayEl.appendChild(nameSpan);
+                                        // Only show code if it's different from the name and doesn't look like a long ID
+                                        if (response.course.code && response.course.code !== response.course.name && response.course.code.length < 20) {
+                                            var codeSpan = document.createElement('span');
+                                            codeSpan.className = 'skilland-course-code';
+                                            codeSpan.textContent = ' (' + response.course.code + ')';
+                                            courseDisplayEl.appendChild(codeSpan);
+                                        }
+                                        // editLinkHtml is a trusted fragment built server-side by html_writer.
+                                        var editLinkSpan = document.createElement('span');
+                                        editLinkSpan.className = 'skilland-course-edit-link';
+                                        editLinkSpan.innerHTML = '(' + editLinkHtml + ')';
+                                        courseDisplayEl.appendChild(editLinkSpan);
+                                    }
+                                }
+
+                                // Clear and populate dropdown.
+                                topicSelect.innerHTML = '<option value=\"\">' + selectTopicText + '...</option>';
+                                topicsMap = {};
+
+                                if (response.topics && response.topics.length > 0) {
+                                    response.topics.forEach(function(topic, index) {
+                                        topic.orderIndex = topic.position || (index + 1); // Use API position, fallback to index
+                                        topicsMap[topic.id] = topic;
+                                        var optionText = 'T' + topic.orderIndex + ' - ' + topic.name + ' (' + topic.id + ')';
+
+                                        var option = document.createElement('option');
+                                        option.textContent = optionText;
+                                        option.value = topic.id;
+                                        if (String(topic.id) === String(currentTopicId)) {
+                                            log('Skilland: Found matching topic option', topic.id);
+                                            option.selected = true;
+                                        }
+                                        topicSelect.appendChild(option);
+                                    });
+                                } else {
+                                    var option = document.createElement('option');
+                                    option.textContent = noTopicsText;
+                                    topicSelect.appendChild(option);
+                                }
+
+                                topicSelect.disabled = false;
+
+                                // If we have a current topic ID, fetch its lessons immediately - unless
+                                // the saved topic is no longer in the fresh list (SKL-688): keep it as a
+                                // disabled option and leave the saved topic id and lessons untouched,
+                                // instead of silently falling back to the blank option and wiping both
+                                // on the resulting change event.
+                                if (currentTopicId) {
+                                    log('Skilland: Attempting to restore topic selection', currentTopicId);
+                                    if (topicsMap[currentTopicId]) {
+                                        topicSelect.value = String(currentTopicId);
+                                        if (savedTopicInput) {
+                                            savedTopicInput.value = currentTopicId;
+                                        }
+                                        var changeEvent = new Event('change', { bubbles: true });
+                                        topicSelect.dispatchEvent(changeEvent);
+                                    } else {
+                                        addStaleTopicOption(currentTopicId);
+                                        notification.addNotification({
+                                            message: escapeHtml(topicNoLongerAvailableWarning),
+                                            type: 'warning'
+                                        });
+                                        renderStaleTopicLessons();
+                                    }
+                                }
+                            }).catch(function(error) {
+                                log('Skilland: AJAX error', error && error.message);
+                                showTopicFetchError();
                                 notification.addNotification({
-                                    message: escapeHtml('Failed to fetch topics from Skilland: ' + response.error),
+                                    message: escapeHtml('Failed to fetch topics from Skilland: ' + (error.message || JSON.stringify(error))),
                                     type: 'error'
                                 });
-                                return;
-                            }
-
-                            // Update Skilland Course ID display with actual course name if available.
-                            if (response.course && response.course.name) {
-                                var courseDisplayEl = document.querySelector('#fitem_id_skilland_course_id_display .felement, #fitem_id_skilland_course_id_display .fstatic');
-                                if (courseDisplayEl) {
-                                    courseDisplayEl.innerHTML = '';
-                                    var nameSpan = document.createElement('span');
-                                    nameSpan.className = 'skilland-course-name';
-                                    nameSpan.textContent = response.course.name;
-                                    courseDisplayEl.appendChild(nameSpan);
-                                    // Only show code if it's different from the name and doesn't look like a long ID
-                                    if (response.course.code && response.course.code !== response.course.name && response.course.code.length < 20) {
-                                        var codeSpan = document.createElement('span');
-                                        codeSpan.className = 'skilland-course-code';
-                                        codeSpan.textContent = ' (' + response.course.code + ')';
-                                        courseDisplayEl.appendChild(codeSpan);
-                                    }
-                                    // editLinkHtml is a trusted fragment built server-side by html_writer.
-                                    var editLinkSpan = document.createElement('span');
-                                    editLinkSpan.className = 'skilland-course-edit-link';
-                                    editLinkSpan.innerHTML = '(' + editLinkHtml + ')';
-                                    courseDisplayEl.appendChild(editLinkSpan);
-                                }
-                            }
-
-                            // Clear and populate dropdown.
-                            topicSelect.innerHTML = '<option value=\"\">' + selectTopicText + '...</option>';
-                            topicsMap = {};
-
-                        if (response.topics && response.topics.length > 0) {
-                            response.topics.forEach(function(topic, index) {
-                                topic.orderIndex = topic.position || (index + 1); // Use API position, fallback to index
-                                topicsMap[topic.id] = topic;
-                                var optionText = 'T' + topic.orderIndex + ' - ' + topic.name + ' (' + topic.id + ')';
-
-                                var option = document.createElement('option');
-                                option.textContent = optionText;
-                                option.value = topic.id;
-                                if (String(topic.id) === String(currentTopicId)) {
-                                    log('Skilland: Found matching topic option', topic.id);
-                                    option.selected = true;
-                                }
-                                topicSelect.appendChild(option);
-                            });
-                        } else {
-                                var option = document.createElement('option');
-                                option.textContent = noTopicsText;
-                                topicSelect.appendChild(option);
-                            }
-
-                            topicSelect.disabled = false;
-
-                            // If we have a current topic ID, fetch its lessons immediately
-                        if (currentTopicId) {
-                            log('Skilland: Attempting to restore topic selection', currentTopicId);
-                            topicSelect.value = String(currentTopicId);
-                            if (savedTopicInput) {
-                                savedTopicInput.value = currentTopicId;
-                            }
-                            var changeEvent = new Event('change', { bubbles: true });
-                            topicSelect.dispatchEvent(changeEvent);
-                        }
-
-                        }).catch(function(error) {
-                            log('Skilland: AJAX error', error && error.message);
-                            showTopicSelectError(topicSelect, errorText);
-                            notification.addNotification({
-                                message: escapeHtml('Failed to fetch topics from Skilland: ' + (error.message || JSON.stringify(error))),
-                                type: 'error'
                             });
                         });
-                    });
+                    }
+
+                    // Re-adds the saved topic id as a disabled, selected option so it stays visible
+                    // and the select keeps its value, without letting the teacher pick it again.
+                    function addStaleTopicOption(topicId) {
+                        var option = document.createElement('option');
+                        option.value = String(topicId);
+                        option.textContent = topicNoLongerAvailableText;
+                        option.disabled = true;
+                        option.selected = true;
+                        topicSelect.appendChild(option);
+                        topicSelect.value = String(topicId);
+                    }
+
+                    // Shows the DB-saved lesson selection read-only, without calling the lessons API
+                    // for a topic that no longer exists there. Nothing here touches selectedLessonsInput
+                    // or selectionsByTopic, so the value already rendered server-side is what gets saved.
+                    function renderStaleTopicLessons() {
+                        lessonsContainer.innerHTML = '';
+                        var ids = Object.keys(currentSelectedLessons);
+                        if (ids.length === 0) {
+                            lessonsContainer.innerHTML = '<em>' + " . json_encode(get_string('no_lessons_found', 'mod_skilland')) . " + '</em>';
+                            return;
+                        }
+                        var list = document.createElement('div');
+                        list.className = 'skilland-lessons-list';
+                        ids.forEach(function(lessonId) {
+                            var card = document.createElement('div');
+                            card.className = 'skilland-lesson-card';
+                            var content = document.createElement('div');
+                            content.className = 'skilland-lesson-content';
+                            var title = document.createElement('div');
+                            title.className = 'skilland-lesson-title';
+                            title.textContent = currentSelectedLessons[lessonId].name || lessonId;
+                            content.appendChild(title);
+                            card.appendChild(content);
+                            list.appendChild(card);
+                        });
+                        lessonsContainer.appendChild(list);
+                    }
+
+                    // Keeps the topic select usable on a fetch failure: the saved topic (if any)
+                    // stays selectable so unrelated settings can still be saved, and a Retry control
+                    // lets the teacher try the same request again without reloading the page.
+                    function showTopicFetchError() {
+                        topicSelect.innerHTML = '';
+                        if (currentTopicId) {
+                            var keepOption = document.createElement('option');
+                            keepOption.value = String(currentTopicId);
+                            keepOption.textContent = currentTopicUnavailableText;
+                            keepOption.selected = true;
+                            topicSelect.appendChild(keepOption);
+                            topicSelect.disabled = false;
+                        } else {
+                            var errorOption = document.createElement('option');
+                            errorOption.value = '';
+                            errorOption.textContent = errorText;
+                            topicSelect.appendChild(errorOption);
+                            topicSelect.disabled = true;
+                        }
+                        showTopicRetryControl();
+                    }
+
+                    function showTopicRetryControl() {
+                        var retryBtn = document.getElementById('skilland-topic-retry');
+                        if (retryBtn) {
+                            retryBtn.style.display = '';
+                            return;
+                        }
+                        retryBtn = document.createElement('button');
+                        retryBtn.type = 'button';
+                        retryBtn.id = 'skilland-topic-retry';
+                        retryBtn.className = 'btn btn-sm btn-outline-secondary ml-2';
+                        retryBtn.textContent = retryText;
+                        retryBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            fetchTopics();
+                        });
+                        topicSelect.parentNode.insertBefore(retryBtn, topicSelect.nextSibling);
+                    }
+
+                    function hideTopicRetryControl() {
+                        var retryBtn = document.getElementById('skilland-topic-retry');
+                        if (retryBtn) {
+                            retryBtn.style.display = 'none';
+                        }
+                    }
+
+                    fetchTopics();
                 }
             })();
             ";
@@ -1334,29 +1538,36 @@ class mod_skilland_mod_form extends moodleform_mod {
             $link = html_writer::link($courseediturl, $linktext);
             $errors['skilland_course_id_display'] = get_string('skilland_course_id_required', 'mod_skilland', $link);
         } else {
-            // The submitted topic must belong to the skill this course is mapped to.
+            // The submitted topic must belong to the skill this course is mapped to. The client-side
+            // 'required' rule on skilland_topicid was removed (SKL-688) so an unrelated setting can
+            // still be saved while the topic select couldn't load; this is the real, server-side guard
+            // against an empty topic id ever reaching save.
             $topicid = !empty($data['skilland_topicid_saved']) ? $data['skilland_topicid_saved'] : ($data['skilland_topicid'] ?? '');
-            try {
-                if (!skilland_topic_belongs_to_course((string)$topicid, (string)$skillandcourseid)) {
-                    $errors['skilland_topicid'] = get_string('error_course_not_mapped_to_skill', 'mod_skilland');
-                }
-            } catch (moodle_exception $e) {
-                logger::error('Form', 'validation - topic check failed: ' . $e->getMessage());
-                $errors['skilland_topicid'] = mod_skilland_client_error_message($e);
-            }
-
-            // The submitted lessons must belong to the submitted topic. Against an empty lesson
-            // list the helper returns every submitted ID, so this skips the fetch when none were sent.
-            $selectedlessons = (string)($data['selected_lessons'] ?? '');
-            if (empty($errors['skilland_topicid']) && skilland_lessons_outside_topic($selectedlessons, []) !== []) {
+            if ($topicid === '') {
+                $errors['skilland_topicid'] = get_string('error_topicid_required', 'mod_skilland');
+            } else {
                 try {
-                    $topiclessons = mod_skilland_fetch_lessons((string)$topicid);
-                    if (skilland_lessons_outside_topic($selectedlessons, $topiclessons) !== []) {
-                        $errors['skilland_topicid'] = get_string('error_lessons_not_in_topic', 'mod_skilland');
+                    if (!skilland_topic_belongs_to_course((string)$topicid, (string)$skillandcourseid)) {
+                        $errors['skilland_topicid'] = get_string('error_course_not_mapped_to_skill', 'mod_skilland');
                     }
                 } catch (moodle_exception $e) {
-                    // The topic check just passed against the same API: fail open rather than block the save.
-                    logger::debug('Form', 'validation - lesson/topic check skipped: ' . $e->getMessage());
+                    logger::error('Form', 'validation - topic check failed: ' . $e->getMessage());
+                    $errors['skilland_topicid'] = mod_skilland_client_error_message($e);
+                }
+
+                // The submitted lessons must belong to the submitted topic. Against an empty lesson
+                // list the helper returns every submitted ID, so this skips the fetch when none were sent.
+                $selectedlessons = (string)($data['selected_lessons'] ?? '');
+                if (empty($errors['skilland_topicid']) && skilland_lessons_outside_topic($selectedlessons, []) !== []) {
+                    try {
+                        $topiclessons = mod_skilland_fetch_lessons((string)$topicid);
+                        if (skilland_lessons_outside_topic($selectedlessons, $topiclessons) !== []) {
+                            $errors['skilland_topicid'] = get_string('error_lessons_not_in_topic', 'mod_skilland');
+                        }
+                    } catch (moodle_exception $e) {
+                        // The topic check just passed against the same API: fail open rather than block the save.
+                        logger::debug('Form', 'validation - lesson/topic check skipped: ' . $e->getMessage());
+                    }
                 }
             }
         }
