@@ -1033,7 +1033,13 @@ class mod_skilland_mod_form extends moodleform_mod {
                             var checkboxes = document.querySelectorAll('#id_lessons_container .skilland-lesson-checkbox');
                             checkboxes.forEach(function(cb) {
                                 if (cb.checked) {
-                                    state[cb.value] = { updatedAt: cb.dataset.updatedAt, name: cb.dataset.name || '' };
+                                    // A lesson stored for this activity keeps its stored updatedAt (the version
+                                    // inside the installed SCORM); only a lesson not stored yet takes the API one.
+                                    var stored = currentSelectedLessons[cb.value];
+                                    state[cb.value] = {
+                                        updatedAt: stored ? stored.updatedAt : cb.dataset.updatedAt,
+                                        name: cb.dataset.name || ''
+                                    };
                                 }
                             });
                             selectionsByTopic[renderedTopicId] = state;
