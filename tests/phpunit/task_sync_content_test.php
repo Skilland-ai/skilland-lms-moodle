@@ -139,7 +139,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'abc123',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
 
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
@@ -158,7 +158,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'abc123',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
 
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
@@ -210,7 +210,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'abc123',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
 
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
@@ -260,7 +260,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => null,
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_update_topic_scorm'] = 200;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
@@ -288,7 +288,7 @@ class task_sync_content_test extends TestCase {
         ];
 
         // Remote also returns empty contentHash.
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => '', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => '', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_update_topic_scorm'] = 200;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
@@ -308,7 +308,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'oldhash',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_update_topic_scorm'] = 200;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
@@ -317,10 +317,11 @@ class task_sync_content_test extends TestCase {
 
         $this->assertEquals('updated', $result);
 
-        // Verify snapshot was saved.
-        $updates = $this->db->get_calls_for('update_record');
-        $lastUpdate = end($updates);
-        $this->assertEquals('newhash', $lastUpdate['data']->snapshotid);
+        // SKL-654: the hash is written once, by skilland_link_topic_scorm() at build time (stubbed
+        // out here); the cron no longer writes a second, redundant copy.
+        $snapshotwrites = array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => isset($c['data']->snapshotid));
+        $this->assertEmpty($snapshotwrites);
     }
 
     public function test_check_and_update_skips_when_provisioning_lock_is_busy(): void {
@@ -333,7 +334,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'oldhash',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_lock_available'] = false;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
@@ -365,7 +366,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'oldhash',
         ];
         $this->db->seed('skilland', [clone $activity]);
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
         $ok = fn(array $data) => ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
         $GLOBALS['_test_curl_responses'] = [
@@ -402,7 +403,7 @@ class task_sync_content_test extends TestCase {
             (object)['id' => 1, 'autoupdate' => 1, 'scormcmid' => 100, 'skilland_topicid' => 'topic1',
                 'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
         ]);
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_lock_available'] = false;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
@@ -630,7 +631,7 @@ class task_sync_content_test extends TestCase {
 
     public function test_reprovision_path_does_not_recompute(): void {
         $this->seedTrackedActivity();
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_update_topic_scorm'] = 200;
 
         $this->makeTask()->execute();
@@ -674,7 +675,7 @@ class task_sync_content_test extends TestCase {
             (object)['id' => 3, 'autoupdate' => 1, 'scormcmid' => 300, 'skilland_topicid' => 'topic3',
                 'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
         ]);
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z'];
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
         $processed = [];
         $GLOBALS['_test_update_topic_scorm'] = function ($skilland) use (&$processed) {

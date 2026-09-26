@@ -750,7 +750,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertNotFalse($this->db->get_record('course_modules', ['id' => 51]));
     }
 
-    public function test_update_failure_after_the_old_module_is_gone_rolls_back_and_releases(): void {
+    public function test_update_failure_keeps_the_old_module_rolls_back_the_new_one_and_releases(): void {
         $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) ['id' => 7, 'scormcmid' => 50, 'scorm_provisioned' => 1]);
         $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
@@ -761,10 +761,17 @@ class locallib_provision_scorm_test extends TestCase {
         $this->expect_code(fn() => skilland_update_topic_scorm($skilland, $this->course(), 0),
             'error_scorm_parse_failed');
 
-        $this->assertCount(2, $GLOBALS['_test_deleted_cmids'], 'Old module, then the new one on rollback');
-        $this->assertSame(50, $GLOBALS['_test_deleted_cmids'][0]);
-        $this->assert_rolled_back();
-        $this->assertEmpty($skilland->scormcmid);
+        // SKL-654: the new module is built before the old one is touched, so only it is rolled back.
+        $this->assertCount(1, $GLOBALS['_test_deleted_cmids'], 'Only the new module, on rollback');
+        $this->assertNotSame(50, $GLOBALS['_test_deleted_cmids'][0]);
+        $this->assertNotFalse($this->db->get_record('course_modules', ['id' => 50]));
+        $this->assertSame([50], array_keys($this->db->get_records('course_modules')));
+        $this->assertEquals(50, $this->skilland()->scormcmid);
+        $this->assertEquals(1, $this->skilland()->scorm_provisioned);
+        foreach ([1, 2, 3] as $id) {
+            $this->assertNull($this->lesson($id)->scoid);
+        }
+        $this->assertEquals(50, $skilland->scormcmid);
         $this->assertCount(1, $this->lockcalls('acquire'));
         $this->assertCount(1, $this->lockcalls('release'));
     }
@@ -835,7 +842,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertEmpty($this->skilland()->scomappings ?? null);
     }
 
-    public function test_update_clears_the_old_mapping_before_writing_the_new_one(): void {
+    public function test_update_replaces_the_old_mapping_in_the_link_write(): void {
         $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
         $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
@@ -849,13 +856,16 @@ class locallib_provision_scorm_test extends TestCase {
         $clears = array_values(array_filter($this->db->get_calls_for('update_record'),
             fn($c) => $c['table'] === 'skilland' && property_exists($c['data'], 'scormcmid')
                 && $c['data']->scormcmid === null));
-        $this->assertCount(1, $clears);
-        $this->assertTrue(property_exists($clears[0]['data'], 'scomappings'));
-        $this->assertNull($clears[0]['data']->scomappings);
+        // SKL-654: no intermediate unlinked state; the new link write replaces the old mapping.
+        $this->assertCount(0, $clears);
+        $links = array_values(array_filter($this->db->get_calls_for('update_record'),
+            fn($c) => $c['table'] === 'skilland' && !empty($c['data']->scormcmid) && (int) $c['data']->scormcmid !== 50));
+        $this->assertCount(1, $links);
+        $this->assertSame(['L1' => 'sco_1'], json_decode($links[0]['data']->scomappings, true));
         $this->assertSame(['L1' => 'sco_1'], json_decode($this->skilland()->scomappings, true));
     }
 
-    public function test_update_failure_leaves_scomappings_cleared(): void {
+    public function test_update_failure_keeps_the_old_scomappings(): void {
         $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
             ['scormcmid' => 50, 'scorm_provisioned' => 1, 'scomappings' => json_encode(['L1' => 'old'])]));
@@ -870,8 +880,9 @@ class locallib_provision_scorm_test extends TestCase {
             $this->assertNotEmpty($e->errorcode);
         }
 
-        $this->assertNull($this->skilland()->scomappings);
-        $this->assertNull($this->skilland()->scormcmid);
+        // SKL-654: a failed build leaves the old SCORM and its mapping linked.
+        $this->assertSame(['L1' => 'old'], json_decode($this->skilland()->scomappings, true));
+        $this->assertEquals(50, $this->skilland()->scormcmid);
     }
 
     public function test_missing_module_reprovision_clears_the_old_mapping(): void {
