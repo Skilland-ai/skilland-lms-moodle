@@ -453,4 +453,20 @@ class backup_restore_test extends TestCase {
         $this->assertNull($this->restored_lesson($result, 'L1')->scoid);
         $this->assertNull($this->restored_lesson($result, 'L2')->scoid);
     }
+
+    /**
+     * SKL-667: index.php is now a real listing page (was a redirect), reached from a restored
+     * course via the SKILLANDINDEX link tag. Untouched by SKL-667, asserted here as a regression
+     * guard: a backup that embeds that tag must still decode to index.php, not view.php.
+     */
+    public function test_skillandindex_decode_rule_still_points_at_index_php(): void {
+        $rules = \restore_skilland_activity_task::define_decode_rules();
+
+        $names = array_map(fn($rule) => $rule->linkname, $rules);
+        $this->assertContains('SKILLANDINDEX', $names);
+
+        $rule = $rules[array_search('SKILLANDINDEX', $names, true)];
+        $this->assertSame('/mod/skilland/index.php?id=$1', $rule->urltemplate);
+        $this->assertSame('course', $rule->mappings);
+    }
 }

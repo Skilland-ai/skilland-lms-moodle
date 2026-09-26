@@ -51,6 +51,9 @@ abstract class base {
 abstract class course_module_viewed extends base {
 }
 
+abstract class course_module_instance_list_viewed extends base {
+}
+
 /**
  * Like Moodle's: objectid is the cmid, other carries modulename and instanceid.
  */

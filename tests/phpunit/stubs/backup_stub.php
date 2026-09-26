@@ -138,7 +138,17 @@ if (!class_exists('restore_decode_content')) {
 
 if (!class_exists('restore_decode_rule')) {
     class restore_decode_rule {
+        /** @var string */
+        public $linkname;
+        /** @var string */
+        public $urltemplate;
+        /** @var mixed */
+        public $mappings;
+
         public function __construct($linkname, $urltemplate, $mappings) {
+            $this->linkname = $linkname;
+            $this->urltemplate = $urltemplate;
+            $this->mappings = $mappings;
         }
     }
 }
