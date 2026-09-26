@@ -245,7 +245,12 @@ class task_sync_content_test extends TestCase {
     // check_and_update() — snapshotid edge cases
     // ---------------------------------------------------------------
 
-    public function test_check_and_update_triggers_update_when_snapshotid_null(): void {
+    /**
+     * SKL-649: an activity that already has a SCORM but no stored hash (provisioned before this
+     * fix) must have the current remote hash recorded once, without re-provisioning — the missing
+     * hash means "unknown", not "changed", so it must never trigger a destructive rebuild.
+     */
+    public function test_check_and_update_records_hash_without_reprovisioning_when_snapshotid_null(): void {
         $activity = (object)[
             'id' => 1,
             'skilland_topicid' => 'topic1',
@@ -262,17 +267,17 @@ class task_sync_content_test extends TestCase {
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
 
-        // null snapshotid → !empty('') is false → goes to update path.
-        $this->assertEquals('updated', $result);
+        // Migration path: the hash is recorded, but the SCORM (and student progress) is untouched.
+        $this->assertEquals('current', $result);
 
-        // Verify snapshot fields updated.
         $updates = $this->db->get_calls_for('update_record');
         $this->assertNotEmpty($updates);
         $updated = $updates[0]['data'];
         $this->assertEquals('newhash', $updated->snapshotid);
     }
 
-    public function test_check_and_update_triggers_update_when_both_hashes_empty(): void {
+    /** Same migration as above, when both the stored and remote hashes happen to be empty. */
+    public function test_check_and_update_records_hash_without_reprovisioning_when_both_hashes_empty(): void {
         $activity = (object)[
             'id' => 1,
             'skilland_topicid' => 'topic1',
@@ -290,8 +295,7 @@ class task_sync_content_test extends TestCase {
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
 
-        // Both empty → !empty('') is false → update path (treats as stale).
-        $this->assertEquals('updated', $result);
+        $this->assertEquals('current', $result);
     }
 
     public function test_check_and_update_returns_updated_when_hash_differs(): void {

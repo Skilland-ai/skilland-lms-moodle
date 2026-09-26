@@ -1214,7 +1214,7 @@ function skilland_get_provision_lock(int $skillandid, int $timeout = 10) {
  * @param stdClass $to Destination record.
  */
 function skilland_copy_provisioning_fields(stdClass $from, stdClass $to): void {
-    foreach (['scormcmid', 'scorm_provisioned', 'scomappings', 'snapshotcreatedat'] as $field) {
+    foreach (['scormcmid', 'scorm_provisioned', 'scomappings', 'snapshotcreatedat', 'snapshotid'] as $field) {
         $to->$field = $from->$field ?? null;
     }
 }
@@ -1228,10 +1228,12 @@ function skilland_copy_provisioning_fields(stdClass $from, stdClass $to): void {
  * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
  * @param stdClass $course The Moodle course record
  * @param int $sectionnum The section number to add the SCORM to
+ * @param string|null $contenthash Pre-fetched content hash to store as snapshotid; fetched via
+ *   mod_skilland_check_topic_snapshot() when null.
  * @return int The SCORM course module ID
  * @throws moodle_exception If provisioning fails or is already in progress
  */
-function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
+function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0, ?string $contenthash = null) {
     global $DB;
 
     skilland_require_scorm_apis();
@@ -1262,7 +1264,7 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
             $current->scomappings = null;
         }
 
-        $cmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
+        $cmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum, $contenthash);
         skilland_copy_provisioning_fields($current, $skilland);
         return $cmid;
     } finally {
@@ -1280,11 +1282,20 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0) {
  * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
  * @param stdClass $course The Moodle course record.
  * @param int $sectionnum Section number the SCORM goes into.
+ * @param string|null $contenthash Pre-fetched content hash to store as snapshotid; fetched via
+ *   mod_skilland_check_topic_snapshot() when null (a failed fetch stores an empty string, never
+ *   blocking provisioning).
  * @return int The new SCORM course module id.
  * @throws moodle_exception If provisioning fails.
  */
-function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $course, int $sectionnum): int {
+function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $course, int $sectionnum,
+        ?string $contenthash = null): int {
     global $DB;
+
+    if ($contenthash === null) {
+        $hashinfo = mod_skilland_check_topic_snapshot((string) $skilland->skilland_topicid);
+        $contenthash = is_array($hashinfo) ? ($hashinfo['contentHash'] ?? '') : '';
+    }
 
     $package = skilland_download_topic_scorm_package((string) $skilland->skilland_topicid);
     $scorminfo = $package['info'];
@@ -1302,6 +1313,7 @@ function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $cou
                 'scorm_provisioned' => time(),
                 'scomappings' => json_encode($scorminfo['mappings'] ?? []),
                 'snapshotcreatedat' => !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time(),
+                'snapshotid' => $contenthash,
             ];
             $DB->update_record('skilland', $fields);
         } catch (\Throwable $e) {
@@ -1378,10 +1390,12 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
  * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
  * @param stdClass $course The Moodle course record
  * @param int $sectionnum The section number for the SCORM
+ * @param string|null $contenthash Pre-fetched content hash (e.g. already read by the sync task)
+ *   to store as snapshotid; fetched via mod_skilland_check_topic_snapshot() when null.
  * @return int The new SCORM course module ID
  * @throws moodle_exception If update fails or provisioning is already in progress
  */
-function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
+function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?string $contenthash = null) {
     // Test hook: return override value if set (used by PHPUnit tests).
     if (array_key_exists('_test_update_topic_scorm', $GLOBALS)) {
         $hook = $GLOBALS['_test_update_topic_scorm'];
@@ -1422,7 +1436,7 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
         $lessons = mod_skilland_fetch_lessons($current->skilland_topicid);
 
         // Step 3: Provision the new SCORM package (the lock is already held).
-        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
+        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum, $contenthash);
         skilland_copy_provisioning_fields($current, $skilland);
 
         // Step 4: updatedat = version of the lesson in the installed package; only a successful

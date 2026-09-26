@@ -18,7 +18,7 @@ class lib_update_instance_reconcile_test extends TestCase {
         '_test_scorm_scoes', '_test_events', '_test_deleted_cmids', '_test_course_delete_throw',
         '_test_set_visible_calls', '_test_stored_files', '_test_cm_from_db', '_test_get_coursemodule_from_id',
         '_test_get_coursemodule_from_instance', '_test_update_topic_scorm', '_test_notifications',
-        '_test_customfield_value', '_test_dispatch_observers',
+        '_test_customfield_value', '_test_dispatch_observers', '_test_topic_snapshot',
     ];
 
     protected function setUp(): void {
@@ -32,6 +32,9 @@ class lib_update_instance_reconcile_test extends TestCase {
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_cm_from_db'] = true;
         $GLOBALS['_test_customfield_value'] = [3 => 'skill-a'];
+        // SKL-649: default to "no hash" via the test hook so provisioning's content-hash fetch
+        // never consumes the curl queue set up for the package download below.
+        $GLOBALS['_test_topic_snapshot'] = null;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object) ['id' => 90, 'instance' => 7, 'course' => 3,
             'section' => 11];
         $GLOBALS['_test_scorm_scoes'] = [
@@ -196,6 +199,9 @@ class lib_update_instance_reconcile_test extends TestCase {
     public function test_topic_change_reprovisions_once_for_the_new_topic(): void {
         $this->queue_topics();
         $this->queue_reprovision();
+        // SKL-649: reprovisioning for the new topic fetches and stores its own content hash,
+        // regardless of the reset snapshotid the topic change wrote for the old topic.
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'topic2hash', 'generatedAt' => '2026-02-01T00:00:00Z'];
 
         $this->assertTrue(skilland_update_instance($this->formdata('topic2', ['M1', 'M2'])));
 
@@ -207,7 +213,7 @@ class lib_update_instance_reconcile_test extends TestCase {
         $this->assertSame('topic2', $row->skilland_topicid);
         $this->assertNotSame(50, (int) $row->scormcmid);
         $this->assertNotEmpty($row->scormcmid);
-        $this->assertNull($row->snapshotid);
+        $this->assertSame('topic2hash', $row->snapshotid);
         $this->assertSame(['M1' => 'sco_m1', 'M2' => 'sco_m2'], json_decode($row->scomappings, true));
 
         $newscoids = array_keys($this->db->get_records('scorm_scoes', ['scorm' => $this->db->get_field(

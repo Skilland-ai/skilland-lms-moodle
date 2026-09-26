@@ -21,6 +21,7 @@ class locallib_provision_scorm_test extends TestCase {
         '_test_create_module_visibleoncoursepage', '_test_scorm_scoes', '_test_events', '_test_deleted_cmids',
         '_test_course_delete_throw', '_test_set_visible_calls', '_test_stored_files', '_test_cm_from_db',
         '_test_get_coursemodule_from_id', '_test_update_topic_scorm', '_test_create_module_throw_after_insert',
+        '_test_topic_snapshot',
     ];
 
     protected function setUp(): void {
@@ -34,6 +35,11 @@ class locallib_provision_scorm_test extends TestCase {
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
         $GLOBALS['_test_cm_from_db'] = true;
+        // SKL-649: provisioning fetches the content hash via mod_skilland_check_topic_snapshot()
+        // unless a caller threads one through. Default to "no hash" via the test hook so existing
+        // tests that don't care about it never consume the curl queue meant for the package
+        // download; tests that do care override this per-test.
+        $GLOBALS['_test_topic_snapshot'] = null;
         $GLOBALS['_test_scorm_scoes'] = [
             ['identifier' => 'org', 'launch' => ''],
             ['identifier' => 'sco_1', 'launch' => 'l1.html'],
@@ -894,5 +900,88 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertEmpty($GLOBALS['_test_create_module_calls'] ?? []);
         $this->assertEmpty($this->skilland()->scormcmid);
         $this->assertSame($before, $this->tempfiles());
+    }
+
+    // ---------------------------------------------------------------
+    // Snapshot hash persistence (SKL-649)
+    // ---------------------------------------------------------------
+
+    /**
+     * A successful provision stores the fetched content hash as snapshotid, and
+     * check_topic_snapshot's own isstale formula then reports the activity as not stale.
+     * Also the path restore_skilland_activity_task::after_restore() uses (it calls this same
+     * function), so no separate restore-specific provisioning code is needed.
+     */
+    public function test_provision_stores_content_hash_as_snapshotid(): void {
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'remotehash1', 'generatedAt' => '2026-01-02T00:00:00Z'];
+        $this->queue_package();
+
+        skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
+
+        $row = $this->skilland();
+        $this->assertSame('remotehash1', $row->snapshotid);
+
+        $currenthash = $row->snapshotid ?? '';
+        $remotehash = 'remotehash1';
+        $isstale = !empty($remotehash) && $currenthash !== $remotehash;
+        $this->assertFalse($isstale, 'check_topic_snapshot must report the freshly provisioned activity as not stale');
+    }
+
+    /** A failed hash fetch (null from the API) must never block provisioning. */
+    public function test_provision_stores_empty_snapshotid_when_hash_fetch_fails(): void {
+        $GLOBALS['_test_topic_snapshot'] = null;
+        $this->queue_package();
+
+        $cmid = skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
+
+        $this->assertGreaterThan(0, $cmid);
+        $this->assertSame('', $this->skilland()->snapshotid);
+    }
+
+    /** The "already provisioned" short-circuit mirrors the stored snapshotid onto the caller too. */
+    public function test_already_provisioned_short_circuit_copies_snapshotid(): void {
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'firsthash', 'generatedAt' => '2026-01-02T00:00:00Z'];
+        $this->queue_package();
+        skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
+
+        $caller = $this->skilland();
+        $caller->snapshotid = null; // Simulate a stale in-memory copy.
+        skilland_provision_topic_scorm($caller, $this->course(), 0);
+
+        $this->assertSame('firsthash', $caller->snapshotid);
+    }
+
+    /** A manual update (not through the sync task) fetches and persists the hash the same way. */
+    public function test_update_persists_snapshotid_immediately(): void {
+        $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
+        $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
+        $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
+            ['scormcmid' => 50, 'scorm_provisioned' => 1, 'snapshotid' => 'oldhash']));
+        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
+            'lessons' => []]]);
+        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'freshhash', 'generatedAt' => '2026-02-01T00:00:00Z'];
+        $this->queue_package();
+
+        skilland_update_topic_scorm($this->skilland(), $this->course(), 1);
+
+        $this->assertSame('freshhash', $this->skilland()->snapshotid);
+    }
+
+    /** Threading an already-fetched hash through skips the extra network round trip. */
+    public function test_update_with_prefetched_hash_does_not_refetch(): void {
+        $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
+        $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
+        $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
+            ['scormcmid' => 50, 'scorm_provisioned' => 1, 'snapshotid' => 'oldhash']));
+        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
+            'lessons' => []]]);
+        // setUp defaults _test_topic_snapshot to null (no hash); passing $contenthash explicitly
+        // must win over that default, proving the caller's pre-fetched hash is used as-is instead
+        // of being re-fetched (and instead of falling back to the default's empty string).
+        $this->queue_package();
+
+        skilland_update_topic_scorm($this->skilland(), $this->course(), 1, 'prefetchedhash');
+
+        $this->assertSame('prefetchedhash', $this->skilland()->snapshotid);
     }
 }
