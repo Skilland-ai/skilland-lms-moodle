@@ -363,6 +363,13 @@ class form_lesson_selection_test extends TestCase {
         $this->assertSame(2, substr_count(self::$form, 'fetchTopics();'));
     }
 
+    public function test_fetch_topics_clears_the_retry_control_on_every_call(): void {
+        // A retry succeeding after a prior failure must hide the Retry control it showed;
+        // this is the first statement in the function body, before the request even fires.
+        $fn = $this->js_function_body('fetchTopics');
+        $this->assertMatchesRegularExpression('/^\s*hideTopicRetryControl\(\);/', $fn);
+    }
+
     public function test_topic_fetch_failure_keeps_the_select_usable_and_offers_retry(): void {
         $fn = $this->js_function_body('showTopicFetchError');
         $this->assertStringContainsString('currentTopicId', $fn);
