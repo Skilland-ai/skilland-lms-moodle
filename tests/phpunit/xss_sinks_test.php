@@ -173,6 +173,31 @@ class xss_sinks_test extends TestCase {
         $this->assertMatchesRegularExpression('/var editLinkHtml = " \. json_encode\(\$editlink\) \. ";/', $source);
     }
 
+    public function test_topic_description_fills_the_intro_editor_as_escaped_text(): void {
+        $source = $this->source('mod_form.php');
+
+        // The intro is an editor on #id_introeditor; #id_intro does not exist on the form (SKL-759).
+        $this->assertStringNotContainsString("getElementById('id_intro')", $source);
+        $this->assertStringNotContainsString("get('id_intro')", $source);
+        $this->assertStringNotContainsString("'#id_introeditable'", $source);
+
+        $set = $this->js_function_body($source, 'setIntroDescription');
+        $this->assertStringContainsString("document.getElementById('id_introeditor')", $set);
+        $this->assertStringContainsString('descriptionToIntroHtml(description)', $set);
+        $this->assertStringContainsString('lastAutoIntroHtml', $set);
+
+        $html = $this->js_function_body($source, 'descriptionToIntroHtml');
+        $this->assertStringContainsString("'<p>' + escapeHtml(text) + '</p>'", $html);
+
+        $text = $this->js_function_body($source, 'htmlToText');
+        $this->assertStringContainsString("parseFromString(text, 'text/html')", $text);
+        $this->assertStringNotContainsString('innerHTML', $text);
+
+        $this->assertMatchesRegularExpression("/tiny\.get\('id_introeditor'\)/", $source);
+        $this->assertStringContainsString("getInstanceForElementId('id_introeditor')", $source);
+        $this->assertStringContainsString("document.getElementById('id_introeditoreditable')", $source);
+    }
+
     public function test_topic_options_are_built_with_textcontent(): void {
         $source = $this->source('mod_form.php');
         $this->assertStringContainsString('option.textContent = optionText;', $source);
@@ -235,13 +260,10 @@ class xss_sinks_test extends TestCase {
             $returns
         );
 
+        // SKL-664: the course form never opens redirect_url; the Studio link is offered after the save.
         $hooks = $this->source('classes/hooks.php');
-        $this->assertStringContainsString('/^https?:\\/\\//i.test(pendingRedirectUrl)', $hooks);
-        $this->assertSame(1, substr_count($hooks, 'window.open(pendingRedirectUrl'));
-        $this->assertMatchesRegularExpression(
-            '/\.test\(pendingRedirectUrl\)\)\s*\{\s*window\.open\(pendingRedirectUrl/',
-            $hooks,
-            'window.open(pendingRedirectUrl) must sit behind the http(s) scheme check'
-        );
+        $this->assertStringNotContainsString('window.open', $hooks);
+        $this->assertStringNotContainsString('redirect_url', $hooks);
+        $this->assertStringNotContainsString('pendingRedirectUrl', $hooks);
     }
 }

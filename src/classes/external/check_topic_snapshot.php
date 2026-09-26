@@ -101,7 +101,7 @@ class check_topic_snapshot extends base {
                 'contenthash' => $remoteHash,
                 'error' => null,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'isstale' => false,
                 'contenthash' => '',

@@ -75,6 +75,8 @@ test.describe('SSO Integration', () => {
     await expandSkillandSection(page)
     const goToSkilland = page.locator('#skilland-goto-btn a')
     await expect(goToSkilland).toBeVisible()
+    const href = new URL(await goToSkilland.getAttribute('href') || '', page.url())
+    expect(href.searchParams.get('courseid')).toBe(String(courseId))
 
     const [popup] = await Promise.all([
       page.context().waitForEvent('page'),

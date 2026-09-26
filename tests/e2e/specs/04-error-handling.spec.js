@@ -74,7 +74,9 @@ test.describe('Network Error Handling', () => {
       .filter({ hasText: 'Failed to fetch courses from Skilland. Please check your API configuration.' }))
       .toBeVisible()
     await expect(getSkillandCourseIdInput(authenticatedPage)).toBeVisible()
-    await expect(getSkillandDropdown(authenticatedPage)).toBeHidden()
+    await expect(getSkillandCourseIdInput(authenticatedPage)).toBeEnabled()
+    await expect(getSkillandDropdown(authenticatedPage)).toHaveCount(0)
+    await expect(authenticatedPage.locator('[name="customfield_skilland_course_id"]')).toHaveCount(1)
   })
 
   test('Course list error from SkilLand is shown and falls back to the text input', async ({

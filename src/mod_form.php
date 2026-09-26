@@ -815,30 +815,109 @@ class mod_skilland_mod_form extends moodleform_mod {
                         // Update Edit in Skilland button
                         updateEditButton(topic);
 
-                        // Update Description (Intro)
-                        // Try to update standard editor first
-                        var description = topic.description || '';
-                        var introField = document.getElementById('id_intro');
+                        // Update Description (Intro). Moodle renders the intro as an editor
+                        // on the textarea #id_introeditor (TinyMCE or Atto), not #id_intro.
+                        setIntroDescription(topic.description || '');
+                    }
 
-                        if (introField) {
-                            introField.value = description;
+                    // HTML this form last wrote into the intro, so a teacher edit is never clobbered.
+                    var lastAutoIntroHtml = null;
 
-                            // Check for Atto
-                            if (window.Y && window.Y.one) {
-                                var editorNode = window.Y.one('#id_introeditable');
-                                if (editorNode) {
-                                    // Description is purified server-side (clean_text + PARAM_CLEANHTML).
-                                    editorNode.setHTML(description);
+                    // Text of an HTML string, read through an inert DOMParser document
+                    // (no scripts run, no images load), never through a live element.
+                    function htmlToText(html) {
+                        var text = String(html || '');
+                        if (window.DOMParser) {
+                            var doc = new window.DOMParser().parseFromString(text, 'text/html');
+                            text = doc.body ? (doc.body.textContent || '') : '';
+                        }
+                        return text.replace(/\\s+/g, ' ').trim();
+                    }
+
+                    // The description is untrusted API data: keep only its text and escape it.
+                    function descriptionToIntroHtml(description) {
+                        var text = htmlToText(description);
+                        return text ? '<p>' + escapeHtml(text) + '</p>' : '';
+                    }
+
+                    function getIntroTinyEditor() {
+                        var tiny = window.tinymce || window.tinyMCE;
+                        if (tiny && typeof tiny.get === 'function') {
+                            return tiny.get('id_introeditor') || null;
+                        }
+                        return null;
+                    }
+
+                    function introIsEmpty(html) {
+                        return !htmlToText(html) && !/<(img|video|audio|iframe|object)\\b/i.test(String(html || ''));
+                    }
+
+                    function currentIntroHtml(textarea, tinyEditor, attoNode) {
+                        if (tinyEditor) {
+                            return tinyEditor.getContent();
+                        }
+                        if (attoNode) {
+                            return attoNode.innerHTML;
+                        }
+                        return textarea.value;
+                    }
+
+                    function writeIntroHtml(textarea, html) {
+                        var tinyEditor = getIntroTinyEditor();
+                        if (tinyEditor) {
+                            tinyEditor.setContent(html);
+                            if (typeof tinyEditor.save === 'function') {
+                                tinyEditor.save();
+                            }
+                        }
+                        var attoNode = document.getElementById('id_introeditoreditable');
+                        if (attoNode) {
+                            attoNode.innerHTML = html;
+                        }
+                        textarea.value = html;
+                        textarea.dispatchEvent(new Event('input', {bubbles: true}));
+                        textarea.dispatchEvent(new Event('change', {bubbles: true}));
+                        if (attoNode) {
+                            // Atto copies its contenteditable into the textarea on input/change.
+                            attoNode.dispatchEvent(new Event('input', {bubbles: true}));
+                        }
+                    }
+
+                    function setIntroDescription(description) {
+                        var textarea = document.getElementById('id_introeditor');
+                        if (!textarea) {
+                            return;
+                        }
+                        var html = descriptionToIntroHtml(description);
+                        var existing = currentIntroHtml(
+                            textarea,
+                            getIntroTinyEditor(),
+                            document.getElementById('id_introeditoreditable')
+                        );
+                        // Editors normalise HTML (whitespace, entities), so compare the visible text.
+                        var untouched = introIsEmpty(existing) ||
+                            (lastAutoIntroHtml !== null && htmlToText(existing) === htmlToText(lastAutoIntroHtml));
+                        if (!untouched) {
+                            log('Skilland: intro edited by the teacher, not overwriting it');
+                            return;
+                        }
+                        lastAutoIntroHtml = html;
+                        writeIntroHtml(textarea, html);
+
+                        // TinyMCE may still be initialising: set it again once Moodle's editor is ready.
+                        if (!getIntroTinyEditor() && typeof require === 'function') {
+                            require(['editor_tiny/editor'], function(tinyModule) {
+                                var instance = tinyModule && tinyModule.getInstanceForElementId ?
+                                    tinyModule.getInstanceForElementId('id_introeditor') : null;
+                                if (instance && lastAutoIntroHtml === html) {
+                                    instance.setContent(html);
+                                    if (typeof instance.save === 'function') {
+                                        instance.save();
+                                    }
                                 }
-                            }
-
-                            // Check for TinyMCE
-                            // Description is purified server-side (clean_text + PARAM_CLEANHTML).
-                            if (window.tinyMCE && window.tinyMCE.get('id_intro')) {
-                                window.tinyMCE.get('id_intro').setContent(description);
-                            } else if (window.tinyMCE && window.tinyMCE.activeEditor && window.tinyMCE.activeEditor.id === 'id_intro') {
-                                window.tinyMCE.activeEditor.setContent(description);
-                            }
+                            }, function() {
+                                // Tiny is not the active editor.
+                            });
                         }
                     }
 

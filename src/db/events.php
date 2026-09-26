@@ -39,4 +39,9 @@ $observers = [
         'callback' => '\mod_skilland\observer::scorm_tracking_submitted',
         'internal' => false,
     ],
+    [
+        'eventname' => '\core\event\course_updated',
+        'callback' => '\mod_skilland\observer::course_updated',
+        'internal' => false,
+    ],
 ];

@@ -120,7 +120,7 @@ $string['launch_lesson'] = 'Start Lesson';
 $string['content_coming_soon'] = 'Content Coming Soon';
 $string['content_being_prepared'] = 'This lesson content is being prepared. Please check back later.';
 $string['content_not_provisioned'] = 'Content Not Yet Available';
-$string['lesson_not_found'] = 'Lesson not found.';
+$string['lesson_not_available'] = 'This lesson is not available in this activity.';
 $string['scorm_not_ready'] = 'This lesson is not yet ready to play. Please wait for the content to be provisioned.';
 $string['scorm_missing_reprovision'] = 'The content package for this activity was deleted. Provision it again to make the lessons playable.';
 
@@ -177,7 +177,7 @@ $string['configure_skilland_desc'] = 'Set up Skilland course mapping for this co
 $string['go_to_skilland'] = 'Go to Skilland';
 
 // Create in Skilland.
-$string['create_in_skilland'] = '+ Create in Skilland';
+$string['create_in_skilland'] = 'Create in SkilLand';
 $string['creating_course'] = 'Creating course in Skilland...';
 
 // Auto-update / scheduled task.
@@ -215,3 +215,12 @@ $string['privacy:metadata:skilland_progress:status'] = 'The best status the lear
 $string['privacy:metadata:skilland_progress:score'] = 'The highest score the learner reached in the lesson.';
 $string['privacy:metadata:skilland_progress:timemodified'] = 'The time the progress was last updated.';
 $string['privacy:path:progress'] = 'Lesson progress';
+
+// Course mapping field (SKL-664).
+$string['create_course_confirm_title'] = 'Create a SkilLand course';
+$string['create_course_confirm_body'] = 'Create “{$a}” in SkilLand? The SkilLand course is created now and linked to this Moodle course, even if you cancel this form.';
+$string['create_course_confirm_replace'] = 'This Moodle course is already linked to a SkilLand course: the new course replaces that link.';
+$string['create_course_confirm_yes'] = 'Create';
+$string['course_unknown'] = 'Unknown course (ID {$a})';
+$string['course_unknown_warning'] = 'The linked SkilLand course is no longer available to this site. Choose another course or clear the selection.';
+$string['open_new_course_in_skilland'] = 'Open the new course in SkilLand';

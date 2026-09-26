@@ -50,4 +50,30 @@ class observer {
         $userid = (int) ($event->relateduserid ?: $event->userid);
         skilland_handle_scorm_tracking((int) $event->contextinstanceid, $userid);
     }
+
+    /**
+     * The course settings form saved: when this user created a SkilLand course for it (SKL-664),
+     * offer the Studio link now. The pending path is consumed by sso_redirect.php, not here.
+     *
+     * @param \core\event\course_updated $event
+     */
+    public static function course_updated(\core\event\course_updated $event): void {
+        require_once(__DIR__ . '/../locallib.php');
+
+        if (!skilland_is_enabled()) {
+            return;
+        }
+        $courseid = (int) $event->courseid;
+        if (!$courseid || mod_skilland_peek_pending_studio_path($courseid) === null) {
+            return;
+        }
+
+        $url = new \moodle_url('/mod/skilland/sso_redirect.php', [
+            'courseid' => $courseid,
+            'pending' => 1,
+            'sesskey' => sesskey(),
+        ]);
+        \core\notification::info(\html_writer::link($url,
+            get_string('open_new_course_in_skilland', 'mod_skilland'), ['target' => '_blank']));
+    }
 }

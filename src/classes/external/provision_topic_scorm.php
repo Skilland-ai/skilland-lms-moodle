@@ -102,7 +102,7 @@ class provision_topic_scorm extends base {
                 'scormcmid' => $scormcmid,
                 'error' => null,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'success' => false,
                 'scormcmid' => 0,

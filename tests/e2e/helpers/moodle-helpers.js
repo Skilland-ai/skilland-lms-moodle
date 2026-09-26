@@ -232,7 +232,8 @@ function getSkillandDropdown(page) {
 }
 
 /**
- * The original custom field text input (shown again when the course list fails to load).
+ * The original custom field text input (shown again, enabled and under its own id, when the
+ * course list fails to load; while the dropdown is up it is disabled as `#<id>_raw`).
  * @param {import('@playwright/test').Page} page
  * @returns {import('@playwright/test').Locator}
  */
@@ -277,11 +278,27 @@ async function waitForSkillandDropdownLoaded(page) {
 }
 
 /**
- * Select "+ Create in Skilland" from the dropdown (creates the SkilLand course right away)
+ * The "Create in SkilLand" button placed after the dropdown.
  * @param {import('@playwright/test').Page} page
+ * @returns {import('@playwright/test').Locator}
  */
-async function selectCreateNewCourse(page) {
-  await getSkillandDropdown(page).selectOption({ value: '__create_new__' })
+function getCreateCourseButton(page) {
+  return page.locator('#skilland-create-course-btn')
+}
+
+/**
+ * Click "Create in SkilLand" and answer the confirmation dialog. Confirming creates the
+ * SkilLand course right away (and links it server-side); cancelling sends no request.
+ * @param {import('@playwright/test').Page} page
+ * @param {{ confirm?: boolean }} [options]
+ */
+async function selectCreateNewCourse(page, options = {}) {
+  const confirm = options.confirm !== false
+  await getCreateCourseButton(page).click()
+  const dialog = page.locator('.modal.show .modal-dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.locator(confirm ? '[data-action="save"]' : '[data-action="cancel"]').click()
+  await expect(dialog).toBeHidden()
 }
 
 /**
@@ -354,6 +371,7 @@ module.exports = {
   expandFormSection,
   expandSkillandSection,
   waitForSkillandDropdownLoaded,
+  getCreateCourseButton,
   selectCreateNewCourse,
   selectExistingCourse,
   getEditInSkillandButton,

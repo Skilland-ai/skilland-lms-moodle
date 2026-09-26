@@ -98,8 +98,8 @@ Before adding activities, you must link the course:
 1. Go to your Moodle course.
 2. Click **Settings** (or "Edit settings").
 3. Scroll down to **Custom fields**.
-4. Enter your **Skilland Course ID** in the `skilland_course_id` field.
-5. Save changes.
+4. Pick the SkilLand course from the dropdown, or click **Create in SkilLand** and confirm to create a new one. A course created this way is linked to the Moodle course immediately, even if you then cancel the form.
+5. Save changes. After a create, the saved course page shows an **Open the new course in SkilLand** link.
 
 > **Note**: If you don't see this field, ask your administrator to create the "Skilland Course ID" custom course field.
 

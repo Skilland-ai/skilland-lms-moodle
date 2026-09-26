@@ -121,7 +121,7 @@ $string['launch_lesson'] = 'Iniciar Lección';
 $string['content_coming_soon'] = 'Contenido Próximamente';
 $string['content_being_prepared'] = 'El contenido de esta lección está siendo preparado. Por favor, vuelva más tarde.';
 $string['content_not_provisioned'] = 'Contenido Aún No Disponible';
-$string['lesson_not_found'] = 'Lección no encontrada.';
+$string['lesson_not_available'] = 'Esta lección no está disponible en esta actividad.';
 $string['scorm_not_ready'] = 'Esta lección aún no está lista para reproducir. Por favor, espere a que el contenido sea provisionado.';
 $string['scorm_missing_reprovision'] = 'El paquete de contenido de esta actividad se ha eliminado. Vuelva a provisionarlo para que las lecciones se puedan reproducir.';
 
@@ -178,7 +178,7 @@ $string['configure_skilland_desc'] = 'Configurar el mapeo de curso de Skilland p
 $string['go_to_skilland'] = 'Ir a Skilland';
 
 // Create in Skilland.
-$string['create_in_skilland'] = '+ Crear en Skilland';
+$string['create_in_skilland'] = 'Crear en SkilLand';
 $string['creating_course'] = 'Creando curso en Skilland...';
 
 // Auto-update / scheduled task.
@@ -216,3 +216,12 @@ $string['privacy:metadata:skilland_progress:status'] = 'El mejor estado que el a
 $string['privacy:metadata:skilland_progress:score'] = 'La puntuación más alta que el alumno ha alcanzado en la lección.';
 $string['privacy:metadata:skilland_progress:timemodified'] = 'La fecha en que se actualizó el progreso por última vez.';
 $string['privacy:path:progress'] = 'Progreso de las lecciones';
+
+// Campo de vinculación del curso (SKL-664).
+$string['create_course_confirm_title'] = 'Crear un curso de SkilLand';
+$string['create_course_confirm_body'] = '¿Crear «{$a}» en SkilLand? El curso de SkilLand se crea ahora y queda vinculado a este curso de Moodle, aunque canceles este formulario.';
+$string['create_course_confirm_replace'] = 'Este curso de Moodle ya está vinculado a un curso de SkilLand: el nuevo curso sustituye ese vínculo.';
+$string['create_course_confirm_yes'] = 'Crear';
+$string['course_unknown'] = 'Curso desconocido (ID {$a})';
+$string['course_unknown_warning'] = 'El curso de SkilLand vinculado ya no está disponible para este sitio. Elige otro curso o borra la selección.';
+$string['open_new_course_in_skilland'] = 'Abrir el nuevo curso en SkilLand';

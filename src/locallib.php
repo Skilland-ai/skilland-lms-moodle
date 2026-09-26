@@ -1,6 +1,7 @@
 <?php
 defined('MOODLE_INTERNAL') || die();
 
+use mod_skilland\graphql_exception;
 use mod_skilland\logger;
 
 /**
@@ -528,8 +529,9 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     }
 
     // Check for GraphQL errors.
-    if (isset($data['errors']) && is_array($data['errors'])) {
-        mod_skilland_map_graphql_error($data['errors'][0]);
+    $error = mod_skilland_first_graphql_error(is_array($data) ? ($data['errors'] ?? null) : null);
+    if ($error !== null) {
+        mod_skilland_map_graphql_error($error);
     }
 
     // Return data.
@@ -786,6 +788,12 @@ GRAPHQL;
     }
 }
 
+/** GraphQL extensions.code the API returns when a topic has no SCORM package. */
+const MOD_SKILLAND_GQL_SCORM_NOT_AVAILABLE = 'SCORM_NOT_AVAILABLE';
+
+/** GraphQL extensions.code the API returns when a topic does not exist. */
+const MOD_SKILLAND_GQL_TOPIC_NOT_FOUND = 'TOPIC_NOT_FOUND';
+
 /**
  * Fetch SCORM package information from Skilland for a topic (multi-SCO package).
  *
@@ -813,59 +821,60 @@ GRAPHQL;
 
     try {
         $data = mod_skilland_graphql($query, ['topicId' => $topicid]);
-
-        if (!isset($data['topicScorm'])) {
+    } catch (\Throwable $e) {
+        $graphqlcode = $e instanceof graphql_exception ? $e->graphqlcode : '';
+        if ($graphqlcode === MOD_SKILLAND_GQL_SCORM_NOT_AVAILABLE) {
             throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
         }
-
-        $scorm = $data['topicScorm'];
-
-        // Build mappings array: lessonId => scoId.
-        // The mappings field is a [JSON] scalar, so it comes as an array of objects.
-        $mappings = [];
-        if (!empty($scorm['mappings'])) {
-            foreach ($scorm['mappings'] as $mapping) {
-                // Handle both object and array formats.
-                if (is_array($mapping)) {
-                    $lessonId = $mapping['lessonId'] ?? null;
-                    $scoId = $mapping['scoId'] ?? null;
-                } else if (is_object($mapping)) {
-                    $lessonId = $mapping->lessonId ?? null;
-                    $scoId = $mapping->scoId ?? null;
-                } else {
-                    continue;
-                }
-                if ($lessonId && $scoId) {
-                    $mappings[$lessonId] = $scoId;
-                }
-            }
-        }
-        logger::debug('SCORM', 'Parsed ' . count($mappings) . ' lesson->SCO mappings from API');
-
-        return [
-            'packageUrl' => $scorm['packageUrl'] ?? '',
-            'packageSize' => $scorm['packageSize'] ?? 0,
-            'packageHash' => $scorm['packageHash'] ?? '',
-            'generatedAt' => $scorm['generatedAt'] ?? '',
-            'expiresAt' => $scorm['expiresAt'] ?? '',
-            'mappings' => $mappings,
-        ];
-    } catch (moodle_exception $e) {
-        // A user-facing error (not available, configuration) keeps its own code.
-        if (mod_skilland_is_client_error($e)) {
-            throw $e;
-        }
-        // Check for specific error codes in the message.
-        $message = $e->getMessage();
-        if (strpos($message, 'SCORM_NOT_AVAILABLE') !== false) {
-            throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
-        }
-        if (strpos($message, 'TOPIC_NOT_FOUND') !== false) {
+        if ($graphqlcode === MOD_SKILLAND_GQL_TOPIC_NOT_FOUND) {
             throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
         }
-        logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . $message);
+        // Configuration and other user-facing errors (error_http_redirect, ...) keep their own code.
+        if (mod_skilland_is_client_error($e) ||
+                ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))) {
+            throw $e;
+        }
+        logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . get_class($e) .
+            ': ' . $e->getMessage());
         throw new moodle_exception('error_scorm_fetch_failed', 'mod_skilland');
     }
+
+    if (!isset($data['topicScorm']) || !is_array($data['topicScorm'])) {
+        throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
+    }
+
+    $scorm = $data['topicScorm'];
+
+    // Build mappings array: lessonId => scoId.
+    // The mappings field is a [JSON] scalar, so it comes as an array of objects.
+    $mappings = [];
+    if (!empty($scorm['mappings']) && is_array($scorm['mappings'])) {
+        foreach ($scorm['mappings'] as $mapping) {
+            // Handle both object and array formats.
+            if (is_array($mapping)) {
+                $lessonId = $mapping['lessonId'] ?? null;
+                $scoId = $mapping['scoId'] ?? null;
+            } else if (is_object($mapping)) {
+                $lessonId = $mapping->lessonId ?? null;
+                $scoId = $mapping->scoId ?? null;
+            } else {
+                continue;
+            }
+            if ($lessonId && $scoId && (is_string($lessonId) || is_int($lessonId))) {
+                $mappings[$lessonId] = $scoId;
+            }
+        }
+    }
+    logger::debug('SCORM', 'Parsed ' . count($mappings) . ' lesson->SCO mappings from API');
+
+    return [
+        'packageUrl' => $scorm['packageUrl'] ?? '',
+        'packageSize' => $scorm['packageSize'] ?? 0,
+        'packageHash' => $scorm['packageHash'] ?? '',
+        'generatedAt' => $scorm['generatedAt'] ?? '',
+        'expiresAt' => $scorm['expiresAt'] ?? '',
+        'mappings' => $mappings,
+    ];
 }
 
 /**
@@ -1363,7 +1372,8 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
 function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
     // Test hook: return override value if set (used by PHPUnit tests).
     if (array_key_exists('_test_update_topic_scorm', $GLOBALS)) {
-        return $GLOBALS['_test_update_topic_scorm'];
+        $hook = $GLOBALS['_test_update_topic_scorm'];
+        return $hook instanceof \Closure ? $hook($skilland, $course, $sectionnum) : $hook;
     }
 
     global $DB;
@@ -2135,51 +2145,80 @@ function mod_skilland_download_package(string $packageurl): string {
 }
 
 /**
- * Map a GraphQL error response to the appropriate moodle_exception.
+ * Normalise the errors member of a GraphQL response to its first error.
  *
- * Extracted from mod_skilland_graphql() for testability.
+ * @param mixed $errors The decoded "errors" member, null when absent.
+ * @return array|null The first error as an array, or null when the response carries no errors.
+ * @throws graphql_exception error_graphql_unknown when errors is present but malformed.
+ */
+function mod_skilland_first_graphql_error(mixed $errors): ?array {
+    if ($errors === null) {
+        return null;
+    }
+    if (!is_array($errors) || $errors === [] || array_keys($errors) !== range(0, count($errors) - 1)) {
+        logger::error('GraphQL', 'Malformed errors member in response (' . get_debug_type($errors) . ')');
+        throw new graphql_exception('error_graphql_unknown');
+    }
+    $first = $errors[0];
+    if (is_array($first)) {
+        return $first;
+    }
+    if (is_scalar($first)) {
+        return ['message' => (string) $first];
+    }
+    logger::error('GraphQL', 'Malformed first error in response (' . get_debug_type($first) . ')');
+    throw new graphql_exception('error_graphql_unknown');
+}
+
+/**
+ * Map a GraphQL error response to the appropriate graphql_exception.
+ *
+ * Extracted from mod_skilland_graphql() for testability. Every field is read defensively: a
+ * non-array extensions or a non-string code, message or details is treated as absent.
  *
  * @param array $error The first error from a GraphQL errors array.
- * @throws moodle_exception Always throws.
+ * @throws graphql_exception Always throws, carrying extensions.code as $graphqlcode.
  */
 function mod_skilland_map_graphql_error(array $error): never {
-    $errorcode = $error['extensions']['code'] ?? '';
-    $errormessage = $error['message'] ?? get_string('error_graphql_unknown', 'mod_skilland');
-    $errordetails = $error['extensions']['details'] ?? '';
+    $extensions = is_array($error['extensions'] ?? null) ? $error['extensions'] : [];
+    $errorcode = is_string($extensions['code'] ?? null) ? $extensions['code'] : '';
+    $errormessage = is_string($error['message'] ?? null) ? $error['message'] :
+        get_string('error_graphql_unknown', 'mod_skilland');
+    $errordetails = is_string($extensions['details'] ?? null) ? $extensions['details'] : '';
 
     logger::error('GraphQL', 'Error received - Code: ' . $errorcode . ', Message: ' . $errormessage);
 
     switch ($errorcode) {
         case 'SKILLAND_MISSING_ORG_ID':
-            throw new moodle_exception('error_config_missing_orgid', 'mod_skilland');
+            throw new graphql_exception('error_config_missing_orgid', $errorcode);
 
         case 'SKILLAND_MISSING_API_KEY':
-            throw new moodle_exception('error_config_missing_apikey', 'mod_skilland');
+            throw new graphql_exception('error_config_missing_apikey', $errorcode);
 
         case 'SKILLAND_INVALID_ORG_ID_FORMAT':
             $detailedMsg = $errordetails ?: 'Invalid Organization ID format. Please check your Organization ID in plugin settings.';
-            throw new moodle_exception('error_graphql', 'mod_skilland', '', $detailedMsg);
+            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_ORG_NOT_FOUND':
             $detailedMsg = $errordetails ?: 'Organization not found. Please verify your Organization ID in plugin settings.';
-            throw new moodle_exception('error_graphql', 'mod_skilland', '', $detailedMsg);
+            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_API_KEY_NOT_FOUND':
             $detailedMsg = $errordetails ?: 'No API key found for this organization. Please generate an API key in Skilland organization settings.';
-            throw new moodle_exception('error_graphql', 'mod_skilland', '', $detailedMsg);
+            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_API_KEY_INACTIVE':
             $detailedMsg = $errordetails ?: 'API key is inactive. Please regenerate the API key in Skilland organization settings.';
-            throw new moodle_exception('error_graphql', 'mod_skilland', '', $detailedMsg);
+            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_INVALID_API_KEY':
         case 'SKILLAND_ORG_MISMATCH':
             $detailedMsg = $errordetails ?: 'Invalid API key. Please verify your API key in plugin settings.';
-            throw new moodle_exception('error_config_invalid_credentials', 'mod_skilland', '', $detailedMsg);
+            throw new graphql_exception('error_config_invalid_credentials', $errorcode, $detailedMsg);
 
         default:
             $finalMessage = $errordetails ?: $errormessage;
-            throw new moodle_exception('error_graphql', 'mod_skilland', '', $finalMessage);
+            throw new graphql_exception('error_graphql', $errorcode, $finalMessage);
     }
 }
 
@@ -2244,4 +2283,63 @@ function mod_skilland_client_error_message(\Throwable $e): string {
         $message .= ' (' . $e->getMessage() . ')';
     }
     return $message;
+}
+
+/**
+ * Remembers, in the user's session, the SkilLand Studio path to open once the Moodle course form
+ * has saved (SKL-664). The SSO token is minted at click time by sso_redirect.php, never here.
+ *
+ * @param int $courseid Moodle course ID.
+ * @param string $path SkilLand Studio path; must start with /skills-studio/.
+ * @return void
+ * @throws coding_exception When the path is not a SkilLand Studio path.
+ */
+function mod_skilland_set_pending_studio_path(int $courseid, string $path): void {
+    global $SESSION;
+
+    if (strpos($path, '/skills-studio/') !== 0) {
+        throw new coding_exception('Pending SkilLand path must start with /skills-studio/');
+    }
+    if (!is_object($SESSION)) {
+        $SESSION = new stdClass();
+    }
+    if (!isset($SESSION->mod_skilland_pending_studio) || !is_array($SESSION->mod_skilland_pending_studio)) {
+        $SESSION->mod_skilland_pending_studio = [];
+    }
+    $SESSION->mod_skilland_pending_studio[$courseid] = $path;
+}
+
+/**
+ * Returns the pending SkilLand Studio path for a course without consuming it (SKL-664).
+ *
+ * @param int $courseid Moodle course ID.
+ * @return string|null The path, or null when none is pending or it is not a SkilLand Studio path.
+ */
+function mod_skilland_peek_pending_studio_path(int $courseid): ?string {
+    global $SESSION;
+
+    if (!is_object($SESSION) || empty($SESSION->mod_skilland_pending_studio[$courseid])) {
+        return null;
+    }
+    $path = $SESSION->mod_skilland_pending_studio[$courseid];
+    if (!is_string($path) || strpos($path, '/skills-studio/') !== 0) {
+        return null;
+    }
+    return $path;
+}
+
+/**
+ * Returns and clears the pending SkilLand Studio path for a course (SKL-664).
+ *
+ * @param int $courseid Moodle course ID.
+ * @return string|null The path, or null when none is pending or it is not a SkilLand Studio path.
+ */
+function mod_skilland_take_pending_studio_path(int $courseid): ?string {
+    global $SESSION;
+
+    $path = mod_skilland_peek_pending_studio_path($courseid);
+    if (is_object($SESSION) && isset($SESSION->mod_skilland_pending_studio[$courseid])) {
+        unset($SESSION->mod_skilland_pending_studio[$courseid]);
+    }
+    return $path;
 }

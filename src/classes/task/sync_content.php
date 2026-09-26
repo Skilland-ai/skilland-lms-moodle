@@ -60,7 +60,12 @@ class sync_content extends \core\task\scheduled_task {
         }
 
         // Local progress backfill first: no network, so it runs whatever the API does (SKL-668).
-        $this->backfill_all_progress();
+        // A failure here must not stop the API check below.
+        try {
+            $this->backfill_all_progress();
+        } catch (\Throwable $e) {
+            logger::error('SyncContent', 'Progress backfill failed: ' . get_class($e) . ': ' . $e->getMessage());
+        }
 
         // Check that plugin is configured.
         $config = get_config('mod_skilland');
@@ -96,9 +101,11 @@ class sync_content extends \core\task\scheduled_task {
                 } else if ($result === 'skipped') {
                     $skipped++;
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
+                // A TypeError from a malformed API response must not abort the other activities.
                 $errors++;
-                logger::error('SyncContent', 'Error checking activity ' . $skilland->id . ': ' . $e->getMessage());
+                logger::error('SyncContent', 'Error checking activity ' . $skilland->id . ': ' . get_class($e) . ': ' .
+                    $e->getMessage());
             }
         }
 
@@ -117,7 +124,7 @@ class sync_content extends \core\task\scheduled_task {
                 $this->backfill_progress($skilland);
             } catch (\Throwable $e) {
                 logger::error('SyncContent', 'Progress backfill failed for activity ' . $skilland->id . ': ' .
-                    $e->getMessage());
+                    get_class($e) . ': ' . $e->getMessage());
             }
         }
     }

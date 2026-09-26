@@ -79,3 +79,16 @@ class status_submitted extends cmielement_submitted {
 
 class scoreraw_submitted extends cmielement_submitted {
 }
+
+namespace core\event;
+
+/**
+ * Like Moodle's: objectid and courseid are the updated course's id.
+ */
+class course_updated extends base {
+    protected function init() {
+        $this->data['objecttable'] = 'course';
+        $this->data['crud'] = 'u';
+        $this->data['edulevel'] = self::LEVEL_TEACHING;
+    }
+}

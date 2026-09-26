@@ -31,6 +31,9 @@ use mod_skilland\logger;
 // $courseid is the Moodle course ID; the Skilland skill ID is resolved from it server-side.
 $topicid  = optional_param('topicid', '', PARAM_TEXT);
 $courseid = optional_param('courseid', 0, PARAM_INT);
+// pending=1 comes from the post-save notification (observer::course_updated, SKL-664): open the
+// Studio path stored when the course was created from Moodle, once.
+$pending  = optional_param('pending', false, PARAM_BOOL);
 
 // Require login and a valid session key.
 require_login();
@@ -71,6 +74,12 @@ try {
     }
     if (!empty($topicid)) {
         $redirect .= '/topics/' . urlencode($topicid);
+    }
+    if (!empty($courseid) && $pending) {
+        $pendingpath = mod_skilland_take_pending_studio_path($courseid);
+        if ($pendingpath !== null) {
+            $redirect = $pendingpath;
+        }
     }
 
     // Get SSO URL
