@@ -345,6 +345,10 @@ function skilland_unlink_scorm(int $skillandid): void {
 /**
  * Process and save selected lessons.
  *
+ * `updatedat` is owned by the SCORM build (skilland_update_topic_scorm()): it is the version of
+ * the lesson inside the installed package. Existing rows (visible or hidden) never take the
+ * submitted `updatedAt`; only newly inserted lessons do.
+ *
  * @param int $skillandid The Skilland activity instance ID.
  * @param string $json The JSON string containing selected lessons.
  */
@@ -365,18 +369,11 @@ function skilland_process_selected_lessons($skillandid, $json) {
     foreach ($selected as $lessonid => $data) {
         $processed_ids[$lessonid] = true;
 
-        $updatedAt = isset($data['updatedAt']) ? $data['updatedAt'] : 0;
-        // Convert ISO8601 string to timestamp if necessary.
-        if (!is_numeric($updatedAt)) {
-            $updatedAt = strtotime($updatedAt);
-        }
-
         $name = isset($data['name']) ? $data['name'] : '';
 
         if (isset($existing[$lessonid])) {
             // Update existing record.
             $rec = $existing[$lessonid];
-            $rec->updatedat = $updatedAt;
             $rec->visible = 1;
             $rec->orderindex = $orderindex;
             if ($name) {
@@ -385,6 +382,12 @@ function skilland_process_selected_lessons($skillandid, $json) {
             $DB->update_record('skilland_lesson', $rec);
         } else {
             // Insert new record.
+            $updatedAt = isset($data['updatedAt']) ? $data['updatedAt'] : 0;
+            // Convert ISO8601 string to timestamp if necessary.
+            if (!is_numeric($updatedAt)) {
+                $updatedAt = strtotime($updatedAt);
+            }
+
             $rec = new stdClass();
             $rec->skillandid = $skillandid;
             $rec->skilland_lessonid = $lessonid;

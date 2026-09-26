@@ -1366,8 +1366,10 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
  *
  * Under the same per-activity lock as provisioning, this function:
  * 1. Deletes the old SCORM activity and all its tracking data
- * 2. Updates lesson timestamps to match current Skilland values
+ * 2. Fetches the current lessons from Skilland (before the build, so a stamp is never newer
+ *    than the packaged content)
  * 3. Provisions a new SCORM package with skilland_provision_topic_scorm_locked()
+ * 4. Only once that build succeeded, stamps each lesson's updatedat with the fetched value
  *
  * WARNING: This will delete all student progress/grades for this topic!
  *
@@ -1416,6 +1418,12 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
         // Step 2: Fetch fresh lesson data from Skilland to get updated timestamps.
         $lessons = mod_skilland_fetch_lessons($current->skilland_topicid);
 
+        // Step 3: Provision the new SCORM package (the lock is already held).
+        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
+        skilland_copy_provisioning_fields($current, $skilland);
+
+        // Step 4: updatedat = version of the lesson in the installed package; only a successful
+        // build advances it.
         foreach ($lessons as $lesson) {
             $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
             $DB->set_field('skilland_lesson', 'updatedat', $updatedAt, [
@@ -1424,10 +1432,6 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0) {
             ]);
         }
         logger::debug('SCORM', 'Updated lesson timestamps from Skilland API');
-
-        // Step 3: Provision the new SCORM package (the lock is already held).
-        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum);
-        skilland_copy_provisioning_fields($current, $skilland);
     } finally {
         $lock->release();
     }
