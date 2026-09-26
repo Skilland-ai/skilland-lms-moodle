@@ -23,6 +23,7 @@
  */
 
 require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/lib.php');
 require_once(__DIR__ . '/locallib.php');
 
 use mod_skilland\logger;
@@ -38,6 +39,9 @@ $context = context_module::instance($cm->id);
 require_login($course, true, $cm);
 require_capability('mod/skilland:view', $context);
 skilland_view($skilland, $course, $cm, $context);
+
+// A deleted linked SCORM makes the activity unprovisioned for this request (never written here).
+$scormmissing = skilland_detect_missing_scorm($skilland);
 
 // Get topic order index for lesson labeling (L1.1, L1.2, etc.).
 $topicorderindex = isset($skilland->topic_orderindex) ? $skilland->topic_orderindex : 1;
@@ -89,6 +93,9 @@ if (empty($skilland->scormcmid)) {
     // SCORM not yet provisioned - show provision button for teachers.
     $canprovision = has_capability('mod/skilland:provision', $context);
     if ($canprovision) {
+        if ($scormmissing) {
+            echo $OUTPUT->notification(get_string('scorm_missing_reprovision', 'mod_skilland'), 'warning');
+        }
         echo skilland_render_provision_view($skilland, $cm);
     } else {
         echo html_writer::div(
@@ -113,6 +120,24 @@ if (empty($skilland->scormcmid)) {
 }
 
 echo $OUTPUT->footer();
+
+/**
+ * Detect a linked SCORM that was deleted (or is being deleted) and treat the activity as
+ * unprovisioned for this request by clearing scormcmid in memory only.
+ *
+ * @param stdClass $skilland The skilland activity record; scormcmid is nulled when missing.
+ * @return bool True when scormcmid was set but the SCORM module is gone.
+ */
+function skilland_detect_missing_scorm(stdClass $skilland): bool {
+    if (empty($skilland->scormcmid)) {
+        return false;
+    }
+    if (skilland_get_linked_scorm_cm($skilland)) {
+        return false;
+    }
+    $skilland->scormcmid = null;
+    return true;
+}
 
 /**
  * Render the lesson list view with progress indicators.
@@ -279,8 +304,12 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
     }
     $lessonlabel = 'L' . $topicorderindex . '.' . $lessonindex;
 
-    // Check if lesson has a valid SCO mapping.
-    if (empty($lesson->scoid) || empty($skilland->scormcmid)) {
+    // Check if lesson has a valid SCO mapping and the SCORM module still exists.
+    $scormcm = null;
+    if (!empty($lesson->scoid) && !empty($skilland->scormcmid)) {
+        $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
+    }
+    if (!$scormcm) {
         $html .= html_writer::div(
             get_string('scorm_not_ready', 'mod_skilland'),
             'alert alert-warning'
@@ -295,7 +324,6 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
 
     // Build the SCORM player URL.
     global $CFG;
-    $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, MUST_EXIST);
     $scorm = $DB->get_record('scorm', ['id' => $scormcm->instance], '*', MUST_EXIST);
 
     // Get or create a SCORM attempt for this user.

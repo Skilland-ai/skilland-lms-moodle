@@ -122,6 +122,7 @@ $string['content_being_prepared'] = 'El contenido de esta lección está siendo 
 $string['content_not_provisioned'] = 'Contenido Aún No Disponible';
 $string['lesson_not_found'] = 'Lección no encontrada.';
 $string['scorm_not_ready'] = 'Esta lección aún no está lista para reproducir. Por favor, espere a que el contenido sea provisionado.';
+$string['scorm_missing_reprovision'] = 'El paquete de contenido de esta actividad se ha eliminado. Vuelva a provisionarlo para que las lecciones se puedan reproducir.';
 
 // SCORM integration.
 $string['error_scorm_not_available'] = 'El contenido SCORM no está disponible para esta lección.';

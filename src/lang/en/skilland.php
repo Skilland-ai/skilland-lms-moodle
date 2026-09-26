@@ -121,6 +121,7 @@ $string['content_being_prepared'] = 'This lesson content is being prepared. Plea
 $string['content_not_provisioned'] = 'Content Not Yet Available';
 $string['lesson_not_found'] = 'Lesson not found.';
 $string['scorm_not_ready'] = 'This lesson is not yet ready to play. Please wait for the content to be provisioned.';
+$string['scorm_missing_reprovision'] = 'The content package for this activity was deleted. Provision it again to make the lessons playable.';
 
 // SCORM integration.
 $string['error_scorm_not_available'] = 'SCORM content is not available for this lesson.';
