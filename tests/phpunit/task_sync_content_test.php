@@ -564,6 +564,35 @@ class task_sync_content_test extends TestCase {
         $this->assertNotEmpty($skipped, 'The API check still ran and failed');
     }
 
+    public function test_backfill_reads_progress_rows_once_per_activity_whatever_the_learner_count(): void {
+        $this->seedTrackedActivity();
+        $this->db->seed('skilland_progress', [
+            (object)['id' => 1, 'skillandid' => 1, 'lessonid' => 5, 'userid' => 50, 'status' => 'incomplete',
+                'score' => null, 'timemodified' => 1],
+        ]);
+        $tracks = [];
+        foreach (range(50, 59) as $i => $userid) {
+            $tracks[$i + 1] = (object)['id' => $i + 1, 'userid' => $userid, 'attempt' => 1, 'scoid' => 11,
+                'element' => 'cmi.core.lesson_status', 'value' => 'completed'];
+        }
+        $this->db->set_records_sql_handler(fn() => $tracks);
+        $GLOBALS['_test_topic_snapshot'] = null;
+
+        $this->makeTask()->execute();
+
+        $progressreads = array_filter($this->db->get_calls_for('get_records'),
+            fn($c) => $c['table'] === 'skilland_progress' && !isset($c['conditions']['userid']));
+        // The merge's own per-learner read (grading reads per learner separately, after a change).
+        $peruserreads = array_filter($this->db->get_calls_for('get_records'),
+            fn($c) => $c['table'] === 'skilland_progress' && $c['fields'] === 'lessonid, id, status, score');
+        $this->assertCount(1, $progressreads);
+        $this->assertCount(0, $peruserreads, 'No per-learner read of the store in the merge');
+        $rows = $this->db->get_records('skilland_progress');
+        $this->assertCount(10, $rows);
+        $this->assertSame(['completed'], array_values(array_unique(array_map(fn($r) => $r->status, $rows))));
+        $this->assertCount(1, array_filter($rows, fn($r) => $r->userid == 50), 'Existing row merged, not duplicated');
+    }
+
     public function test_backfill_recomputes_only_learners_whose_progress_changed(): void {
         $this->seedTrackedActivity();
         $this->db->seed('skilland_progress', [
