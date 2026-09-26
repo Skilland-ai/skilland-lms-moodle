@@ -198,7 +198,12 @@ function skilland_require_topic_in_mapped_course(int $moodlecourseid, string $to
 }
 
 /**
- * Deletes an instance of the skilland module.
+ * Deletes an instance of the skilland module, together with its linked topic SCORM.
+ *
+ * The SCORM is deleted under the provisioning lock so an in-flight provision finishes first.
+ * The lock is best-effort: when it stays busy the SCORM is deleted anyway, because a stuck
+ * deletion is worse than the rare orphan cli/cleanup_orphaned_scorm.php repairs. A SCORM
+ * failure never blocks deleting the activity (or the course).
  *
  * @param int $id The id of the instance to be deleted.
  * @return bool True on success, false otherwise.
@@ -206,8 +211,31 @@ function skilland_require_topic_in_mapped_course(int $moodlecourseid, string $to
 function skilland_delete_instance($id) {
     global $DB;
 
-    if (!$DB->record_exists('skilland', array('id' => $id))) {
+    $skilland = $DB->get_record('skilland', ['id' => $id]);
+    if (!$skilland) {
         return false;
+    }
+
+    if (!empty($skilland->scormcmid)) {
+        require_once(__DIR__ . '/locallib.php');
+
+        $lock = null;
+        try {
+            $lock = skilland_get_provision_lock((int) $skilland->id);
+        } catch (\moodle_exception $e) {
+            logger::warn('SCORM', 'Provisioning lock busy while deleting skilland id ' . $skilland->id .
+                '; deleting its SCORM anyway');
+        }
+        try {
+            $scormcm = skilland_get_linked_scorm_cm($skilland);
+            if ($scormcm) {
+                skilland_delete_scorm_module((int) $scormcm->id);
+            }
+        } finally {
+            if ($lock) {
+                $lock->release();
+            }
+        }
     }
 
     // Delete associated lesson records.
@@ -217,6 +245,46 @@ function skilland_delete_instance($id) {
     // Note: We intentionally do NOT delete the Skilland course mapping,
     // as it may be used by other activities in the same Moodle course.
     return $DB->delete_records('skilland', array('id' => $id));
+}
+
+/**
+ * Returns the activity's linked SCORM course module when it is still live.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @return stdClass|null The SCORM course module, or null when scormcmid is empty, the module is
+ *         missing, or it is being deleted (deletioninprogress).
+ */
+function skilland_get_linked_scorm_cm(stdClass $skilland): ?stdClass {
+    if (empty($skilland->scormcmid)) {
+        return null;
+    }
+    $cm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
+    if (!$cm || !empty($cm->deletioninprogress)) {
+        return null;
+    }
+    return $cm;
+}
+
+/**
+ * Unlinks the activity from its (deleted) SCORM: clears the provisioning fields and every
+ * lesson's SCO mapping. Idempotent. Never takes the provisioning lock, because it runs from the
+ * course_module_deleted observer, which also fires while that lock is held.
+ *
+ * @param int $skillandid The skilland activity id.
+ */
+function skilland_unlink_scorm(int $skillandid): void {
+    global $DB;
+
+    require_once(__DIR__ . '/locallib.php');
+
+    $DB->update_record('skilland', (object) [
+        'id' => $skillandid,
+        'scormcmid' => null,
+        'scorm_provisioned' => null,
+        'snapshotid' => null,
+        'snapshotcreatedat' => null,
+    ]);
+    skilland_clear_lesson_scos($skillandid);
 }
 
 /**
