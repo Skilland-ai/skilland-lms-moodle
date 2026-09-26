@@ -51,7 +51,15 @@ abstract class base {
 abstract class course_module_viewed extends base {
 }
 
+/**
+ * Like Moodle's: crud 'r', edulevel LEVEL_OTHER, modname set from the calling plugin, no
+ * objecttable — a subclass that declares no init() of its own inherits exactly this.
+ */
 abstract class course_module_instance_list_viewed extends base {
+    protected function init() {
+        $this->data['crud'] = 'r';
+        $this->data['edulevel'] = self::LEVEL_OTHER;
+    }
 }
 
 /**

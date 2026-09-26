@@ -22,7 +22,8 @@ class course_module_instance_list_viewed_event_test extends TestCase {
         parent::tearDown();
     }
 
-    public function test_init_sets_read_crud_and_participating_edulevel(): void {
+    public function test_inherits_core_read_crud_and_other_edulevel(): void {
+        // The plugin's class declares no init() of its own, so it inherits core's exactly.
         $event = \mod_skilland\event\course_module_instance_list_viewed::create([
             'context' => (object) ['id' => 42, 'contextlevel' => 50, 'instanceid' => self::COURSE_ID],
         ]);
@@ -30,7 +31,7 @@ class course_module_instance_list_viewed_event_test extends TestCase {
         $data = $event->get_data();
 
         $this->assertSame('r', $data['crud']);
-        $this->assertSame(\core\event\base::LEVEL_PARTICIPATING, $data['edulevel']);
+        $this->assertSame(\core\event\base::LEVEL_OTHER, $data['edulevel']);
     }
 
     public function test_init_does_not_declare_an_objecttable(): void {
