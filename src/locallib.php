@@ -829,7 +829,9 @@ GRAPHQL;
         if ($graphqlcode === MOD_SKILLAND_GQL_TOPIC_NOT_FOUND) {
             throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
         }
-        if ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_')) {
+        // Configuration and other user-facing errors (error_http_redirect, ...) keep their own code.
+        if (mod_skilland_is_client_error($e) ||
+                ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))) {
             throw $e;
         }
         logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . get_class($e) .
@@ -2153,7 +2155,7 @@ function mod_skilland_first_graphql_error(mixed $errors): ?array {
     if ($errors === null) {
         return null;
     }
-    if (!is_array($errors) || $errors === [] || !array_is_list($errors)) {
+    if (!is_array($errors) || $errors === [] || array_keys($errors) !== range(0, count($errors) - 1)) {
         logger::error('GraphQL', 'Malformed errors member in response (' . get_debug_type($errors) . ')');
         throw new graphql_exception('error_graphql_unknown');
     }

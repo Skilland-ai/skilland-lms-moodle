@@ -338,6 +338,25 @@ class locallib_fetch_test extends TestCase {
         }
     }
 
+    public function test_fetch_topic_scorm_rethrows_a_redirect_unchanged(): void {
+        $this->setValidConfig();
+        $GLOBALS['_test_curl_response'] = [
+            'body' => '',
+            'http_code' => 302,
+            'errno' => 0,
+            'error' => '',
+        ];
+
+        try {
+            mod_skilland_fetch_topic_scorm('t1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_http_redirect', $e->errorcode);
+            $this->assertSame('mod_skilland', $e->module);
+            $this->assertSame(302, $e->a);
+        }
+    }
+
     public function test_fetch_topic_scorm_unknown_code_fails_without_a(): void {
         $this->setValidConfig();
         $this->stubGraphqlError('SOMETHING_ELSE', 'secret detail');

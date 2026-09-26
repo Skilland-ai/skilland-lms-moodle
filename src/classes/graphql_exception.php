@@ -33,8 +33,8 @@ defined('MOODLE_INTERNAL') || die();
  */
 class graphql_exception extends \moodle_exception {
 
-    /** @var string The GraphQL extensions.code of the error, '' when the API sent none. */
-    public readonly string $graphqlcode;
+    /** @var string The GraphQL extensions.code of the error, '' when the API sent none. Read-only: set by the constructor. */
+    public $graphqlcode;
 
     /**
      * Constructor.
