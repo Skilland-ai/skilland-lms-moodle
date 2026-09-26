@@ -1705,6 +1705,43 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
 }
 
 /**
+ * Count the distinct students who have at least one SCORM attempt on the activity's currently
+ * linked topic. Used to size the destructive-confirmation copy shown before an update or a topic
+ * change would delete that progress (SKL-697).
+ *
+ * Deliberately a single lightweight query against {scorm_attempt} alone — unlike
+ * skilland_read_scorm_progress(), it does not need scorm_scoes_value/scorm_element and must stay
+ * cheap enough to run on every page load that renders a confirmation dialog.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @return int Number of distinct users with a SCORM attempt, or 0 when the SCORM is gone, the
+ *         table is unavailable, or the query fails.
+ */
+function skilland_count_topic_student_attempts(stdClass $skilland): int {
+    global $DB;
+
+    $dbman = $DB->get_manager();
+    if (!$dbman->table_exists('scorm_attempt')) {
+        return 0;
+    }
+
+    $scormcm = skilland_get_linked_scorm_cm($skilland);
+    if (!$scormcm) {
+        return 0;
+    }
+
+    try {
+        $sql = "SELECT DISTINCT userid FROM {scorm_attempt} WHERE scormid = :scormid";
+        $rows = $DB->get_records_sql($sql, ['scormid' => (int) $scormcm->instance]);
+        return count($rows);
+    } catch (\Throwable $e) {
+        logger::error('Progress', 'Counting SCORM attempts for skilland id ' . $skilland->id . ' failed - ' .
+            $e->getMessage());
+        return 0;
+    }
+}
+
+/**
  * Merge a user's current SCORM tracks into the progress store, monotonically.
  *
  * Rows are keyed by the skilland_lesson row, so they survive re-provisioning (new SCORM, new

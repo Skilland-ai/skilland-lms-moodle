@@ -629,7 +629,7 @@ function skilland_render_provision_view($skilland, $cm) {
         'data-cmid' => $cm->id
     ]);
 
-    $html .= html_writer::tag('div', '📦', ['class' => 'skilland-placeholder-icon']);
+    $html .= html_writer::tag('div', '📦', ['class' => 'skilland-placeholder-icon', 'aria-hidden' => 'true']);
     $html .= html_writer::tag('h4', get_string('content_not_provisioned', 'mod_skilland'));
     $html .= html_writer::tag('p', get_string('provision_topic_desc', 'mod_skilland'), ['class' => 'text-muted mb-3']);
 
@@ -641,16 +641,21 @@ function skilland_render_provision_view($skilland, $cm) {
         'data-cmid' => $cm->id
     ]);
 
-    // Loading spinner (hidden by default).
+    // Loading spinner (hidden by default). role="status"/aria-live announces the elapsed-time
+    // updates and the eventual timeout message to screen reader users (SKL-697).
     $html .= html_writer::div(
-        html_writer::tag('i', '', ['class' => 'fa fa-spinner fa-spin fa-2x']) .
-        html_writer::tag('p', get_string('provisioning', 'mod_skilland'), ['class' => 'mt-2']),
+        html_writer::tag('i', '', ['class' => 'fa fa-spinner fa-spin fa-2x', 'aria-hidden' => 'true']) .
+        html_writer::tag('p', get_string('provisioning', 'mod_skilland'), ['class' => 'mt-2']) .
+        html_writer::tag('p', '', ['class' => 'mt-1 skilland-provision-elapsed', 'id' => 'skilland-provision-elapsed']) .
+        html_writer::tag('p', get_string('provisioning_wait_hint', 'mod_skilland'),
+            ['class' => 'text-muted small mt-2']),
         'skilland-provision-loading d-none',
-        ['id' => 'skilland-provision-loading']
+        ['id' => 'skilland-provision-loading', 'role' => 'status', 'aria-live' => 'polite']
     );
 
     // Error message area (hidden by default).
-    $html .= html_writer::div('', 'alert alert-danger d-none mt-3', ['id' => 'skilland-provision-error']);
+    $html .= html_writer::div('', 'alert alert-danger d-none mt-3', ['id' => 'skilland-provision-error',
+        'role' => 'alert']);
 
     $html .= html_writer::end_div();
 

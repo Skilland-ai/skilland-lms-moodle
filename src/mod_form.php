@@ -424,6 +424,7 @@ class mod_skilland_mod_form extends moodleform_mod {
             $currenttopicid = '';
             $currentSelectedLessons = [];
             $hasscorm = false;
+            $topicstudentattemptcount = 0;
 
             if (!empty($this->_instance)) {
                 global $DB;
@@ -431,6 +432,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                 if ($skilland) {
                     $currenttopicid = $skilland->skilland_topicid;
                     $hasscorm = !empty($skilland->scormcmid);
+                    $topicstudentattemptcount = skilland_count_topic_student_attempts($skilland);
                     $mform->setDefault('skilland_topicid', $currenttopicid);
                     // Fetch existing selected lessons (visible=1)
                     $records = $DB->get_records('skilland_lesson',
@@ -445,6 +447,28 @@ class mod_skilland_mod_form extends moodleform_mod {
                         ];
                     }
                 }
+            }
+
+            // Destructive-confirmation copy for the two dialogs below (SKL-697): a clear action
+            // label and a mention of the count of students who would lose progress, only when
+            // there is anything to lose - otherwise the lighter, non-scary copy stays as-is.
+            $lockafterfirstaccesshint = get_string('lockafterfirstaccess_hint', 'mod_skilland',
+                get_string('lockafterfirstaccess', 'mod_skilland'));
+            $destructiveconfirmactionlabel = get_string('destructive_confirm_action', 'mod_skilland');
+            if ($topicstudentattemptcount > 0) {
+                $updateconfirmmessagetext = get_string('update_confirm_message_students', 'mod_skilland',
+                    $topicstudentattemptcount) . ' ' . $lockafterfirstaccesshint;
+                $updateconfirmactionlabel = $destructiveconfirmactionlabel;
+                $topicchangeconfirmmessagetext = get_string('topic_change_confirm_students', 'mod_skilland',
+                    $topicstudentattemptcount) . ' ' . $lockafterfirstaccesshint;
+                $topicchangeconfirmactionlabel = $destructiveconfirmactionlabel;
+            } else {
+                $updateconfirmmessagetext = get_string('update_confirm_message', 'mod_skilland') . ' ' .
+                    $lockafterfirstaccesshint;
+                $updateconfirmactionlabel = get_string('yes');
+                $topicchangeconfirmmessagetext = get_string('topic_change_confirm', 'mod_skilland') . ' ' .
+                    $lockafterfirstaccesshint;
+                $topicchangeconfirmactionlabel = get_string('yes');
             }
 
             $debug = json_encode((bool) get_config('mod_skilland', 'devmode'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT |
@@ -493,7 +517,8 @@ class mod_skilland_mod_form extends moodleform_mod {
                 var hasScorm = " . json_encode($hasscorm) . "; // The activity has a provisioned SCORM (SKL-655).
                 var confirmedTopicId = null; // Topic the teacher just confirmed leaving the saved topic for.
                 var topicChangeConfirmTitle = " . json_encode(get_string('topic_change_confirm_title', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
-                var topicChangeConfirmMessage = " . json_encode(get_string('topic_change_confirm', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
+                var topicChangeConfirmMessage = " . json_encode($topicchangeconfirmmessagetext, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
+                var topicChangeConfirmActionLabel = " . json_encode($topicchangeconfirmactionlabel, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
                 var lessonsRequestSeq = 0; // Bumped per lessons request; a response with an older token is dropped.
                 var topicsMap = {}; // Store full topic objects by ID
                 var editLinkHtml = " . json_encode($editlink) . ";
@@ -561,7 +586,8 @@ class mod_skilland_mod_form extends moodleform_mod {
                     var noTopicsText = " . json_encode(get_string('no_topics_available', 'mod_skilland')) . ";
                     var newContentAvailableText = " . json_encode($this->get_new_content_string()) . ";
                     var updateConfirmTitle = " . json_encode(get_string('update_confirm_title', 'mod_skilland')) . ";
-                    var updateConfirmMessage = " . json_encode(get_string('update_confirm_message', 'mod_skilland')) . ";
+                    var updateConfirmMessage = " . json_encode($updateconfirmmessagetext) . ";
+                    var updateConfirmActionLabel = " . json_encode($updateconfirmactionlabel) . ";
                     var updateSuccessText = " . json_encode(get_string('update_success', 'mod_skilland')) . ";
                     var updateErrorText = " . json_encode(get_string('update_error', 'mod_skilland')) . ";
                     var skillandInstanceId = " . json_encode($this->_instance ?? 0) . ";
@@ -621,18 +647,28 @@ class mod_skilland_mod_form extends moodleform_mod {
 
                     if (updateBtn && skillandInstanceId && cmId) {
                         updateBtn.addEventListener('click', function() {
-                            // Show confirmation dialog using Moodle's notification module
-                            require(['core/notification'], function(Notification) {
+                            // Show confirmation dialog using Moodle's notification module, styled as a
+                            // destructive action when it will actually delete student progress (SKL-697).
+                            require(['jquery', 'core/notification'], function($, Notification) {
                                 Notification.confirm(
                                     updateConfirmTitle,
                                     updateConfirmMessage,
-                                    " . json_encode(get_string('yes')) . ",
+                                    updateConfirmActionLabel,
                                     " . json_encode(get_string('no')) . ",
                                     function() {
                                         // User confirmed - perform the update
                                         performUpdate();
                                     }
-                                );
+                                ).then(function(modal) {
+                                    if (modal && typeof modal.getRoot === 'function') {
+                                        modal.getRoot().find('[data-action=\"save\"]')
+                                            .removeClass('btn-primary btn-outline-danger')
+                                            .addClass('btn-danger');
+                                    }
+                                    return modal;
+                                }).catch(function() {
+                                    // Notification.confirm already reports its own failures.
+                                });
                             });
                         });
                     }
@@ -689,11 +725,11 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 String(topicId) !== String(currentTopicId) && confirmedTopicId !== topicId) {
                             var previousTopicId = activeTopicId;
                             topicSelect.value = previousTopicId;
-                            require(['core/notification'], function(Notification) {
+                            require(['jquery', 'core/notification'], function($, Notification) {
                                 Notification.confirm(
                                     topicChangeConfirmTitle,
                                     topicChangeConfirmMessage,
-                                    " . json_encode(get_string('yes')) . ",
+                                    topicChangeConfirmActionLabel,
                                     " . json_encode(get_string('no')) . ",
                                     function() {
                                         confirmedTopicId = topicId;
@@ -703,7 +739,16 @@ class mod_skilland_mod_form extends moodleform_mod {
                                     function() {
                                         topicSelect.value = previousTopicId;
                                     }
-                                );
+                                ).then(function(modal) {
+                                    if (modal && typeof modal.getRoot === 'function') {
+                                        modal.getRoot().find('[data-action=\"save\"]')
+                                            .removeClass('btn-primary btn-outline-danger')
+                                            .addClass('btn-danger');
+                                    }
+                                    return modal;
+                                }).catch(function() {
+                                    // Notification.confirm already reports its own failures.
+                                });
                             });
                             return;
                         }
