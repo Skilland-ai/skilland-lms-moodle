@@ -240,6 +240,39 @@ For issues or questions:
 2. Review this guide and the main README
 3. Contact the development team
 
+## E2E tests
+
+The Playwright suite in `tests/e2e` needs **only a running Moodle** with the plugin installed: no SkilLand backend, frontend or database. It is local only (no CI job).
+
+```bash
+npx grunt build                                      # dist/, mounted into the Moodle container
+(cd 00_development && docker compose up -d --build)  # Moodle on http://localhost:8081
+npm run test:e2e                                     # MOODLE_URL overrides the Moodle address
+node --test tests/e2e/unit/*.test.js                 # unit tests of the mock itself
+```
+
+`setup/global-setup.js` fails the run when Moodle is not reachable, and `loginToMoodle` throws `Moodle login failed for <user>` instead of carrying on logged out. The suite expects the `admin`, `teacher1` and `student1` accounts from `00_development/create_test_users.php`. The SSO specs set an organization id on the plugin settings page when it is empty and sign tokens with the configured (or `config.php`-forced) SSO secret.
+
+**SkilLand is always mocked.** The `skillandMock` fixture (`fixtures/skilland-mock.js`, auto-used through `fixtures/auth.js`) intercepts Moodle's AJAX endpoint (`/lib/ajax/service.php`) and answers every `mod_skilland_*` call in the batch from per-test handlers; core Moodle calls in the same batch still reach Moodle. Browser navigations to a SkilLand origin (`SKILLAND_URL`, default `http://localhost:3000`, plus `https://app.skilland.ai`) land on a stub page, and the `sso_redirect.php` redirect is recorded instead of followed:
+
+```js
+test('lists topics', async ({ authenticatedPage, skillandMock, moodleCourse }) => {
+  const courseId = await moodleCourse.create({ skillId: SKILL_ID })  // created and deleted for this test
+  skillandMock.on('mod_skilland_fetch_topics_ajax', skillandData.topics())
+  skillandMock.fail('mod_skilland_fetch_lessons_ajax', 'boom')        // Moodle web service exception
+  // skillandMock.abort(method): network failure; skillandMock.on(method, args => data) for dynamic answers
+  // skillandMock.calls(method): args the page sent; skillandMock.navigations(): SkilLand URLs opened
+})
+```
+
+Only `mod_skilland_fetch_courses_ajax` has a default answer, because every course form calls it. The default payloads live in `fixtures/skilland-data.js` and must keep the shape of the matching `*_returns()` in `src/classes/external.php`: change both in the same commit.
+
+**Tests fail loudly.** A test fails when the page calls a `mod_skilland_*` method it did not mock, logs a `console.error`, or throws an uncaught error. Allow an expected one with `expectConsoleError(/pattern/)` (or `skillandMock.expectConsoleError`); `skillandMock.abort()` allows the `net::ERR_FAILED` it causes. Use `test.skip` only for a real environment toggle, never to hide a missing precondition, and wait on `expect(...)`, `waitForURL` or `expect.poll` rather than `waitForTimeout`.
+
+Behaviour that runs server-side against SkilLand's GraphQL API (saving an activity, SCORM provisioning and updates, the `sync_content` task) cannot be reached from the browser mock and is covered by PHPUnit in `tests/phpunit`.
+
+Every spec creates its own Moodle course through the `moodleCourse` fixture, so a spec passes alone (`npx playwright test --config=tests/e2e/playwright.config.js --grep "<title>"`) and in parallel (`--workers=4`); the default stays `workers: 1`.
+
 ## CI and releases
 
 Every pull request to `main` runs `.github/workflows/ci.yml`:
