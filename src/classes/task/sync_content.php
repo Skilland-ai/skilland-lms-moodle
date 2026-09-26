@@ -27,8 +27,8 @@ require_once(__DIR__ . '/../../lib.php');
  * Scheduled task to sync Skilland content for activities with auto-update enabled.
  *
  * Polls the Skilland API to check if content has changed for each activity
- * that has autoupdate=1 and an existing SCORM package. If content is stale,
- * re-provisions the SCORM package automatically.
+ * that has autoupdate=1. If content changed, or the activity lost its SCORM, and the topic
+ * has a ready package, re-provisions the SCORM package automatically.
  *
  * @package    mod_skilland
  * @copyright  2024
@@ -74,10 +74,11 @@ class sync_content extends \core\task\scheduled_task {
             return;
         }
 
-        // Find all activities with autoupdate=1 and a provisioned SCORM package.
+        // Find all auto-update activities, including ones left without a SCORM by a failed update
+        // (SKL-654): check_and_update() rebuilds them once the topic has a ready package.
         $activities = $DB->get_records_select(
             'skilland',
-            'autoupdate = 1 AND scormcmid IS NOT NULL AND skilland_topicid IS NOT NULL',
+            'autoupdate = 1 AND skilland_topicid IS NOT NULL',
             null,
             'id ASC'
         );
@@ -194,6 +195,19 @@ class sync_content extends \core\task\scheduled_task {
             return 'skipped';
         }
 
+        // Never build from a topic with no package yet, or whose package is still being
+        // regenerated for newer content (SKL-654).
+        if (empty($hashinfo['hasPackage'])) {
+            logger::info('SyncContent', 'Topic ' . $topicid . ' has no SCORM package yet — skipping activity ' .
+                $skilland->id);
+            return 'skipped';
+        }
+        if (!empty($hashinfo['isStale'])) {
+            logger::info('SyncContent', 'Package of topic ' . $topicid . ' is stale — skipping activity ' .
+                $skilland->id . ' until it is regenerated');
+            return 'skipped';
+        }
+
         // Compare with stored snapshot.
         $currentHash = $skilland->snapshotid ?? '';
         $remoteHash = $hashinfo['contentHash'] ?? '';
@@ -214,7 +228,8 @@ class sync_content extends \core\task\scheduled_task {
             return 'current';
         }
 
-        if (!empty($currentHash) && $currentHash === $remoteHash) {
+        // An activity without a SCORM is never "current", whatever hash it still carries.
+        if (!empty($skilland->scormcmid) && !empty($currentHash) && $currentHash === $remoteHash) {
             // Content hasn't changed — update lastsynced and move on.
             $DB->set_field('skilland', 'lastsynced', time(), ['id' => $skilland->id]);
             logger::debug('SyncContent', 'Activity ' . $skilland->id . ' is current (hash: ' . $currentHash . ')');
@@ -240,15 +255,9 @@ class sync_content extends \core\task\scheduled_task {
             throw $e;
         }
 
-        // The provisioning call above already wrote snapshotid/snapshotcreatedat with this same
-        // remote hash; this write is now redundant but kept idempotent (same values) as a safety
-        // net for any update path that bypasses the normal provisioning write (e.g. a test hook).
-        $DB->update_record('skilland', (object) [
-            'id' => $skilland->id,
-            'snapshotid' => $remoteHash,
-            'snapshotcreatedat' => !empty($hashinfo['generatedAt']) ? strtotime($hashinfo['generatedAt']) : time(),
-            'lastsynced' => time(),
-        ]);
+        // skilland_link_topic_scorm() wrote snapshotid/snapshotcreatedat with the built package,
+        // and only once the new SCORM was linked; a failed build threw above and wrote nothing.
+        $DB->set_field('skilland', 'lastsynced', time(), ['id' => $skilland->id]);
 
         logger::info('SyncContent', 'Activity ' . $skilland->id . ' updated successfully (new SCORM cmid: ' . $newcmid . ')');
 

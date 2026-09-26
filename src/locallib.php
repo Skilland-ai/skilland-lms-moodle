@@ -1123,6 +1123,22 @@ function skilland_delete_scorm_module(int $cmid): void {
  *         lesson's SCO identifier is missing from the parsed package.
  */
 function skilland_map_topic_scos(stdClass $skilland, int $scormid, array $mappings): void {
+    skilland_apply_topic_scos(skilland_resolve_topic_scos($skilland, $scormid, $mappings));
+}
+
+/**
+ * Resolve the activity's visible lessons to the SCOs Moodle parsed from the package, writing nothing.
+ *
+ * Lets a replacement build validate its package while the lessons still point at the old SCORM.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param int $scormid The scorm instance id.
+ * @param array $mappings Skilland lesson id => SCO identifier, as returned by the API.
+ * @return array Lesson row id => ['scoid' => int, 'identifier' => string].
+ * @throws moodle_exception error_scorm_parse_failed when no SCO is launchable or a mapped
+ *         lesson's SCO identifier is missing from the parsed package.
+ */
+function skilland_resolve_topic_scos(stdClass $skilland, int $scormid, array $mappings): array {
     global $DB;
 
     $scos = $DB->get_records('scorm_scoes', ['scorm' => $scormid], 'id ASC');
@@ -1168,6 +1184,17 @@ function skilland_map_topic_scos(stdClass $skilland, int $scormid, array $mappin
         logger::error('SCORM', 'SCO identifiers not found in parsed package: ' . implode(', ', $missing));
         throw new moodle_exception('error_scorm_parse_failed', 'mod_skilland', '', implode(', ', $missing));
     }
+
+    return $resolved;
+}
+
+/**
+ * Write a resolved lesson->SCO map (from skilland_resolve_topic_scos()) onto the lesson rows.
+ *
+ * @param array $resolved Lesson row id => ['scoid' => int, 'identifier' => string].
+ */
+function skilland_apply_topic_scos(array $resolved): void {
+    global $DB;
 
     foreach ($resolved as $lessonrowid => $sco) {
         $DB->set_field('skilland_lesson', 'scoid', $sco['scoid'], ['id' => $lessonrowid]);
@@ -1273,11 +1300,98 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0, ?st
 }
 
 /**
- * Provision the topic SCORM package. The caller holds the provisioning lock.
+ * Resolve the content hash to store as snapshotid, reusing a pre-fetched one when given.
  *
- * Download, create the module through create_module(), map the SCOs, then write the
- * provisioning fields last. Any failure after the module exists deletes it again and clears
- * the lesson SCO mapping, so a failed run leaves nothing behind.
+ * @param stdClass $skilland The skilland activity record.
+ * @param string|null $contenthash Pre-fetched content hash, or null to query it.
+ * @return string The hash; an empty string when the lookup fails (never blocks provisioning).
+ */
+function skilland_resolve_snapshot_hash(stdClass $skilland, ?string $contenthash): string {
+    if ($contenthash !== null) {
+        return $contenthash;
+    }
+    $hashinfo = mod_skilland_check_topic_snapshot((string) $skilland->skilland_topicid);
+    return is_array($hashinfo) ? (string) ($hashinfo['contentHash'] ?? '') : '';
+}
+
+/**
+ * Build a topic SCORM module without linking it to the activity. The caller holds the lock.
+ *
+ * Download, create the hidden module through create_module() and resolve the lesson->SCO map
+ * against it. Nothing is written to the skilland record or its lessons, so this is safe to run
+ * while the activity still points at an existing SCORM (a replacement build). Any failure after
+ * the module exists deletes it again; the downloaded package is always removed.
+ *
+ * @param stdClass $skilland The skilland activity record (read only).
+ * @param stdClass $course The Moodle course record.
+ * @param int $sectionnum Section number the SCORM goes into.
+ * @return array ['cmid' => int, 'scos' => resolved lesson->SCO map, 'mappings' => API mappings,
+ *   'generatedat' => int package generation time]
+ * @throws moodle_exception If the download, module creation or SCO resolution fails.
+ */
+function skilland_build_topic_scorm(stdClass $skilland, stdClass $course, int $sectionnum): array {
+    global $DB;
+
+    $package = skilland_download_topic_scorm_package((string) $skilland->skilland_topicid);
+    $scorminfo = $package['info'];
+
+    try {
+        $cmid = skilland_create_topic_scorm_module($skilland, $course, $sectionnum, $package['path']);
+
+        try {
+            $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
+            $scos = skilland_resolve_topic_scos($skilland, $scormid, $scorminfo['mappings'] ?? []);
+        } catch (\Throwable $e) {
+            logger::error('SCORM', 'Build failed after creating cmid ' . $cmid . ' - rolling back: ' .
+                $e->getMessage());
+            skilland_delete_scorm_module($cmid);
+            throw $e;
+        }
+    } finally {
+        @unlink($package['path']);
+    }
+
+    return [
+        'cmid' => $cmid,
+        'scos' => $scos,
+        'mappings' => $scorminfo['mappings'] ?? [],
+        'generatedat' => !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time(),
+    ];
+}
+
+/**
+ * Link a module built by skilland_build_topic_scorm() to the activity: replace every lesson's
+ * SCO mapping and write the provisioning fields, snapshot included, in one place.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param array $build The skilland_build_topic_scorm() result.
+ * @param string $contenthash Content hash stored as snapshotid.
+ * @return stdClass The provisioning fields written.
+ */
+function skilland_link_topic_scorm(stdClass $skilland, array $build, string $contenthash): stdClass {
+    global $DB;
+
+    skilland_clear_lesson_scos((int) $skilland->id);
+    skilland_apply_topic_scos($build['scos']);
+
+    $fields = (object) [
+        'id' => $skilland->id,
+        'scormcmid' => $build['cmid'],
+        'scorm_provisioned' => time(),
+        'scomappings' => json_encode($build['mappings']),
+        'snapshotcreatedat' => $build['generatedat'],
+        'snapshotid' => $contenthash,
+    ];
+    $DB->update_record('skilland', $fields);
+
+    return $fields;
+}
+
+/**
+ * Provision the topic SCORM package on an activity with no SCORM. The caller holds the lock.
+ *
+ * Build the module (skilland_build_topic_scorm()), then link it. A failure while linking deletes
+ * the new module and clears the lesson SCO mapping, so a failed run leaves nothing behind.
  *
  * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
  * @param stdClass $course The Moodle course record.
@@ -1290,41 +1404,18 @@ function skilland_provision_topic_scorm($skilland, $course, $sectionnum = 0, ?st
  */
 function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $course, int $sectionnum,
         ?string $contenthash = null): int {
-    global $DB;
-
-    if ($contenthash === null) {
-        $hashinfo = mod_skilland_check_topic_snapshot((string) $skilland->skilland_topicid);
-        $contenthash = is_array($hashinfo) ? ($hashinfo['contentHash'] ?? '') : '';
-    }
-
-    $package = skilland_download_topic_scorm_package((string) $skilland->skilland_topicid);
-    $scorminfo = $package['info'];
+    $contenthash = skilland_resolve_snapshot_hash($skilland, $contenthash);
+    $build = skilland_build_topic_scorm($skilland, $course, $sectionnum);
+    $cmid = $build['cmid'];
 
     try {
-        $cmid = skilland_create_topic_scorm_module($skilland, $course, $sectionnum, $package['path']);
-
-        try {
-            $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
-            skilland_map_topic_scos($skilland, $scormid, $scorminfo['mappings'] ?? []);
-
-            $fields = (object) [
-                'id' => $skilland->id,
-                'scormcmid' => $cmid,
-                'scorm_provisioned' => time(),
-                'scomappings' => json_encode($scorminfo['mappings'] ?? []),
-                'snapshotcreatedat' => !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time(),
-                'snapshotid' => $contenthash,
-            ];
-            $DB->update_record('skilland', $fields);
-        } catch (\Throwable $e) {
-            logger::error('SCORM', 'Provisioning failed after creating cmid ' . $cmid . ' - rolling back: ' .
-                $e->getMessage());
-            skilland_delete_scorm_module($cmid);
-            skilland_clear_lesson_scos((int) $skilland->id);
-            throw $e;
-        }
-    } finally {
-        @unlink($package['path']);
+        $fields = skilland_link_topic_scorm($skilland, $build, $contenthash);
+    } catch (\Throwable $e) {
+        logger::error('SCORM', 'Provisioning failed after creating cmid ' . $cmid . ' - rolling back: ' .
+            $e->getMessage());
+        skilland_delete_scorm_module($cmid);
+        skilland_clear_lesson_scos((int) $skilland->id);
+        throw $e;
     }
 
     skilland_copy_provisioning_fields($fields, $skilland);
@@ -1379,13 +1470,17 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
  * Update an existing topic SCORM package with the latest content from Skilland.
  *
  * Under the same per-activity lock as provisioning, this function:
- * 1. Deletes the old SCORM activity and all its tracking data
- * 2. Fetches the current lessons from Skilland (before the build, so a stamp is never newer
+ * 1. Fetches the current lessons from Skilland (before the build, so a stamp is never newer
  *    than the packaged content)
- * 3. Provisions a new SCORM package with skilland_provision_topic_scorm_locked()
- * 4. Only once that build succeeded, stamps each lesson's updatedat with the fetched value
+ * 2. Builds the new SCORM module unlinked (skilland_build_topic_scorm()); a failure here deletes
+ *    only the half-built module and leaves the old SCORM, its attempts and the lesson->SCO
+ *    mapping untouched
+ * 3. Links the new module (lesson SCOs, provisioning fields, snapshot); a failure here deletes
+ *    the new module and restores the old links
+ * 4. Only then deletes the old SCORM activity and all its tracking data
+ * 5. Stamps each lesson's updatedat with the fetched value
  *
- * WARNING: This will delete all student progress/grades for this topic!
+ * WARNING: A successful update deletes all student progress/grades of the old SCORM!
  *
  * @param stdClass $skilland The skilland activity record; its provisioning fields are updated.
  * @param stdClass $course The Moodle course record
@@ -1411,35 +1506,42 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?strin
     $lock = skilland_get_provision_lock((int) $skilland->id);
     try {
         $current = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
+        $oldcmid = (int) ($current->scormcmid ?? 0);
 
-        // Step 1: Delete the old SCORM activity if there is one.
-        if (!empty($current->scormcmid)) {
-            logger::debug('SCORM', 'Deleting old SCORM activity cmid ' . $current->scormcmid);
-            skilland_delete_scorm_module((int) $current->scormcmid);
-
-            $DB->update_record('skilland', (object) [
-                'id' => $current->id,
-                'scormcmid' => null,
-                'scorm_provisioned' => null,
-                'scomappings' => null,
-            ]);
-            skilland_clear_lesson_scos((int) $current->id);
-            $current->scormcmid = null;
-            $current->scorm_provisioned = null;
-            $current->scomappings = null;
-            skilland_copy_provisioning_fields($current, $skilland);
-
-            logger::debug('SCORM', 'Old SCORM activity deleted');
-        }
-
-        // Step 2: Fetch fresh lesson data from Skilland to get updated timestamps.
+        // Step 1: Fetch fresh lesson data from Skilland to get updated timestamps.
         $lessons = mod_skilland_fetch_lessons($current->skilland_topicid);
+        $contenthash = skilland_resolve_snapshot_hash($current, $contenthash);
 
-        // Step 3: Provision the new SCORM package (the lock is already held).
-        $newcmid = skilland_provision_topic_scorm_locked($current, $course, (int) $sectionnum, $contenthash);
+        // Step 2: Build the new SCORM unlinked; the old one is not touched if this fails.
+        $build = skilland_build_topic_scorm($current, $course, (int) $sectionnum);
+        $newcmid = $build['cmid'];
+
+        // Step 3: Link the new module in, restoring the old links if that fails.
+        $oldlessons = $DB->get_records('skilland_lesson', ['skillandid' => $current->id], '', 'id, scoid, sco_identifier');
+        try {
+            $fields = skilland_link_topic_scorm($current, $build, $contenthash);
+        } catch (\Throwable $e) {
+            logger::error('SCORM', 'Linking new cmid ' . $newcmid . ' failed - keeping cmid ' . $oldcmid . ': ' .
+                $e->getMessage());
+            skilland_delete_scorm_module($newcmid);
+            $restore = (object) ['id' => $current->id];
+            skilland_copy_provisioning_fields($current, $restore);
+            $DB->update_record('skilland', $restore);
+            foreach ($oldlessons as $oldlesson) {
+                $DB->update_record('skilland_lesson', $oldlesson);
+            }
+            throw $e;
+        }
+        skilland_copy_provisioning_fields($fields, $current);
         skilland_copy_provisioning_fields($current, $skilland);
 
-        // Step 4: updatedat = version of the lesson in the installed package; only a successful
+        // Step 4: The new SCORM is live; only now delete the old one and its tracking data.
+        if ($oldcmid > 0 && $oldcmid !== $newcmid) {
+            logger::debug('SCORM', 'Deleting old SCORM activity cmid ' . $oldcmid);
+            skilland_delete_scorm_module($oldcmid);
+        }
+
+        // Step 5: updatedat = version of the lesson in the installed package; only a successful
         // build advances it.
         foreach ($lessons as $lesson) {
             $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
