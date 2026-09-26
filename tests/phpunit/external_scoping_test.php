@@ -13,10 +13,6 @@ class external_scoping_test extends TestCase {
     /** @var \FakeDatabase */
     private $db;
 
-    public static function setUpBeforeClass(): void {
-        require_once __DIR__ . '/../../src/classes/external.php';
-    }
-
     protected function setUp(): void {
         parent::setUp();
         $this->db = new \FakeDatabase();
@@ -57,7 +53,7 @@ class external_scoping_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // fetch_topics_ajax()
+    // fetch_topics::execute()
     // ---------------------------------------------------------------
 
     public function test_fetch_topics_rejects_another_courses_skill(): void {
@@ -66,7 +62,7 @@ class external_scoping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('error_course_not_mapped_to_skill');
 
-        \mod_skilland_external::fetch_topics_ajax('skill-b', 10);
+        \mod_skilland\external\fetch_topics::execute('skill-b', 10);
     }
 
     public function test_fetch_topics_rejects_unmapped_course(): void {
@@ -75,28 +71,28 @@ class external_scoping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessageMatches('/^error_course_not_mapped$/');
 
-        \mod_skilland_external::fetch_topics_ajax('skill-a', 30);
+        \mod_skilland\external\fetch_topics::execute('skill-a', 30);
     }
 
     public function test_fetch_topics_returns_topics_for_mapped_skill(): void {
         $this->stubCourseTopics('skill-a', ['topic-a1', 'topic-a2']);
 
-        $result = \mod_skilland_external::fetch_topics_ajax('skill-a', 10);
+        $result = \mod_skilland\external\fetch_topics::execute('skill-a', 10);
 
         $this->assertNull($result['error']);
         $this->assertSame(['topic-a1', 'topic-a2'], array_column($result['topics'], 'id'));
     }
 
     public function test_fetch_topics_checks_capability_first(): void {
-        $GLOBALS['_test_denied_capabilities'] = ['moodle/course:update'];
+        $GLOBALS['_test_denied_capabilities'] = ['mod/skilland:accessstudio'];
 
         $this->expectException(\required_capability_exception::class);
 
-        \mod_skilland_external::fetch_topics_ajax('skill-a', 10);
+        \mod_skilland\external\fetch_topics::execute('skill-a', 10);
     }
 
     // ---------------------------------------------------------------
-    // fetch_lessons_ajax()
+    // fetch_lessons::execute()
     // ---------------------------------------------------------------
 
     public function test_fetch_lessons_rejects_foreign_topic(): void {
@@ -106,14 +102,14 @@ class external_scoping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('error_course_not_mapped_to_skill');
 
-        \mod_skilland_external::fetch_lessons_ajax('topic-b1', 10);
+        \mod_skilland\external\fetch_lessons::execute('topic-b1', 10);
     }
 
     public function test_fetch_lessons_rejects_unmapped_course(): void {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessageMatches('/^error_course_not_mapped$/');
 
-        \mod_skilland_external::fetch_lessons_ajax('topic-a1', 30);
+        \mod_skilland\external\fetch_lessons::execute('topic-a1', 30);
     }
 
     public function test_fetch_lessons_accepts_topic_of_mapped_skill(): void {
@@ -121,7 +117,7 @@ class external_scoping_test extends TestCase {
         // carries no lessons, so the call succeeds with an empty list.
         $this->stubCourseTopics('skill-a', ['topic-a1']);
 
-        $result = \mod_skilland_external::fetch_lessons_ajax('topic-a1', 10);
+        $result = \mod_skilland\external\fetch_lessons::execute('topic-a1', 10);
 
         $this->assertNull($result['error']);
         $this->assertSame([], $result['lessons']);
@@ -132,15 +128,16 @@ class external_scoping_test extends TestCase {
     // ---------------------------------------------------------------
 
     public function test_id_params_are_alphanumext(): void {
-        $topics = \mod_skilland_external::fetch_topics_ajax_parameters();
-        $lessons = \mod_skilland_external::fetch_lessons_ajax_parameters();
+        $topics = \mod_skilland\external\fetch_topics::execute_parameters();
+        $lessons = \mod_skilland\external\fetch_lessons::execute_parameters();
 
         $this->assertSame(PARAM_ALPHANUMEXT, $topics->keys['courseid']->type);
         $this->assertSame(PARAM_ALPHANUMEXT, $lessons->keys['topicid']->type);
     }
 
     public function test_legacy_lesson_scorm_endpoint_is_gone(): void {
-        $this->assertFalse(method_exists(\mod_skilland_external::class, 'provision_lesson_scorm_ajax'));
+        $this->assertFileDoesNotExist(__DIR__ . '/../../src/classes/external/provision_lesson_scorm.php');
+        $this->assertStringNotContainsString("'mod_skilland_provision_lesson_scorm", $this->srcFile('db/services.php'));
 
         $srcdir = realpath(__DIR__ . '/../../src');
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($srcdir, \FilesystemIterator::SKIP_DOTS));
@@ -174,7 +171,7 @@ class external_scoping_test extends TestCase {
 
         $this->expectException(\required_capability_exception::class);
 
-        \mod_skilland_external::fetch_topics_ajax('skill-b', 20);
+        \mod_skilland\external\fetch_topics::execute('skill-b', 20);
     }
 
     public function test_teacher_of_course_a_cannot_fetch_lessons_via_course_b(): void {
@@ -183,24 +180,24 @@ class external_scoping_test extends TestCase {
 
         $this->expectException(\required_capability_exception::class);
 
-        \mod_skilland_external::fetch_lessons_ajax('topic-b1', 20);
+        \mod_skilland\external\fetch_lessons::execute('topic-b1', 20);
     }
 
     public function test_teacher_of_course_a_still_reads_own_course(): void {
         $GLOBALS['_test_capability_course_ids'] = [10];
         $this->stubCourseTopics('skill-a', ['topic-a1']);
 
-        $result = \mod_skilland_external::fetch_topics_ajax('skill-a', 10);
+        $result = \mod_skilland\external\fetch_topics::execute('skill-a', 10);
 
         $this->assertSame(['topic-a1'], array_column($result['topics'], 'id'));
     }
 
     public function test_fetch_lessons_checks_capability_first(): void {
-        $GLOBALS['_test_denied_capabilities'] = ['moodle/course:update'];
+        $GLOBALS['_test_denied_capabilities'] = ['mod/skilland:accessstudio'];
 
         $this->expectException(\required_capability_exception::class);
 
-        \mod_skilland_external::fetch_lessons_ajax('topic-a1', 10);
+        \mod_skilland\external\fetch_lessons::execute('topic-a1', 10);
     }
 
     public function test_fetch_lessons_rejects_when_skill_has_no_topics(): void {
@@ -209,7 +206,7 @@ class external_scoping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('error_course_not_mapped_to_skill');
 
-        \mod_skilland_external::fetch_lessons_ajax('topic-a1', 10);
+        \mod_skilland\external\fetch_lessons::execute('topic-a1', 10);
     }
 
     public function test_fetch_lessons_rejects_when_api_returns_no_course(): void {
@@ -223,7 +220,7 @@ class external_scoping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('error_course_not_mapped_to_skill');
 
-        \mod_skilland_external::fetch_lessons_ajax('topic-a1', 10);
+        \mod_skilland\external\fetch_lessons::execute('topic-a1', 10);
     }
 
     public function test_fetch_lessons_throws_when_topic_check_api_fails(): void {
@@ -237,13 +234,13 @@ class external_scoping_test extends TestCase {
 
         $this->expectException(\moodle_exception::class);
 
-        \mod_skilland_external::fetch_lessons_ajax('topic-a1', 10);
+        \mod_skilland\external\fetch_lessons::execute('topic-a1', 10);
     }
 
     public function test_fetch_topics_returns_empty_list_for_mapped_skill_without_topics(): void {
         $this->stubCourseTopics('skill-a', []);
 
-        $result = \mod_skilland_external::fetch_topics_ajax('skill-a', 10);
+        $result = \mod_skilland\external\fetch_topics::execute('skill-a', 10);
 
         $this->assertNull($result['error']);
         $this->assertSame([], $result['topics']);
@@ -258,7 +255,7 @@ class external_scoping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('error_course_not_mapped_to_skill');
 
-        \mod_skilland_external::fetch_topics_ajax('skill-table', 10);
+        \mod_skilland\external\fetch_topics::execute('skill-table', 10);
     }
 
     public function test_fetch_topics_uses_table_when_custom_field_empty_string(): void {
@@ -268,7 +265,7 @@ class external_scoping_test extends TestCase {
         ]);
         $this->stubCourseTopics('skill-table', ['topic-t1']);
 
-        $result = \mod_skilland_external::fetch_topics_ajax('skill-table', 40);
+        $result = \mod_skilland\external\fetch_topics::execute('skill-table', 40);
 
         $this->assertSame(['topic-t1'], array_column($result['topics'], 'id'));
     }
@@ -277,7 +274,7 @@ class external_scoping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('error_course_not_mapped_to_skill');
 
-        \mod_skilland_external::fetch_topics_ajax('', 10);
+        \mod_skilland\external\fetch_topics::execute('', 10);
     }
 
     public function test_legacy_lesson_scorm_absent_from_services_and_amd_build(): void {
@@ -343,9 +340,10 @@ class external_scoping_test extends TestCase {
     }
 
     public function test_param_alphanumext_in_external_and_form_source(): void {
-        $external = $this->srcFile('classes/external.php');
-        $this->assertStringContainsString("'courseid' => new external_value(PARAM_ALPHANUMEXT", $external);
-        $this->assertStringContainsString("'topicid' => new external_value(PARAM_ALPHANUMEXT", $external);
+        $this->assertStringContainsString("'courseid' => new external_value(PARAM_ALPHANUMEXT",
+            $this->srcFile('classes/external/fetch_topics.php'));
+        $this->assertStringContainsString("'topicid' => new external_value(PARAM_ALPHANUMEXT",
+            $this->srcFile('classes/external/fetch_lessons.php'));
 
         $form = $this->srcFile('mod_form.php');
         $this->assertStringContainsString("setType('skilland_topicid', PARAM_ALPHANUMEXT)", $form);

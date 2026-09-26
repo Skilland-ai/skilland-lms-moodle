@@ -339,49 +339,57 @@ class integrity_test extends TestCase {
     // ---------------------------------------------------------------
 
     /**
-     * Every function declared in db/services.php must have a matching
-     * static method, *_parameters(), and *_returns() in external.php.
+     * Every function declared in db/services.php must name a class under
+     * classes/external/ that defines execute(), execute_parameters() and execute_returns().
      */
     public function test_services_methods_exist_in_external_class(): void {
-        $functions = [];
-        // We need MOODLE_INTERNAL + stubs for the require.
-        if (!defined('MOODLE_INTERNAL')) {
-            define('MOODLE_INTERNAL', true);
-        }
-
-        // Parse services.php by extracting the $functions array via regex
-        // (can't require it because it calls die() without MOODLE_INTERNAL in the right scope).
         $content = file_get_contents(self::$srcDir . '/db/services.php');
 
-        // Extract all methodname values.
-        preg_match_all("/'methodname'\\s*=>\\s*'(\\w+)'/", $content, $matches);
-        $methodNames = $matches[1];
+        preg_match_all("/'classname'\\s*=>\\s*'([^']+)'/", $content, $classes);
+        preg_match_all("/'methodname'\\s*=>\\s*'(\\w+)'/", $content, $methods);
 
-        $this->assertNotEmpty($methodNames, 'No methods found in services.php');
+        $this->assertNotEmpty($classes[1], 'No classnames found in services.php');
+        $this->assertCount(count($classes[1]), $methods[1], 'Every service needs a methodname');
 
-        // Read external.php source to check method existence without requiring it.
-        $externalSource = file_get_contents(self::$srcDir . '/classes/external.php');
         $missing = [];
-
-        foreach ($methodNames as $method) {
-            // Check main method exists.
-            if (!preg_match('/function\s+' . preg_quote($method) . '\s*\(/', $externalSource)) {
-                $missing[] = "$method()";
+        foreach ($classes[1] as $i => $classname) {
+            $classname = str_replace('\\\\', '\\', $classname);
+            $prefix = 'mod_skilland\\external\\';
+            if (strpos($classname, $prefix) !== 0) {
+                $missing[] = "$classname is not in the mod_skilland\\external namespace";
+                continue;
             }
-            // Check _parameters method.
-            if (!preg_match('/function\s+' . preg_quote($method . '_parameters') . '\s*\(/', $externalSource)) {
-                $missing[] = "{$method}_parameters()";
+            $file = self::$srcDir . '/classes/external/' . substr($classname, strlen($prefix)) . '.php';
+            if (!is_file($file)) {
+                $missing[] = "$classname has no class file";
+                continue;
             }
-            // Check _returns method.
-            if (!preg_match('/function\s+' . preg_quote($method . '_returns') . '\s*\(/', $externalSource)) {
-                $missing[] = "{$method}_returns()";
+            $source = file_get_contents($file);
+            foreach (['execute', 'execute_parameters', 'execute_returns'] as $method) {
+                if (!preg_match('/public\s+static\s+function\s+' . $method . '\s*\(/', $source)) {
+                    $missing[] = "$classname::$method()";
+                }
+            }
+            if ($methods[1][$i] !== 'execute') {
+                $missing[] = "$classname methodname is {$methods[1][$i]}, expected execute";
             }
         }
 
         $this->assertEmpty(
             $missing,
-            "External API methods missing for services.php declarations:\n  " . implode("\n  ", $missing)
+            "External API classes missing for services.php declarations:\n  " . implode("\n  ", $missing)
         );
+    }
+
+    public function test_version_requires_moodle_42_for_core_external(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+
+        $this->assertGreaterThanOrEqual(2023042400, $plugin->requires,
+            'The web services extend core_external\\external_api, which needs Moodle 4.2+');
     }
 
     // ---------------------------------------------------------------

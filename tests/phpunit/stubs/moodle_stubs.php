@@ -397,6 +397,7 @@ if (!function_exists('has_capability')) {
 
 if (!function_exists('require_capability')) {
     function require_capability($capability, $context, $userid = null) {
+        $GLOBALS['_test_call_order'][] = ['require_capability', $capability];
         if (!has_capability($capability, $context, $userid)) {
             throw new \required_capability_exception($context, $capability);
         }
@@ -592,4 +593,13 @@ if (!class_exists('core\\lock\\lock_config')) {
 // \core\notification (namespaced, so it lives in its own file).
 if (!class_exists('core\\notification')) {
     require_once __DIR__ . '/notification_stub.php';
+}
+
+// Thrown by require_login() and external_api::validate_context() when the user cannot enter the context.
+if (!class_exists('require_login_exception')) {
+    class require_login_exception extends \moodle_exception {
+        public function __construct($debuginfo = null) {
+            parent::__construct('requireloginerror', 'error', '', null, $debuginfo);
+        }
+    }
 }

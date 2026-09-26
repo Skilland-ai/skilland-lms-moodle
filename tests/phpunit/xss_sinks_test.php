@@ -23,18 +23,18 @@ class xss_sinks_test extends TestCase {
     }
 
     /**
-     * Returns the body of a method, from its signature to the next method signature.
+     * Returns the body of a method, from its signature to the next method signature (or the end of the file).
      */
     private function method_body(string $source, string $method): string {
-        $pattern = '/function\s+' . preg_quote($method, '/') . '\s*\((.*?)(?=\n\s*(?:public|protected|private)?\s*(?:static\s+)?function\s)/s';
+        $pattern = '/function\s+' . preg_quote($method, '/') . '\s*\((.*?)(?=\n\s*(?:public|protected|private)?\s*(?:static\s+)?function\s|\z)/s';
         $this->assertSame(1, preg_match($pattern, $source, $m), "Method $method not found");
         return $m[0];
     }
 
     public function test_topic_description_is_purified_server_side(): void {
-        $external = $this->source('classes/external.php');
+        $external = $this->source('classes/external/fetch_topics.php');
 
-        $returns = $this->method_body($external, 'fetch_topics_ajax_returns');
+        $returns = $this->method_body($external, 'execute_returns');
         $this->assertMatchesRegularExpression(
             "/'description'\s*=>\s*new external_value\(PARAM_CLEANHTML\b/",
             $returns
@@ -44,7 +44,7 @@ class xss_sinks_test extends TestCase {
             $returns
         );
 
-        $body = $this->method_body($external, 'fetch_topics_ajax');
+        $body = $this->method_body($external, 'execute');
         $this->assertMatchesRegularExpression(
             "/'description'\s*=>\s*clean_text\(\\\$topic\['description'\]/",
             $body
@@ -229,7 +229,7 @@ class xss_sinks_test extends TestCase {
     }
 
     public function test_create_course_redirect_url_is_validated(): void {
-        $returns = $this->method_body($this->source('classes/external.php'), 'create_course_ajax_returns');
+        $returns = $this->method_body($this->source('classes/external/create_course.php'), 'execute_returns');
         $this->assertMatchesRegularExpression(
             "/'redirect_url'\s*=>\s*new external_value\(PARAM_URL\b/",
             $returns

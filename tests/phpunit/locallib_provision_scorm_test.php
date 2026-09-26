@@ -760,14 +760,13 @@ class locallib_provision_scorm_test extends TestCase {
     }
 
     public function test_ajax_provision_twice_returns_the_existing_cmid(): void {
-        require_once __DIR__ . '/../../src/classes/external.php';
         $this->db->seed('modules', [(object) ['id' => 1, 'name' => 'skilland', 'visible' => 1]]);
         $this->db->seed('course_modules', [(object) ['id' => 90, 'instance' => 7, 'course' => 3, 'section' => 12]]);
         $this->db->seed('course_sections', [(object) ['id' => 12, 'section' => 2, 'course' => 3]]);
         $this->queue_package();
 
-        $first = \mod_skilland_external::provision_topic_scorm_ajax(7, 90);
-        $second = \mod_skilland_external::provision_topic_scorm_ajax(7, 90);
+        $first = \mod_skilland\external\provision_topic_scorm::execute(7, 90);
+        $second = \mod_skilland\external\provision_topic_scorm::execute(7, 90);
 
         $this->assertTrue($first['success'], (string) ($first['error'] ?? ''));
         $this->assertTrue($second['success']);
@@ -778,13 +777,12 @@ class locallib_provision_scorm_test extends TestCase {
     }
 
     public function test_ajax_reports_a_busy_lock_as_a_failure(): void {
-        require_once __DIR__ . '/../../src/classes/external.php';
         $this->db->seed('modules', [(object) ['id' => 1, 'name' => 'skilland', 'visible' => 1]]);
         $this->db->seed('course_modules', [(object) ['id' => 90, 'instance' => 7, 'course' => 3, 'section' => 12]]);
         $this->db->seed('course_sections', [(object) ['id' => 12, 'section' => 2, 'course' => 3]]);
         $GLOBALS['_test_lock_available'] = false;
 
-        $result = \mod_skilland_external::provision_topic_scorm_ajax(7, 90);
+        $result = \mod_skilland\external\provision_topic_scorm::execute(7, 90);
 
         $this->assertFalse($result['success']);
         $this->assertSame(0, $result['scormcmid']);

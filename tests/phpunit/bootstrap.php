@@ -11,6 +11,7 @@ define('DEBUG_MINIMAL', 1);
 require_once __DIR__ . '/stubs/moodle_stubs.php';
 require_once __DIR__ . '/stubs/fake_database.php';
 require_once __DIR__ . '/stubs/ziparchive.php';
+require_once __DIR__ . '/stubs/core_external.php';
 
 // Global $DB — lightweight in-memory mock.
 $GLOBALS['DB'] = new FakeDatabase();
