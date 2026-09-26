@@ -275,10 +275,97 @@ class locallib_fetch_test extends TestCase {
         $this->setValidConfig();
         $this->stubGraphqlResponse(['topicScorm' => null]);
 
-        $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('error_scorm_not_available');
+        try {
+            mod_skilland_fetch_topic_scorm('t1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_scorm_not_available', $e->errorcode);
+            $this->assertSame('mod_skilland', $e->module);
+        }
+    }
 
-        mod_skilland_fetch_topic_scorm('t1');
+    /**
+     * Stub a GraphQL error response with the given extensions.code.
+     *
+     * @param string $code
+     * @param string $message
+     */
+    private function stubGraphqlError(string $code, string $message = 'nope'): void {
+        $GLOBALS['_test_curl_response'] = [
+            'body' => json_encode(['errors' => [['message' => $message, 'extensions' => ['code' => $code]]]]),
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
+    }
+
+    /**
+     * @dataProvider topic_scorm_error_codes
+     */
+    public function test_fetch_topic_scorm_maps_graphql_codes(string $code, string $errorcode): void {
+        $this->setValidConfig();
+        $this->stubGraphqlError($code);
+
+        try {
+            mod_skilland_fetch_topic_scorm('t1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame($errorcode, $e->errorcode);
+            $this->assertSame('mod_skilland', $e->module);
+        }
+    }
+
+    public static function topic_scorm_error_codes(): array {
+        return [
+            'scorm not available' => ['SCORM_NOT_AVAILABLE', 'error_scorm_not_available'],
+            'topic not found' => ['TOPIC_NOT_FOUND', 'error_config_missing_topicid'],
+            'invalid credentials' => ['SKILLAND_INVALID_API_KEY', 'error_config_invalid_credentials'],
+            'missing org id' => ['SKILLAND_MISSING_ORG_ID', 'error_config_missing_orgid'],
+            'unknown code' => ['SOMETHING_ELSE', 'error_scorm_fetch_failed'],
+        ];
+    }
+
+    public function test_fetch_topic_scorm_rethrows_config_errors_unchanged(): void {
+        $this->setValidConfig();
+        $this->stubGraphqlError('SKILLAND_INVALID_API_KEY');
+
+        try {
+            mod_skilland_fetch_topic_scorm('t1');
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame('error_config_invalid_credentials', $e->errorcode);
+            $this->assertSame('SKILLAND_INVALID_API_KEY', $e->graphqlcode);
+        }
+    }
+
+    public function test_fetch_topic_scorm_unknown_code_fails_without_a(): void {
+        $this->setValidConfig();
+        $this->stubGraphqlError('SOMETHING_ELSE', 'secret detail');
+
+        try {
+            mod_skilland_fetch_topic_scorm('t1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_scorm_fetch_failed', $e->errorcode);
+            $this->assertNull($e->a);
+        }
+    }
+
+    public function test_fetch_topic_scorm_malformed_errors_become_fetch_failed(): void {
+        $this->setValidConfig();
+        $GLOBALS['_test_curl_response'] = [
+            'body' => '{"errors":[null]}',
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
+
+        try {
+            mod_skilland_fetch_topic_scorm('t1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_scorm_fetch_failed', $e->errorcode);
+        }
     }
 
     public function test_fetch_topic_scorm_returns_package_info(): void {

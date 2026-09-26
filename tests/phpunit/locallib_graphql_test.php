@@ -192,13 +192,17 @@ class locallib_graphql_test extends TestCase {
     }
 
     public function test_map_error_api_key_inactive(): void {
-        $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('error_graphql');
-
-        mod_skilland_map_graphql_error([
-            'message' => 'Key inactive',
-            'extensions' => ['code' => 'SKILLAND_API_KEY_INACTIVE'],
-        ]);
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Key inactive',
+                'extensions' => ['code' => 'SKILLAND_API_KEY_INACTIVE'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame('error_graphql', $e->errorcode);
+            $this->assertSame('mod_skilland', $e->module);
+            $this->assertSame('SKILLAND_API_KEY_INACTIVE', $e->graphqlcode);
+        }
     }
 
     public function test_map_error_unknown_code_uses_message(): void {
@@ -423,5 +427,141 @@ class locallib_graphql_test extends TestCase {
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
+    }
+
+    // ---------------------------------------------------------------
+    // Malformed errors members (SKL-659)
+    // ---------------------------------------------------------------
+
+    /**
+     * @dataProvider graphql_code_cases
+     */
+    public function test_map_error_carries_the_graphql_code(string $code, string $errorcode): void {
+        try {
+            mod_skilland_map_graphql_error(['message' => 'x', 'extensions' => ['code' => $code]]);
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame($errorcode, $e->errorcode);
+            $this->assertSame($code, $e->graphqlcode);
+        }
+    }
+
+    public static function graphql_code_cases(): array {
+        return [
+            'missing org id' => ['SKILLAND_MISSING_ORG_ID', 'error_config_missing_orgid'],
+            'missing api key' => ['SKILLAND_MISSING_API_KEY', 'error_config_missing_apikey'],
+            'invalid api key' => ['SKILLAND_INVALID_API_KEY', 'error_config_invalid_credentials'],
+            'org mismatch' => ['SKILLAND_ORG_MISMATCH', 'error_config_invalid_credentials'],
+            'org not found' => ['SKILLAND_ORG_NOT_FOUND', 'error_graphql'],
+            'unknown' => ['SCORM_NOT_AVAILABLE', 'error_graphql'],
+            'no code' => ['', 'error_graphql'],
+        ];
+    }
+
+    public function test_map_error_tolerates_non_array_extensions(): void {
+        try {
+            mod_skilland_map_graphql_error(['message' => 'Broken', 'extensions' => 'not-an-object']);
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame('error_graphql', $e->errorcode);
+            $this->assertSame('', $e->graphqlcode);
+            $this->assertSame('Broken', $e->a);
+        }
+    }
+
+    public function test_map_error_tolerates_non_string_fields(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => ['nested'],
+                'extensions' => ['code' => ['x'], 'details' => 42],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame('error_graphql', $e->errorcode);
+            $this->assertSame('', $e->graphqlcode);
+            $this->assertSame('error_graphql_unknown', $e->a);
+        }
+    }
+
+    private function stubErrorsBody(string $body): void {
+        $this->setValidConfig();
+        $GLOBALS['_test_curl_response'] = [
+            'body' => $body,
+            'http_code' => 200,
+            'errno' => 0,
+            'error' => '',
+        ];
+    }
+
+    /**
+     * @dataProvider malformed_errors
+     */
+    public function test_malformed_errors_throw_graphql_exception(string $body, string $errorcode): void {
+        $this->stubErrorsBody($body);
+
+        try {
+            mod_skilland_graphql('{ test }');
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame($errorcode, $e->errorcode);
+            $this->assertSame('mod_skilland', $e->module);
+        }
+    }
+
+    public static function malformed_errors(): array {
+        return [
+            'empty list' => ['{"errors":[]}', 'error_graphql_unknown'],
+            'string entry' => ['{"errors":["Internal error"]}', 'error_graphql'],
+            'null entry' => ['{"errors":[null]}', 'error_graphql_unknown'],
+            'string errors' => ['{"errors":"boom"}', 'error_graphql_unknown'],
+            'object errors' => ['{"errors":{}}', 'error_graphql_unknown'],
+            'keyed object errors' => ['{"errors":{"a":{"message":"x"}}}', 'error_graphql_unknown'],
+        ];
+    }
+
+    public function test_string_error_entry_is_logged(): void {
+        $this->stubErrorsBody('{"errors":["Internal error"]}');
+
+        try {
+            mod_skilland_graphql('{ test }');
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame('Internal error', $e->a);
+            $this->assertStringContainsString('Internal error', $this->debug_log());
+        }
+    }
+
+    public function test_null_errors_with_data_returns_data(): void {
+        $this->stubErrorsBody('{"errors":null,"data":{"ok":true}}');
+
+        $this->assertSame(['ok' => true], mod_skilland_graphql('{ test }'));
+    }
+
+    public function test_graphql_error_with_string_extensions_does_not_type_error(): void {
+        $this->stubErrorsBody('{"errors":[{"message":"Nope","extensions":"x"}]}');
+
+        try {
+            mod_skilland_graphql('{ test }');
+            $this->fail('Expected exception');
+        } catch (\mod_skilland\graphql_exception $e) {
+            $this->assertSame('error_graphql', $e->errorcode);
+            $this->assertSame('Nope', $e->a);
+        }
+    }
+
+    /**
+     * @dataProvider first_error_cases
+     */
+    public function test_first_graphql_error_normalises(mixed $errors, ?array $expected): void {
+        $this->assertSame($expected, mod_skilland_first_graphql_error($errors));
+    }
+
+    public static function first_error_cases(): array {
+        return [
+            'absent' => [null, null],
+            'array entry' => [[['message' => 'm']], ['message' => 'm']],
+            'string entry' => [['boom'], ['message' => 'boom']],
+            'int entry' => [[42], ['message' => '42']],
+        ];
     }
 }
