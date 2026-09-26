@@ -17,6 +17,8 @@ function skilland_supports($feature) {
             return true;
         case FEATURE_GRADE_HAS_GRADE:
             return true;
+        case FEATURE_BACKUP_MOODLE2:
+            return true;
     }
     if (defined('FEATURE_MOD_PURPOSE') && $feature === FEATURE_MOD_PURPOSE) {
         return MOD_PURPOSE_CONTENT;

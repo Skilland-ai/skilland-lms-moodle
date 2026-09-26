@@ -35,45 +35,7 @@ function xmldb_skilland_upgrade($oldversion) {
 
     $dbman = $GLOBALS['DB']->get_manager();
 
-    // For version 2025120104, hooks are registered via db/callbacks.php.
-    if ($oldversion < 2025120104) {
-        // Upgrade savepoint reached.
-        upgrade_mod_savepoint(true, 2025120104, 'skilland');
-    }
-
-    // For version 2025120400: Add topic-level SCORM fields.
-    if ($oldversion < 2025120400) {
-        // Add scormcmid and scorm_provisioned to skilland table.
-        $table = new xmldb_table('skilland');
-
-        $field = new xmldb_field('scormcmid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'hidelabels');
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
-        }
-
-        $field = new xmldb_field('scorm_provisioned', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'scormcmid');
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
-        }
-
-        // Add scoid and sco_identifier to skilland_lesson table.
-        $table = new xmldb_table('skilland_lesson');
-
-        $field = new xmldb_field('scoid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'scormcmid');
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
-        }
-
-        $field = new xmldb_field('sco_identifier', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'scoid');
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
-        }
-
-        // Upgrade savepoint reached.
-        upgrade_mod_savepoint(true, 2025120400, 'skilland');
-    }
-
-    // For version 2025120102 and 2025120103, ensure the custom field is created.
+    // For version 2025120103, ensure the custom field is created.
     if ($oldversion < 2025120103) {
         require_once($CFG->dirroot . '/mod/skilland/locallib.php');
 
@@ -103,6 +65,48 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2025120103, 'skilland');
     }
 
+    // For version 2025120104, hooks are registered via db/hooks.php.
+    if ($oldversion < 2025120104) {
+        // Upgrade savepoint reached.
+        upgrade_mod_savepoint(true, 2025120104, 'skilland');
+    }
+
+    // For version 2025120400: Add topic-level SCORM fields.
+    if ($oldversion < 2025120400) {
+        // Add scormcmid and scorm_provisioned to skilland table.
+        $table = new xmldb_table('skilland');
+
+        if ($dbman->table_exists($table)) {
+            $field = new xmldb_field('scormcmid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'hidelabels');
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+
+            $field = new xmldb_field('scorm_provisioned', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'scormcmid');
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        // Add scoid and sco_identifier to skilland_lesson table.
+        $table = new xmldb_table('skilland_lesson');
+
+        if ($dbman->table_exists($table)) {
+            $field = new xmldb_field('scoid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'scormcmid');
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+
+            $field = new xmldb_field('sco_identifier', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'scoid');
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        // Upgrade savepoint reached.
+        upgrade_mod_savepoint(true, 2025120400, 'skilland');
+    }
+
     // For version 2026012701: Ensure Skilland custom field is in the correct category.
     if ($oldversion < 2026012701) {
         require_once($CFG->dirroot . '/mod/skilland/locallib.php');
@@ -121,9 +125,12 @@ function xmldb_skilland_upgrade($oldversion) {
     if ($oldversion < 2026020206) {
         $table = new xmldb_table('skilland');
 
-        $field = new xmldb_field('topic_orderindex', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1', 'hidelabels');
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
+        if ($dbman->table_exists($table)) {
+            $field = new xmldb_field('topic_orderindex', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1',
+                'hidelabels');
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
         }
 
         upgrade_mod_savepoint(true, 2026020206, 'skilland');

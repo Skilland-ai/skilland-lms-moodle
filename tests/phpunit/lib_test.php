@@ -66,6 +66,10 @@ class lib_test extends TestCase {
         $this->assertSame(MOD_PURPOSE_CONTENT, skilland_supports(FEATURE_MOD_PURPOSE));
     }
 
+    public function test_supports_backup_moodle2(): void {
+        $this->assertTrue(skilland_supports(FEATURE_BACKUP_MOODLE2));
+    }
+
     public function test_supports_returns_null_for_unknown_feature(): void {
         $this->assertNull(skilland_supports('some_unknown_feature'));
     }

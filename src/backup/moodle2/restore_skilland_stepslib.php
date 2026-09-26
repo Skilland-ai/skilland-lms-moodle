@@ -36,16 +36,9 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
             $data->snapshotcreatedat = $this->apply_date_offset($data->snapshotcreatedat);
         }
 
-        // Map the scormcmid if present
-        if (!empty($data->scormcmid)) {
-            $newscormcmid = $this->get_mappingid('course_module', $data->scormcmid);
-            if (!$newscormcmid) {
-                $data->scormcmid = null;
-                debugging('Could not map SCORM course module ID during restore', DEBUG_DEVELOPER);
-            } else {
-                $data->scormcmid = $newscormcmid;
-            }
-        }
+        // scormcmid keeps the backup's (old) course module id here. The SCORM activity may be
+        // restored after this one, so its mapping is resolved in
+        // restore_skilland_activity_task::after_restore(), once every activity has been restored.
 
         // Handle Skilland Course Mapping
         if (!empty($data->skilland_courseid)) {
@@ -77,16 +70,6 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
 
         $newitemid = $DB->insert_record('skilland', $data);
         $this->apply_activity_instance($newitemid);
-        
-        // Validate SCORM linkage if present
-        if (!empty($data->scormcmid)) {
-            $scorm_exists = $DB->record_exists('course_modules', array('id' => $data->scormcmid, 'course' => $data->course));
-            if (!$scorm_exists) {
-                debugging('SCORM course module ' . $data->scormcmid . ' not found after restore', DEBUG_DEVELOPER);
-                // Clear invalid reference
-                $DB->set_field('skilland', 'scormcmid', null, array('id' => $newitemid));
-            }
-        }
     }
 
     protected function process_skilland_lesson($data) {
@@ -98,28 +81,8 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         // Backups taken before SKL-661 still carry the dropped lesson-level scormcmid.
         unset($data->scormcmid);
 
-        // Handle SCO ID mapping - use sco_identifier as fallback
-        if (!empty($data->scoid)) {
-            // Try to map the SCO ID
-            $newscoid = $this->get_mappingid('scorm_sco', $data->scoid);
-            if (!$newscoid) {
-                // Fallback: Find SCO by identifier if available
-                if (!empty($data->sco_identifier)) {
-                    $skilland = $DB->get_record('skilland', array('id' => $data->skillandid));
-                    if ($skilland && $skilland->scormcmid) {
-                        // Try to find the SCO by identifier in the new SCORM instance
-                        $scormid = $DB->get_field('course_modules', 'instance', array('id' => $skilland->scormcmid, 'module' => $DB->get_field('modules', 'id', array('name' => 'scorm'))));
-                        if ($scormid) {
-                            $newscoid = $DB->get_field('scorm_scoes', 'id', array('scorm' => $scormid, 'identifier' => $data->sco_identifier));
-                        }
-                    }
-                }
-                // If still not found, set to null to avoid broken references
-                $data->scoid = $newscoid ?: null;
-            } else {
-                $data->scoid = $newscoid;
-            }
-        }
+        // scoid keeps the backup's (old) SCO id here; restore_skilland_activity_task::after_restore()
+        // maps it, together with scormcmid, once the SCORM activity has been restored.
 
         // Apply date offsets to timestamp fields
         if (!empty($data->updatedat)) {

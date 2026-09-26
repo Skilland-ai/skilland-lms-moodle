@@ -634,6 +634,7 @@ foreach ([
     'FEATURE_COMPLETION_HAS_RULES' => 'completion_has_rules',
     'FEATURE_GRADE_HAS_GRADE' => 'grade_has_grade',
     'FEATURE_MOD_PURPOSE' => 'mod_purpose',
+    'FEATURE_BACKUP_MOODLE2' => 'backup_moodle2',
     'MOD_PURPOSE_CONTENT' => 'content',
     'GRADE_TYPE_NONE' => 0,
     'GRADE_TYPE_VALUE' => 1,
