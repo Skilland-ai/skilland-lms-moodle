@@ -33,6 +33,13 @@ $string['lessonselection_help'] = 'Elija qué lecciones de este tema importar co
 $string['lessons'] = 'Lecciones';
 $string['select_topic_first'] = 'Seleccione un tema primero para ver las lecciones.';
 $string['no_lessons_found'] = 'No se encontraron lecciones para este tema.';
+$string['error_topicid_required'] = 'Se requiere un tema. Seleccione uno, o reintente si la lista de temas no se pudo cargar.';
+$string['current_topic_unavailable'] = 'Tema actual (SkilLand no disponible)';
+$string['topic_no_longer_available'] = '(ya no disponible en SkilLand)';
+$string['topic_no_longer_available_warning'] = 'El tema guardado para esta actividad ya no está disponible en SkilLand. Se conserva su configuración; seleccione otro tema para reemplazarlo.';
+$string['retry'] = 'Reintentar';
+$string['missing_lessons_warning'] = 'Estas lecciones ya no están disponibles en SkilLand. Seguirán formando parte de esta actividad hasta que las elimine.';
+$string['remove_from_activity'] = 'Eliminar de la actividad';
 
 // Behaviour settings.
 $string['behaviour'] = 'Configuración de Comportamiento';
