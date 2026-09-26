@@ -169,6 +169,8 @@ Settings location: **Site administration → Plugins → Activity modules → Sk
 
 Never pass SkilLand API data (course and topic names, descriptions, error messages) or language strings to `innerHTML`, and never build a JS string literal with `addslashes()`. In inline JS, set text with `textContent` and build markup with `document.createElement`; when a Moodle API only takes HTML (e.g. `notification.addNotification`), wrap the value in the form's `escapeHtml()` helper. From PHP, emit strings and URLs into JS as whole literals with `json_encode($value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)`. HTML that is meant to be rendered (topic descriptions) is purified server-side with `clean_text()` and declared as `PARAM_CLEANHTML` in the external function's return structure. `tests/phpunit/xss_sinks_test.php` guards these rules (SKL-674).
 
+The activity form keeps the lesson selection per topic (`selectionsByTopic`), derives `selected_lessons` only from the ticked checkboxes of the rendered topic (`updateSelectedState()`), drops lesson responses for a superseded topic (`lessonsRequestSeq`), and `validation()` rejects lessons outside the submitted topic (`skilland_lessons_outside_topic()`); `tests/phpunit/form_lesson_selection_test.php` guards this (SKL-657).
+
 ## Common Development Tasks
 
 ### Debugging GraphQL Queries
