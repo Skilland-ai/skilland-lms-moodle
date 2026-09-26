@@ -12,7 +12,7 @@
     "test:e2e:ui": "npx playwright test --config=tests/e2e/playwright.config.js --ui",
     "test:e2e:headed": "npx playwright test --config=tests/e2e/playwright.config.js --headed",
     "test:e2e:debug": "npx playwright test --config=tests/e2e/playwright.config.js --debug",
-    "test:unit": "docker run --rm -v \"$(pwd)\":/app -w /app composer:2 install --no-interaction --quiet && docker run --rm -v \"$(pwd)\":/app -w /app php:8.2-cli vendor/bin/phpunit -c phpunit.xml",
+    "test:unit": "docker run --rm -v \"$(pwd)\":/app -w /app -e COMPOSER_VENDOR_DIR=vendor-test composer:2 install --no-interaction --quiet && docker run --rm -v \"$(pwd)\":/app -w /app php:8.2-cli vendor-test/bin/phpunit -c phpunit.xml",
     "prepare": "husky"
   },
   "devDependencies": {
