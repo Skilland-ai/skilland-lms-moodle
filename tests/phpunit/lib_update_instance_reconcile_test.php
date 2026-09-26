@@ -245,6 +245,31 @@ class lib_update_instance_reconcile_test extends TestCase {
             $GLOBALS['_test_notifications']);
     }
 
+    public function test_topic_change_stamps_the_new_topic_lessons_once_the_rebuild_succeeds(): void {
+        $this->queue_topics();
+        $this->queue_reprovision();
+
+        $this->assertTrue(skilland_update_instance($this->formdata('topic2', ['M1', 'M2'])));
+
+        foreach (['M1', 'M2'] as $id) {
+            $this->assertSame(strtotime('2026-01-03T00:00:00Z'), $this->lesson($id)->updatedat, $id);
+        }
+    }
+
+    public function test_topic_change_with_a_failing_reprovision_keeps_the_submitted_stamps(): void {
+        $this->queue_topics();
+        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic2', 'name' => 'T2',
+            'lessons' => [['id' => 'M1', 'name' => 'M one', 'updatedAt' => '2026-01-03T00:00:00Z']]]]);
+        $GLOBALS['_test_curl_responses'][] = ['body' => 'down', 'http_code' => 500, 'errno' => 0, 'error' => ''];
+
+        $this->assertTrue(skilland_update_instance($this->formdata('topic2', ['M1'])));
+
+        // Inserted with the form's value; the failed rebuild and the reset never stamp it.
+        $this->assertEquals(100, $this->lesson('M1')->updatedat);
+        $this->assertEmpty(array_filter($this->db->get_calls_for('set_field'),
+            fn($c) => $c['field'] === 'updatedat'));
+    }
+
     public function test_topic_change_with_a_busy_lock_still_saves_and_warns(): void {
         $this->queue_topics();
         $GLOBALS['_test_lock_available'] = false;

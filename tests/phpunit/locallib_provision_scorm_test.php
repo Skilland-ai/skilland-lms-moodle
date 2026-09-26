@@ -406,6 +406,82 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertFalse($this->db->get_record('course_modules', ['id' => 50]));
     }
 
+    /** A provisioned activity whose lessons carry the packaged stamp 1600000000 (SKL-683). */
+    private function provisioned_with_stamps(): void {
+        $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
+        $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
+        $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
+            ['scormcmid' => 50, 'scorm_provisioned' => 1]));
+        foreach ([1, 2, 3] as $id) {
+            $this->db->set_field('skilland_lesson', 'updatedat', 1600000000, ['id' => $id]);
+        }
+        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
+            'lessons' => [
+                ['id' => 'L1', 'name' => 'One', 'updatedAt' => '2026-01-03T00:00:00Z'],
+                ['id' => 'L2', 'name' => 'Two', 'updatedAt' => '2026-01-04T00:00:00Z'],
+                ['id' => 'L3', 'name' => 'Three', 'updatedAt' => '2026-01-05T00:00:00Z'],
+            ]]]);
+    }
+
+    public function test_successful_update_stamps_visible_and_hidden_lessons_after_the_build(): void {
+        $this->provisioned_with_stamps();
+        $this->queue_package();
+
+        skilland_update_topic_scorm($this->skilland(), $this->course(), 1);
+
+        $this->assertSame(strtotime('2026-01-03T00:00:00Z'), $this->lesson(1)->updatedat);
+        $this->assertSame(strtotime('2026-01-04T00:00:00Z'), $this->lesson(2)->updatedat);
+        $this->assertSame(strtotime('2026-01-05T00:00:00Z'), $this->lesson(3)->updatedat);
+
+        // The stamps are written only once the new module is linked to the activity.
+        $firststamp = null;
+        $linked = null;
+        foreach ($this->db->get_calls() as $i => $call) {
+            if ($firststamp === null && $call['method'] === 'set_field' && ($call['field'] ?? '') === 'updatedat'
+                    && $i > 0 && $call['value'] !== 1600000000) {
+                $firststamp = $i;
+            }
+            if ($call['method'] === 'update_record' && $call['table'] === 'skilland'
+                    && !empty($call['data']->scormcmid) && (int) $call['data']->scormcmid !== 50) {
+                $linked = $i;
+            }
+        }
+        $this->assertNotNull($firststamp);
+        $this->assertNotNull($linked);
+        $this->assertGreaterThan($linked, $firststamp);
+    }
+
+    public function test_update_whose_build_fails_leaves_the_stamps_alone(): void {
+        $this->provisioned_with_stamps();
+        $this->queue_package(['L1' => 'sco_missing']);
+
+        $this->expect_code(fn() => skilland_update_topic_scorm($this->skilland(), $this->course(), 0),
+            'error_scorm_parse_failed');
+
+        foreach ([1, 2, 3] as $id) {
+            $this->assertSame(1600000000, $this->lesson($id)->updatedat);
+        }
+        $this->assertCount(1, $this->lockcalls('release'));
+    }
+
+    public function test_update_whose_module_creation_throws_leaves_the_stamps_alone(): void {
+        $this->provisioned_with_stamps();
+        $GLOBALS['_test_create_module_throw_after_insert'] = new \RuntimeException('half way');
+        $this->queue_package();
+
+        try {
+            skilland_update_topic_scorm($this->skilland(), $this->course(), 0);
+            $this->fail('Expected create_module failure to propagate');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('half way', $e->getMessage());
+        }
+
+        foreach ([1, 2, 3] as $id) {
+            $this->assertSame(1600000000, $this->lesson($id)->updatedat);
+        }
+        $this->assertCount(1, $this->lockcalls('release'));
+    }
+
     public function test_update_throws_when_lock_is_busy(): void {
         $GLOBALS['_test_lock_available'] = false;
 

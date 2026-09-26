@@ -274,4 +274,32 @@ class form_lesson_selection_test extends TestCase {
             $this->assertStringContainsString("json_encode(get_string('$key', 'mod_skilland'), $flags)", self::$form);
         }
     }
+
+    // ---------------------------------------------------------------
+    // Stored lesson timestamps are never replaced by the API value (SKL-683)
+    // ---------------------------------------------------------------
+
+    public function test_update_selected_state_keeps_the_stored_updated_at_of_stored_lessons(): void {
+        $update = $this->js_function_body('updateSelectedState');
+        $this->assertMatchesRegularExpression('/var stored = currentSelectedLessons\[cb\.value\];/', $update);
+        $this->assertMatchesRegularExpression(
+            '/updatedAt: stored \? stored\.updatedAt : cb\.dataset\.updatedAt/', $update);
+        $this->assertDoesNotMatchRegularExpression('/updatedAt:\s*cb\.dataset\.updatedAt\s*,/', $update);
+    }
+
+    public function test_render_lessons_never_writes_the_api_updated_at_into_state(): void {
+        $render = $this->js_function_body('renderLessons');
+        $this->assertDoesNotMatchRegularExpression('/updatedAt:\s*lesson\.updatedAt/', $render);
+        $this->assertDoesNotMatchRegularExpression('/(selectedState|savedSelection|selectionsByTopic)\[[^\]]+\]\s*=/', $render);
+        $this->assertDoesNotMatchRegularExpression('/(?<!\$)currentSelectedLessons\[[^\]]+\]\s*=[^=]/', self::$form);
+    }
+
+    public function test_version_bumped_for_skl_683(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        include realpath(__DIR__ . '/../../src') . '/version.php';
+        $this->assertGreaterThanOrEqual(2026092605, $plugin->version);
+    }
 }
