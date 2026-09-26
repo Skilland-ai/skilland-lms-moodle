@@ -6,7 +6,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026092621;   // YYYYMMDDHH - version/PHP floor, upgrade savepoint order, AMD build, backup/restore (SKL-646/648/652/651)
+$plugin->version   = 2026092622;   // YYYYMMDDHH - fullscreen player a11y, mobile layout and theming (SKL-690)
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.24-beta';
+$plugin->release   = '0.9.25-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
