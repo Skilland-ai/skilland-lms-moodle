@@ -15,5 +15,21 @@
     "no-undef": "error",
     "semi": ["error", "never"],
     "quotes": ["error", "single", { "avoidEscape": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/amd/src/**/*.js"],
+      "env": {
+        "node": false,
+        "browser": true,
+        "amd": true
+      },
+      "globals": {
+        "M": "readonly"
+      },
+      "rules": {
+        "semi": ["error", "always"]
+      }
+    }
+  ]
 }
