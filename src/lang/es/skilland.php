@@ -121,7 +121,7 @@ $string['launch_lesson'] = 'Iniciar Lección';
 $string['content_coming_soon'] = 'Contenido Próximamente';
 $string['content_being_prepared'] = 'El contenido de esta lección está siendo preparado. Por favor, vuelva más tarde.';
 $string['content_not_provisioned'] = 'Contenido Aún No Disponible';
-$string['lesson_not_found'] = 'Lección no encontrada.';
+$string['lesson_not_available'] = 'Esta lección no está disponible en esta actividad.';
 $string['scorm_not_ready'] = 'Esta lección aún no está lista para reproducir. Por favor, espere a que el contenido sea provisionado.';
 $string['scorm_missing_reprovision'] = 'El paquete de contenido de esta actividad se ha eliminado. Vuelva a provisionarlo para que las lecciones se puedan reproducir.';
 

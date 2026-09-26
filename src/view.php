@@ -67,17 +67,16 @@ $lessons = $DB->get_records('skilland_lesson', [
 
 // If playing a lesson, show the SCORM player iframe.
 if ($play > 0) {
-    $lesson = $DB->get_record('skilland_lesson', ['id' => $play, 'skillandid' => $skilland->id]);
+    // Only a visible lesson of this activity can be played; hidden, foreign or unknown ids go back to the list.
+    $lesson = skilland_find_visible_lesson($lessons, $play);
     if ($lesson) {
         echo $OUTPUT->header();
         echo skilland_render_player_view($skilland, $lesson, $cm, $lessons, $topicorderindex);
         echo $OUTPUT->footer();
         exit;
-    } else {
-        // Lesson not found, fall through to lesson list.
-        redirect(new moodle_url('/mod/skilland/view.php', ['id' => $cm->id]),
-            get_string('lesson_not_found', 'mod_skilland'), null, \core\output\notification::NOTIFY_ERROR);
     }
+    redirect(new moodle_url('/mod/skilland/view.php', ['id' => $cm->id]),
+        get_string('lesson_not_available', 'mod_skilland'), null, \core\output\notification::NOTIFY_WARNING);
 }
 
 // Default: Show lesson list.
@@ -120,6 +119,17 @@ if (empty($skilland->scormcmid)) {
 }
 
 echo $OUTPUT->footer();
+
+/**
+ * Find a playable lesson among the visible lessons of this activity.
+ *
+ * @param array $lessons Visible lessons of this activity, keyed by lesson id.
+ * @param int $lessonid The requested lesson id.
+ * @return stdClass|null The lesson, or null when it is hidden, belongs to another activity or does not exist.
+ */
+function skilland_find_visible_lesson(array $lessons, int $lessonid): ?stdClass {
+    return $lessons[$lessonid] ?? null;
+}
 
 /**
  * Detect a linked SCORM that was deleted (or is being deleted) and treat the activity as
@@ -307,17 +317,19 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
 
     // Calculate lesson index within the topic.
     $lessonindex = 1;
+    $found = false;
     foreach ($alllessons as $l) {
         if ($l->id == $lesson->id) {
+            $found = true;
             break;
         }
         $lessonindex++;
     }
     $lessonlabel = 'L' . $topicorderindex . '.' . $lessonindex;
 
-    // Check if lesson has a valid SCO mapping and the SCORM module still exists.
+    // Check the lesson is visible here, has a valid SCO mapping and the SCORM module still exists.
     $scormcm = null;
-    if (!empty($lesson->scoid) && !empty($skilland->scormcmid)) {
+    if ($found && !empty($lesson->scoid) && !empty($skilland->scormcmid)) {
         $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
     }
     if (!$scormcm) {
