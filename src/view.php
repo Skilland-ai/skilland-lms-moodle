@@ -171,6 +171,10 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
 
     $html .= html_writer::start_div('skilland-lessons-list');
 
+    // Teachers see which visible lessons are missing from the installed package (SKL-655).
+    $canprovision = !empty($skilland->scormcmid) &&
+        has_capability('mod/skilland:provision', context_module::instance($cm->id));
+
     $lessonindex = 1;
     foreach ($lessons as $lesson) {
         // Determine if lesson can be played (has SCO mapped).
@@ -255,6 +259,10 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
         }
         if (!empty($meta)) {
             $html .= html_writer::div(implode(' · ', $meta), 'skilland-lesson-meta');
+        }
+        if ($canprovision && empty($lesson->scoid)) {
+            $html .= html_writer::div(get_string('lesson_sco_missing', 'mod_skilland'),
+                'alert alert-warning skilland-lesson-sco-missing small py-1 px-2 mt-1 mb-0');
         }
         $html .= html_writer::end_div(); // lesson-content.
 
