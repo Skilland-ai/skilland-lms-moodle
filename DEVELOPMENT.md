@@ -195,6 +195,8 @@ Web services live in `src/classes/external/<function>.php` (one `mod_skilland\ex
 
 External functions return `self::client_error($e, '<function>')` in `error` from a last `catch (\Throwable $e)`, so a `TypeError` from a malformed API answer becomes the declared error payload (access checks stay outside the try; `tests/phpunit/external_throwable_test.php` guards this, SKL-659) (the raw message goes to the log only; `mod_skilland_client_error_message()` shows allowlisted codes and the generic `error_api_unavailable` otherwise, plus the raw message when devmode is on); inline and AMD JS logs only through a devmode-gated `log` helper; never log emails. `tests/phpunit/no_pii_logging_test.php` and `client_errors_test.php` guard this (SKL-670).
 
+`mod_skilland_graphql()` retries read queries (never mutations) on transient failures (HTTP 429/502/503/504, a 500 without GraphQL errors, curl connect/timeout errors), so every new write must be a `mutation` document; `tests/phpunit/locallib_graphql_test.php` guards this (SKL-672).
+
 Any new field sent to SkilLand, or any new table with a `userid` field, must be declared in `src/classes/privacy/provider.php`; `tests/phpunit/privacy_provider_test.php` guards this (SKL-660).
 
 ## Common Development Tasks

@@ -455,71 +455,83 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
     $jsonpayload = json_encode($payload);
     logger::debug('GraphQL', 'Variables: ' . implode(', ', array_keys((array) $variables)));
 
-    $curl = mod_skilland_make_curl($endpoint);
-    $curl->setopt([
-        'CURLOPT_CONNECTTIMEOUT' => 10,
-        'CURLOPT_TIMEOUT' => 30,
-    ]);
-
     $headers = [
         'Content-Type: application/json',
         'X-Skilland-Org-Id: ' . $orgid,
         'X-Skilland-Api-Key: ' . $apikey
     ];
-    $curl->setHeader($headers);
-    logger::debug('GraphQL', 'Headers set, making POST request to ' . mod_skilland_redact_url($endpoint));
     logger::debug('GraphQL', 'Payload length: ' . strlen($jsonpayload));
 
-    // Make POST request.
-    try {
-        $response = $curl->post($endpoint, $jsonpayload);
-        logger::debug('GraphQL', 'Response received, length: ' . strlen($response));
-    } catch (Exception $e) {
-        logger::error('GraphQL', 'Exception during POST: ' . $e->getMessage());
-        throw $e;
-    }
+    // Read queries are retried on transient failures; mutations never are, so a write that
+    // may have reached the server is not repeated.
+    $retryable = !mod_skilland_graphql_is_mutation($query);
+    $operation = mod_skilland_graphql_operation_name($query);
+    $started = microtime(true);
 
-    // Check for HTTP errors.
-    $info = $curl->get_info();
-    $httpcode = isset($info['http_code']) ? (int)$info['http_code'] : 0;
-    $errno = $curl->get_errno();
-    // Try both property and method access for error message.
-    $curlerror = method_exists($curl, 'error') ? $curl->error() : ($curl->error ?? 'Unknown error');
+    for ($attempt = 1; ; $attempt++) {
+        $curl = mod_skilland_make_curl($endpoint);
+        $curl->setopt([
+            'CURLOPT_CONNECTTIMEOUT' => 10,
+            'CURLOPT_TIMEOUT' => 30,
+        ]);
+        $curl->setHeader($headers);
+        logger::debug('GraphQL', 'Making POST request to ' . mod_skilland_redact_url($endpoint) .
+            ' (attempt ' . $attempt . '/' . MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS . ')');
 
-    logger::debug('GraphQL', 'HTTP code: ' . $httpcode);
-    logger::debug('GraphQL', 'CURL errno: ' . $errno);
-    logger::debug('GraphQL', 'CURL error: ' . $curlerror);
-
-    if ($httpcode >= 300 && $httpcode < 400) {
-        logger::error('GraphQL', 'Refusing redirect (HTTP ' . $httpcode . ') from ' . mod_skilland_redact_url($endpoint));
-        throw new moodle_exception('error_http_redirect', 'mod_skilland', '', $httpcode);
-    }
-
-    if ($httpcode < 200 || $httpcode >= 300) {
-        // The exception carries only the status: the endpoint and curl details go to the log.
-        $safeendpoint = mod_skilland_redact_url($endpoint);
-        if ($errno || $httpcode == 0) {
-            $details = '';
-            if ($errno) {
-                $details .= ' (errno: ' . $errno . ')';
-            }
-            if ($curlerror && $curlerror !== 'Unknown error') {
-                $details .= ' ' . $curlerror;
-            }
-            logger::error('GraphQL', 'Connection to Skilland API at ' . $safeendpoint . ' failed: HTTP ' . $httpcode .
-                $details);
-
-            $refused = $errno == 7 || strpos($curlerror, 'Connection refused') !== false ||
-                strpos($curlerror, 'Could not connect') !== false;
-            $host = (string) parse_url($endpoint, PHP_URL_HOST);
-            if ($refused && ($host === 'localhost' || $host === '127.0.0.1')) {
-                logger::debug('GraphQL', 'If Moodle is running in Docker, use "host.docker.internal" instead of "' .
-                    $host . '" in the GraphQL endpoint setting.');
-            }
-        } else {
-            logger::error('GraphQL', 'HTTP error ' . $httpcode . ' from Skilland API at ' . $safeendpoint);
+        try {
+            $response = (string) $curl->post($endpoint, $jsonpayload);
+            logger::debug('GraphQL', 'Response received, length: ' . strlen($response));
+        } catch (Exception $e) {
+            logger::error('GraphQL', 'Exception during POST: ' . $e->getMessage());
+            throw $e;
         }
-        throw new moodle_exception('error_graphql_http', 'mod_skilland', '', 'HTTP ' . $httpcode);
+
+        $info = $curl->get_info();
+        $httpcode = isset($info['http_code']) ? (int)$info['http_code'] : 0;
+        $errno = (int) $curl->get_errno();
+        // Try both property and method access for error message.
+        $curlerror = method_exists($curl, 'error') ? $curl->error() : ($curl->error ?? 'Unknown error');
+
+        logger::debug('GraphQL', 'HTTP code: ' . $httpcode);
+        logger::debug('GraphQL', 'CURL errno: ' . $errno);
+        logger::debug('GraphQL', 'CURL error: ' . $curlerror);
+
+        if ($httpcode >= 300 && $httpcode < 400) {
+            logger::error('GraphQL', 'Refusing redirect (HTTP ' . $httpcode . ') from ' .
+                mod_skilland_redact_url($endpoint));
+            throw new moodle_exception('error_http_redirect', 'mod_skilland', '', $httpcode);
+        }
+
+        if ($httpcode >= 200 && $httpcode < 300) {
+            break;
+        }
+
+        $decoded = null;
+        if ($httpcode >= 400 && trim($response) !== '') {
+            $decoded = json_decode($response, true);
+            if (!is_array($decoded)) {
+                $decoded = null;
+            }
+        }
+
+        if ($retryable && $attempt < MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS &&
+                mod_skilland_is_transient($httpcode, $errno, $decoded)) {
+            $retryafter = null;
+            if ($httpcode === 429 || $httpcode === 503) {
+                $retryafter = mod_skilland_response_header($curl, 'Retry-After');
+            }
+            $delay = mod_skilland_retry_delay_ms($attempt, $retryafter);
+            $elapsedms = (int) round((microtime(true) - $started) * 1000);
+            if ($elapsedms + $delay < MOD_SKILLAND_GRAPHQL_RETRY_BUDGET_MS) {
+                $reason = $httpcode === 0 ? 'connection error ' . $errno : 'HTTP ' . $httpcode;
+                logger::warn('GraphQL', 'Retrying ' . $operation . ' after ' . $reason . ' (attempt ' .
+                    ($attempt + 1) . '/' . MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS . ')');
+                mod_skilland_retry_sleep($delay);
+                continue;
+            }
+        }
+
+        mod_skilland_graphql_http_failure($endpoint, $httpcode, $errno, (string) $curlerror, $response, $decoded);
     }
 
     // Decode JSON response.
@@ -939,7 +951,7 @@ function skilland_download_topic_scorm_package(string $topicid): array {
 
     logger::debug('SCORM', 'Downloading topic SCORM package from ' . mod_skilland_redact_url($packageurl));
 
-    $tempfile = mod_skilland_download_package($packageurl);
+    $tempfile = mod_skilland_download_package($packageurl, (int) ($scorminfo['packageSize'] ?? 0));
 
     try {
         logger::debug('SCORM', 'Downloaded topic SCORM package (' . filesize($tempfile) . ' bytes)');
@@ -2072,10 +2084,11 @@ function mod_skilland_package_host_allowed(string $packageurl, string $endpoint)
  * Download a SCORM package to a temp file after validating its URL, size and format.
  *
  * @param string $packageurl
+ * @param int $expectedsize Size in bytes the API announced for the package; 0 skips the check.
  * @return string Path of the downloaded zip; the caller deletes it.
  * @throws moodle_exception On any failed check; the temp file is removed first.
  */
-function mod_skilland_download_package(string $packageurl): string {
+function mod_skilland_download_package(string $packageurl, int $expectedsize = 0): string {
     mod_skilland_require_https($packageurl, 'package');
 
     $endpoint = (string) (get_config('mod_skilland', 'graphql_endpoint') ?? '');
@@ -2130,6 +2143,10 @@ function mod_skilland_download_package(string $packageurl): string {
     if ($size > $maxbytes) {
         $fail('error_package_too_large', $maxmb);
     }
+    if ($expectedsize > 0 && $size !== $expectedsize) {
+        logger::error('SCORM', 'Package size mismatch - expected ' . $expectedsize . ' bytes, got ' . $size);
+        $fail('error_scorm_download_failed', 'Size mismatch');
+    }
 
     $magic = (string) file_get_contents($tempfile, false, null, 0, 4);
     if ($magic !== "PK\x03\x04") {
@@ -2142,6 +2159,193 @@ function mod_skilland_download_package(string $packageurl): string {
     $zip->close();
 
     return $tempfile;
+}
+
+/** Maximum number of attempts mod_skilland_graphql() makes for a read query. */
+const MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS = 3;
+
+/** No new attempt starts once this many milliseconds have passed since the first one. */
+const MOD_SKILLAND_GRAPHQL_RETRY_BUDGET_MS = 20000;
+
+/** Upper bound of a Retry-After delay the plugin honours, in milliseconds. */
+const MOD_SKILLAND_RETRY_AFTER_CAP_MS = 5000;
+
+/** curl errnos treated as transient: DNS, connect, timeout, TLS handshake, empty reply, receive error. */
+const MOD_SKILLAND_TRANSIENT_CURL_ERRNOS = [6, 7, 28, 35, 52, 56];
+
+/**
+ * Whether a GraphQL document is a mutation.
+ *
+ * Leading whitespace and "#" comment lines are skipped before looking for the keyword.
+ *
+ * @param string $query
+ * @return bool
+ */
+function mod_skilland_graphql_is_mutation(string $query): bool {
+    $rest = $query;
+    while (true) {
+        $rest = ltrim($rest);
+        if ($rest === '' || $rest[0] !== '#') {
+            break;
+        }
+        $newline = strpos($rest, "\n");
+        $rest = $newline === false ? '' : substr($rest, $newline + 1);
+    }
+    return (bool) preg_match('/^mutation\b/', $rest);
+}
+
+/**
+ * Operation name of a GraphQL document for log lines, "query" when it has none.
+ *
+ * @param string $query
+ * @return string
+ */
+function mod_skilland_graphql_operation_name(string $query): string {
+    if (preg_match('/\b(?:query|mutation)\s+([A-Za-z_][A-Za-z0-9_]*)/', $query, $m)) {
+        return $m[1];
+    }
+    return mod_skilland_graphql_is_mutation($query) ? 'mutation' : 'query';
+}
+
+/**
+ * Whether a failed GraphQL response is worth retrying.
+ *
+ * @param int $httpcode HTTP status, 0 when no response arrived.
+ * @param int $errno curl errno.
+ * @param array|null $decodedbody The decoded JSON body, null when absent or not JSON.
+ * @return bool
+ */
+function mod_skilland_is_transient(int $httpcode, int $errno, ?array $decodedbody): bool {
+    if ($httpcode === 0) {
+        return in_array($errno, MOD_SKILLAND_TRANSIENT_CURL_ERRNOS, true);
+    }
+    if (in_array($httpcode, [429, 502, 503, 504], true)) {
+        return true;
+    }
+    if ($httpcode === 500) {
+        return empty($decodedbody['errors']);
+    }
+    return false;
+}
+
+/**
+ * Delay before retry number $attempt (1-based), in milliseconds.
+ *
+ * Exponential backoff (250 ms, 500 ms) plus up to 250 ms of jitter. An integer-seconds
+ * Retry-After value overrides it, capped at MOD_SKILLAND_RETRY_AFTER_CAP_MS; an HTTP-date or
+ * any other value is ignored.
+ *
+ * @param int $attempt
+ * @param string|null $retryafter Raw Retry-After header value, null when absent.
+ * @return int
+ */
+function mod_skilland_retry_delay_ms(int $attempt, ?string $retryafter): int {
+    if ($retryafter !== null) {
+        $value = trim($retryafter);
+        if ($value !== '' && ctype_digit($value)) {
+            return (int) min((int) $value * 1000, MOD_SKILLAND_RETRY_AFTER_CAP_MS);
+        }
+    }
+    return 250 * (2 ** max(0, $attempt - 1)) + random_int(0, 250);
+}
+
+/**
+ * Sleep between retries. Tests record the delay in $GLOBALS['_test_skilland_sleeps'] instead.
+ *
+ * @param int $ms
+ */
+function mod_skilland_retry_sleep(int $ms): void {
+    if (array_key_exists('_test_skilland_sleeps', $GLOBALS) && is_array($GLOBALS['_test_skilland_sleeps'])) {
+        $GLOBALS['_test_skilland_sleeps'][] = $ms;
+        return;
+    }
+    usleep(max(0, $ms) * 1000);
+}
+
+/**
+ * A response header from a curl client, matched case-insensitively.
+ *
+ * @param \curl $curl
+ * @param string $name
+ * @return string|null The last value of the header, null when absent.
+ */
+function mod_skilland_response_header(\curl $curl, string $name): ?string {
+    if (!method_exists($curl, 'getResponse')) {
+        return null;
+    }
+    $headers = $curl->getResponse();
+    if (!is_array($headers)) {
+        return null;
+    }
+    foreach ($headers as $key => $value) {
+        if (is_string($key) && strcasecmp(trim($key), $name) === 0) {
+            if (is_array($value)) {
+                $value = end($value);
+            }
+            return is_scalar($value) ? (string) $value : null;
+        }
+    }
+    return null;
+}
+
+/**
+ * Log a failed (non-2xx, non-3xx) GraphQL response and throw the matching exception.
+ *
+ * A 4xx/5xx body carrying GraphQL errors is mapped like a 2xx one; anything else becomes
+ * error_graphql_http with only the status in $a. The endpoint, curl details and a body
+ * snippet go to the log, never into the exception.
+ *
+ * @param string $endpoint
+ * @param int $httpcode
+ * @param int $errno
+ * @param string $curlerror
+ * @param string $response Raw response body.
+ * @param array|null $decoded The decoded JSON body (4xx/5xx with a non-empty body only).
+ * @throws moodle_exception Always.
+ */
+function mod_skilland_graphql_http_failure(string $endpoint, int $httpcode, int $errno, string $curlerror,
+        string $response, ?array $decoded): never {
+    $safeendpoint = mod_skilland_redact_url($endpoint);
+    if ($errno || $httpcode == 0) {
+        $details = '';
+        if ($errno) {
+            $details .= ' (errno: ' . $errno . ')';
+        }
+        if ($curlerror && $curlerror !== 'Unknown error') {
+            $details .= ' ' . $curlerror;
+        }
+        logger::error('GraphQL', 'Connection to Skilland API at ' . $safeendpoint . ' failed: HTTP ' . $httpcode .
+            $details);
+
+        $refused = $errno == 7 || strpos($curlerror, 'Connection refused') !== false ||
+            strpos($curlerror, 'Could not connect') !== false;
+        $host = (string) parse_url($endpoint, PHP_URL_HOST);
+        if ($refused && ($host === 'localhost' || $host === '127.0.0.1')) {
+            logger::debug('GraphQL', 'If Moodle is running in Docker, use "host.docker.internal" instead of "' .
+                $host . '" in the GraphQL endpoint setting.');
+        }
+    } else {
+        logger::error('GraphQL', 'HTTP error ' . $httpcode . ' from Skilland API at ' . $safeendpoint);
+    }
+
+    if ($httpcode >= 400 && trim($response) !== '') {
+        logger::debug('GraphQL', 'Response body: ' . substr($response, 0, 200));
+    }
+
+    if ($decoded !== null && array_key_exists('errors', $decoded)) {
+        $error = null;
+        try {
+            $error = mod_skilland_first_graphql_error($decoded['errors']);
+        } catch (graphql_exception $e) {
+            // Malformed errors member: fall back to the plain HTTP error below.
+            $error = null;
+        }
+        if ($error !== null) {
+            mod_skilland_map_graphql_error($error);
+        }
+    }
+
+    throw new moodle_exception('error_graphql_http', 'mod_skilland', '', 'HTTP ' . $httpcode);
 }
 
 /**
