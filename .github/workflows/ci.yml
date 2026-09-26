@@ -10,8 +10,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  # Only superseded PR runs are cancelled: a push to main must never lose its release gate.
+  # PR runs share one group per ref and a newer push cancels the older run. Called from
+  # release.yml (push to main) the group is unique per run: GitHub drops a *pending* run
+  # when a newer one queues in the same group, which would skip a release.
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -34,6 +36,9 @@ jobs:
 
       - name: ESLint
         run: npm run lint
+
+      - name: E2E helper unit tests (Node)
+        run: npm run test:e2e:unit
 
       - name: PHP syntax check (php -l)
         run: |
