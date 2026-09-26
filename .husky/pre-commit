@@ -11,3 +11,4 @@ fi
 
 npm run lint
 npm run test:unit
+npm run check:vendor-drift

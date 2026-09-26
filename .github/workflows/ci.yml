@@ -56,6 +56,9 @@ jobs:
       - name: PHPUnit
         run: npm run test:unit
 
+      - name: Vendor drift check
+        run: npm run check:vendor-drift
+
   version:
     name: Version bump & secret scan
     if: github.event_name == 'pull_request'

@@ -35,5 +35,8 @@ vendor/phpunit/
 vendor/sebastian/
 vendor/theseer/
 
+# Isolated composer vendor dir used by test:unit, never committed
+vendor-test/
+
 # Environment variables
 .env
