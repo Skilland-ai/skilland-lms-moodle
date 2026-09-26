@@ -102,8 +102,18 @@ class FakeDatabase {
         return $this->tables[$table] ?? [];
     }
 
+    /** @var callable|null fn(string $sql, array $params): array, answering get_records_sql() */
+    private $records_sql_handler = null;
+
+    public function set_records_sql_handler(?callable $handler): void {
+        $this->records_sql_handler = $handler;
+    }
+
     public function get_records_sql(string $sql, array $params = []) {
         $this->calls[] = ['method' => 'get_records_sql', 'sql' => $sql, 'params' => $params];
+        if ($this->records_sql_handler !== null) {
+            return ($this->records_sql_handler)($sql, $params);
+        }
         return [];
     }
 

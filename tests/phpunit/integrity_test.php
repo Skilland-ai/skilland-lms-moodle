@@ -671,4 +671,92 @@ class integrity_test extends TestCase {
             }
         }
     }
+
+    // ---------------------------------------------------------------
+    // Completion and grades (SKL-668)
+    // ---------------------------------------------------------------
+
+    public function test_completion_and_grade_columns_are_installed_and_upgraded(): void {
+        $xml = simplexml_load_file(self::$srcDir . '/db/install.xml');
+        foreach (['completionlessons' => '1', 'grade' => '10'] as $name => $length) {
+            $field = $xml->xpath('//TABLE[@NAME="skilland"]/FIELDS/FIELD[@NAME="' . $name . '"]');
+            $this->assertCount(1, $field, $name);
+            $this->assertSame('int', (string) $field[0]['TYPE']);
+            $this->assertSame($length, (string) $field[0]['LENGTH']);
+            $this->assertSame('true', (string) $field[0]['NOTNULL']);
+            $this->assertSame('0', (string) $field[0]['DEFAULT']);
+        }
+
+        $upgrade = file_get_contents(self::$srcDir . '/db/upgrade.php');
+        $this->assertMatchesRegularExpression(
+            "/if \\(\\\$oldversion < 2026092608\\) \\{.*new xmldb_field\\('completionlessons'.*new xmldb_field\\('grade'.*" .
+            "new xmldb_table\\('skilland_progress'\\).*table_exists.*create_table.*scorm_grade_item_update.*" .
+            "upgrade_mod_savepoint\\(true, 2026092608, 'skilland'\\);/s",
+            $upgrade
+        );
+    }
+
+    public function test_progress_table_is_installed_with_its_keys_and_indexes(): void {
+        $this->assertArrayHasKey('skilland_progress', self::$dbColumns);
+        foreach (['id', 'skillandid', 'lessonid', 'userid', 'status', 'score', 'timemodified'] as $col) {
+            $this->assertContains($col, self::$dbColumns['skilland_progress'], $col);
+        }
+
+        $xml = simplexml_load_file(self::$srcDir . '/db/install.xml');
+        $table = $xml->xpath('//TABLE[@NAME="skilland_progress"]')[0];
+        $score = $table->xpath('FIELDS/FIELD[@NAME="score"]')[0];
+        $this->assertSame('number', (string) $score['TYPE']);
+        $this->assertSame('false', (string) $score['NOTNULL']);
+        $lessonfk = $table->xpath('KEYS/KEY[@NAME="lessonid_fk"]')[0];
+        $this->assertSame('skilland_lesson', (string) $lessonfk['REFTABLE']);
+        $unique = $table->xpath('INDEXES/INDEX[@UNIQUE="true"]');
+        $this->assertCount(1, $unique);
+        $this->assertSame('lessonid, userid', (string) $unique[0]['FIELDS']);
+        $this->assertCount(1, $table->xpath('INDEXES/INDEX[@FIELDS="skillandid, userid"]'));
+    }
+
+    public function test_events_file_declares_scorm_tracking_observers(): void {
+        $observers = null;
+        require self::$srcDir . '/db/events.php';
+
+        foreach (['\\mod_scorm\\event\\status_submitted', '\\mod_scorm\\event\\scoreraw_submitted'] as $name) {
+            $found = array_values(array_filter($observers, fn($o) => ($o['eventname'] ?? '') === $name));
+            $this->assertCount(1, $found, $name);
+            [$class, $method] = explode('::', $found[0]['callback']);
+            $class = ltrim($class, '\\');
+            $this->assertTrue(class_exists($class), "Observer class $class not found");
+            $this->assertTrue(method_exists($class, $method), "Observer method $class::$method not found");
+        }
+    }
+
+    public function test_custom_completion_class_exists(): void {
+        $this->assertFileExists(self::$srcDir . '/classes/completion/custom_completion.php');
+        $this->assertTrue(class_exists(\mod_skilland\completion\custom_completion::class));
+    }
+
+    public function test_backup_carries_completion_and_grade(): void {
+        $backup = file_get_contents(self::$srcDir . '/backup/moodle2/backup_skilland_stepslib.php');
+        $this->assertStringContainsString("'completionlessons'", $backup);
+        $this->assertStringContainsString("'grade'", $backup);
+    }
+
+    public function test_version_is_bumped_for_completion_and_grades(): void {
+        if (!defined('MATURITY_BETA')) {
+            define('MATURITY_BETA', 100);
+        }
+        $plugin = new \stdClass();
+        require self::$srcDir . '/version.php';
+        $this->assertGreaterThanOrEqual(2026092608, $plugin->version);
+    }
+
+    public function test_skl668_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include self::$srcDir . "/lang/$lang/skilland.php";
+            foreach (['completionlessons', 'completionlessons_help', 'completionlessons_desc',
+                    'completiondetail:lessons', 'error_grade_scale_unsupported'] as $key) {
+                $this->assertNotEmpty($string[$key] ?? '', "$lang string $key");
+            }
+        }
+    }
 }

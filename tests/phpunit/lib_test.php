@@ -4,6 +4,8 @@ namespace mod_skilland\tests;
 
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/stubs/completionlib.php';
+
 class lib_test extends TestCase {
 
     /** @var \FakeDatabase */
@@ -56,6 +58,12 @@ class lib_test extends TestCase {
 
     public function test_supports_completion_tracks_views(): void {
         $this->assertTrue(skilland_supports(FEATURE_COMPLETION_TRACKS_VIEWS));
+    }
+
+    public function test_supports_completion_rules_grades_and_content_purpose(): void {
+        $this->assertTrue(skilland_supports(FEATURE_COMPLETION_HAS_RULES));
+        $this->assertTrue(skilland_supports(FEATURE_GRADE_HAS_GRADE));
+        $this->assertSame(MOD_PURPOSE_CONTENT, skilland_supports(FEATURE_MOD_PURPOSE));
     }
 
     public function test_supports_returns_null_for_unknown_feature(): void {
@@ -680,11 +688,14 @@ class lib_test extends TestCase {
 
         $this->assertTrue($result);
         $deletes = $this->db->get_calls_for('delete_records');
-        $this->assertCount(2, $deletes);
-        $this->assertEquals('skilland_lesson', $deletes[0]['table']);
+        // SKL-668: the activity's progress rows go first.
+        $this->assertCount(3, $deletes);
+        $this->assertEquals('skilland_progress', $deletes[0]['table']);
         $this->assertEquals(['skillandid' => 1], $deletes[0]['conditions']);
-        $this->assertEquals('skilland', $deletes[1]['table']);
-        $this->assertEquals(['id' => 1], $deletes[1]['conditions']);
+        $this->assertEquals('skilland_lesson', $deletes[1]['table']);
+        $this->assertEquals(['skillandid' => 1], $deletes[1]['conditions']);
+        $this->assertEquals('skilland', $deletes[2]['table']);
+        $this->assertEquals(['id' => 1], $deletes[2]['conditions']);
     }
 
     // ---------------------------------------------------------------
@@ -902,5 +913,31 @@ class lib_test extends TestCase {
             $this->assertNotSame('', $e->errorcode);
         }
         $this->assertEmpty($this->db->get_calls_for('update_record'));
+    }
+
+    // ---------------------------------------------------------------
+    // skilland_get_coursemodule_info() — completion rule (SKL-668)
+    // ---------------------------------------------------------------
+
+    public function test_coursemodule_info_carries_the_completion_rule_with_automatic_completion(): void {
+        $this->db->seed('skilland', [
+            (object)['id' => 1, 'name' => 'Topic', 'completionlessons' => 1],
+        ]);
+
+        $result = skilland_get_coursemodule_info((object)['instance' => 1, 'completion' => COMPLETION_TRACKING_AUTOMATIC]);
+
+        $this->assertSame(['completionlessons' => 1], $result->customdata['customcompletionrules']);
+    }
+
+    public function test_coursemodule_info_has_no_completion_rule_without_automatic_completion(): void {
+        $this->db->seed('skilland', [
+            (object)['id' => 1, 'name' => 'Topic', 'completionlessons' => 1],
+        ]);
+
+        $manual = skilland_get_coursemodule_info((object)['instance' => 1, 'completion' => COMPLETION_TRACKING_MANUAL]);
+        $none = skilland_get_coursemodule_info((object)['instance' => 1]);
+
+        $this->assertEmpty($manual->customdata['customcompletionrules'] ?? null);
+        $this->assertEmpty($none->customdata['customcompletionrules'] ?? null);
     }
 }

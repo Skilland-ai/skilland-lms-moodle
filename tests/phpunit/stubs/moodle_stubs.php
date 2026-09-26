@@ -363,6 +363,7 @@ if (!class_exists('cm_info')) {
         public $id;
         public $instance;
         public $course;
+        public $customdata = [];
 
         public function __construct($id, $instance, $course) {
             $this->id = $id;
@@ -455,6 +456,7 @@ foreach ([
     'SCORM_TOC_DISABLED' => 3,
     'SCORM_NAV_DISABLED' => 0,
     'GRADESCOES' => '0',
+    'GRADEHIGHEST' => '1',
     'HIGHESTATTEMPT' => '0',
 ] as $name => $value) {
     if (!defined($name)) {
@@ -602,4 +604,60 @@ if (!class_exists('require_login_exception')) {
             parent::__construct('requireloginerror', 'error', '', null, $debuginfo);
         }
     }
+}
+
+if (!class_exists('coding_exception')) {
+    class coding_exception extends \moodle_exception {
+        public function __construct($hint = '', $debuginfo = null) {
+            parent::__construct('codingerror', 'debug', '', $hint, $debuginfo);
+        }
+    }
+}
+
+// Completion, grade and activity-purpose feature flags (lib/moodlelib.php, lib/gradelib.php).
+foreach ([
+    'FEATURE_COMPLETION_HAS_RULES' => 'completion_has_rules',
+    'FEATURE_GRADE_HAS_GRADE' => 'grade_has_grade',
+    'FEATURE_MOD_PURPOSE' => 'mod_purpose',
+    'MOD_PURPOSE_CONTENT' => 'content',
+    'GRADE_TYPE_NONE' => 0,
+    'GRADE_TYPE_VALUE' => 1,
+    'GRADE_TYPE_SCALE' => 2,
+    'GRADE_TYPE_TEXT' => 3,
+    'GRADE_UPDATE_OK' => 0,
+] as $name => $value) {
+    if (!defined($name)) {
+        define($name, $value);
+    }
+}
+
+// grade_update() fake: records every call in $GLOBALS['_test_grade_updates'].
+if (!function_exists('grade_update')) {
+    function grade_update($source, $courseid, $itemtype, $itemmodule, $iteminstance, $itemnumber,
+            $grades = null, $itemdetails = null) {
+        $GLOBALS['_test_grade_updates'][] = [
+            'source' => $source,
+            'courseid' => $courseid,
+            'itemtype' => $itemtype,
+            'itemmodule' => $itemmodule,
+            'iteminstance' => $iteminstance,
+            'itemnumber' => $itemnumber,
+            'grades' => $grades,
+            'itemdetails' => $itemdetails,
+        ];
+        return GRADE_UPDATE_OK;
+    }
+}
+
+// scorm_grade_item_update() fake: records the SCORM record in $GLOBALS['_test_scorm_grade_item_updates'].
+if (!function_exists('scorm_grade_item_update')) {
+    function scorm_grade_item_update($scorm, $grades = null) {
+        $GLOBALS['_test_scorm_grade_item_updates'][] = clone $scorm;
+        return GRADE_UPDATE_OK;
+    }
+}
+
+// \core_completion\activity_custom_completion (namespaced, so it lives in its own file).
+if (!class_exists('core_completion\\activity_custom_completion')) {
+    require_once __DIR__ . '/custom_completion_stub.php';
 }
