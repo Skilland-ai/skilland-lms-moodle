@@ -358,6 +358,44 @@ function skilland_topic_belongs_to_course(string $topicid, string $skillandcours
 }
 
 /**
+ * List the submitted lesson IDs that are not lessons of the topic.
+ *
+ * The activity form posts `selected_lessons` as a JSON object keyed by lesson ID.
+ * IDs are compared as strings, so numeric and string IDs match. Anything that is
+ * not a JSON object (empty, '{}', 'array()', invalid JSON, a JSON list) yields no
+ * foreign IDs and leaves skilland_process_selected_lessons() to handle it.
+ *
+ * @param string $json Submitted selected_lessons value
+ * @param array $topiclessons Lessons of the topic, as returned by mod_skilland_fetch_lessons()
+ * @return string[] Submitted lesson IDs missing from the topic, in submitted order
+ */
+function skilland_lessons_outside_topic(string $json, array $topiclessons): array {
+    $trimmed = ltrim($json);
+    if ($trimmed === '' || $trimmed[0] !== '{') {
+        return [];
+    }
+    $selected = json_decode($trimmed, true);
+    if (!is_array($selected) || empty($selected)) {
+        return [];
+    }
+
+    $known = [];
+    foreach ($topiclessons as $lesson) {
+        if (is_array($lesson) && isset($lesson['id'])) {
+            $known[(string)$lesson['id']] = true;
+        }
+    }
+
+    $outside = [];
+    foreach (array_keys($selected) as $id) {
+        if (!isset($known[(string)$id])) {
+            $outside[] = (string)$id;
+        }
+    }
+    return $outside;
+}
+
+/**
  * Execute a GraphQL query against Skilland's GraphQL endpoint.
  *
  * @param string $query The GraphQL query string
