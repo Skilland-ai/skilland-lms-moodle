@@ -88,7 +88,7 @@ This will output an API key that you can use in the Moodle plugin settings.
 1. Create a new course or use an existing one
 2. Go to **Course settings**
 3. Scroll to **Custom fields**
-4. Enter your Skilland Course ID in the `skilland_course_id` field
+4. Pick a SkilLand course in the dropdown, or click **Create in SkilLand** and confirm (the course is created and linked at once; the Studio link appears after the save). If the course list cannot load, the plain `skilland_course_id` text field comes back
 5. Save
 
 ### 2. Create a Skilland Activity
