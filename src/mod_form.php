@@ -418,12 +418,14 @@ class mod_skilland_mod_form extends moodleform_mod {
                     // Get current topic ID and selected lessons if editing.
             $currenttopicid = '';
             $currentSelectedLessons = [];
+            $hasscorm = false;
 
             if (!empty($this->_instance)) {
                 global $DB;
                 $skilland = $DB->get_record('skilland', array('id' => $this->_instance));
                 if ($skilland) {
                     $currenttopicid = $skilland->skilland_topicid;
+                    $hasscorm = !empty($skilland->scormcmid);
                     $mform->setDefault('skilland_topicid', $currenttopicid);
                     // Fetch existing selected lessons (visible=1)
                     $records = $DB->get_records('skilland_lesson',
@@ -474,6 +476,10 @@ class mod_skilland_mod_form extends moodleform_mod {
                 var selectionsByTopic = {}; // Ticked lessons per topic ID, restored when the topic is shown again.
                 var renderedTopicId = null; // Topic whose lessons are rendered as checkboxes, null while loading.
                 var activeTopicId = null; // Topic last picked in the dropdown (SKL-655 reuses it as the previous value).
+                var hasScorm = " . json_encode($hasscorm) . "; // The activity has a provisioned SCORM (SKL-655).
+                var confirmedTopicId = null; // Topic the teacher just confirmed leaving the saved topic for.
+                var topicChangeConfirmTitle = " . json_encode(get_string('topic_change_confirm_title', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
+                var topicChangeConfirmMessage = " . json_encode(get_string('topic_change_confirm', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ";
                 var lessonsRequestSeq = 0; // Bumped per lessons request; a response with an older token is dropped.
                 var topicsMap = {}; // Store full topic objects by ID
                 var editLinkHtml = " . json_encode($editlink) . ";
@@ -679,6 +685,31 @@ class mod_skilland_mod_form extends moodleform_mod {
                     // Handle topic selection change
                     topicSelect.addEventListener('change', function() {
                         var topicId = this.value;
+                        // Leaving the saved topic of a provisioned activity replaces its SCORM (SKL-655):
+                        // confirm first. Cancel restores the select and changes nothing else.
+                        if (hasScorm && activeTopicId !== null && String(activeTopicId) === String(currentTopicId) &&
+                                String(topicId) !== String(currentTopicId) && confirmedTopicId !== topicId) {
+                            var previousTopicId = activeTopicId;
+                            topicSelect.value = previousTopicId;
+                            require(['core/notification'], function(Notification) {
+                                Notification.confirm(
+                                    topicChangeConfirmTitle,
+                                    topicChangeConfirmMessage,
+                                    " . json_encode(get_string('yes')) . ",
+                                    " . json_encode(get_string('no')) . ",
+                                    function() {
+                                        confirmedTopicId = topicId;
+                                        topicSelect.value = topicId;
+                                        topicSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                                    },
+                                    function() {
+                                        topicSelect.value = previousTopicId;
+                                    }
+                                );
+                            });
+                            return;
+                        }
+                        confirmedTopicId = null;
                         if (savedTopicInput) {
                             savedTopicInput.value = topicId;
                             console.log('Skilland: Updated savedTopicInput to:', topicId);
