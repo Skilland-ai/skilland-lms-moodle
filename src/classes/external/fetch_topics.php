@@ -107,7 +107,6 @@ class fetch_topics extends base {
             ];
         } catch (\Exception $e) {
             return [
-                'course' => null,
                 'topics' => [],
                 'error' => self::client_error($e, 'fetch_topics'),
             ];
