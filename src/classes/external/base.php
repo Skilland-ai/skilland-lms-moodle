@@ -58,7 +58,7 @@ abstract class base extends external_api {
      * @return string
      */
     protected static function client_error(\Throwable $e, string $fn): string {
-        logger::error('AJAX', $fn . ' error: ' . $e->getMessage());
+        logger::error('AJAX', $fn . ' error: ' . get_class($e) . ': ' . $e->getMessage());
         return mod_skilland_client_error_message($e);
     }
 }

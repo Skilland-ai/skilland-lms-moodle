@@ -79,7 +79,7 @@ class fetch_lessons extends base {
         }
         try {
             $belongs = skilland_topic_belongs_to_course($topicid, $skillandcourseid);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // An API failure must not carry upstream text to the browser; user-facing codes pass.
             if (mod_skilland_is_client_error($e)) {
                 throw $e;
@@ -111,7 +111,7 @@ class fetch_lessons extends base {
                 'lessons' => $formatted,
                 'error' => null,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'lessons' => [],
                 'error' => self::client_error($e, 'fetch_lessons'),

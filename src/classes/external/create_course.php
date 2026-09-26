@@ -97,7 +97,7 @@ class create_course extends base {
                 'redirect_url' => $redirecturl,
                 'error' => null,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'skillid' => '',
                 'name' => '',

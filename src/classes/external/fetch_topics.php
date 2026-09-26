@@ -105,7 +105,7 @@ class fetch_topics extends base {
                 'topics' => $formatted,
                 'error' => null,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'topics' => [],
                 'error' => self::client_error($e, 'fetch_topics'),

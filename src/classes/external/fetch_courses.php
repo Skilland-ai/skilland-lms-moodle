@@ -118,7 +118,7 @@ class fetch_courses extends base {
                 'courses' => $formatted,
                 'error' => null,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'courses' => [],
                 'error' => self::client_error($e, 'fetch_courses'),
