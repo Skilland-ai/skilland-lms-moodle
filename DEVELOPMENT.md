@@ -117,7 +117,7 @@ whether it exists.
 2. Add an activity → **Skilland content**
 3. Select a topic from the dropdown
 4. Click **Edit Lessons in Skilland** button
-5. You should be redirected to http://localhost:3000/sso-login with a token
+5. Moodle shows a short "Signing you in to SkilLand…" page that POSTs the token to http://localhost:3000/sso-login (it is never in the URL)
 6. The SSO should authenticate you and redirect to the topic editor
 
 ## Troubleshooting
@@ -160,7 +160,8 @@ If SSO login fails with "Invalid SSO token":
 
 There is no default secret. It lives only in the monorepo `.env` as `MOODLE_SSO_SECRET`,
 which both compose files read (the web app to verify tokens, the Moodle container to
-sign them). `./start.sh --plugin` generates one when it is missing. To set it yourself:
+sign them). It must be at least 32 bytes long, and SkilLand's `MOODLE_SSO_SECRET` must equal the
+plugin's SSO Shared Secret. `./start.sh --plugin` generates one when it is missing. To set it yourself:
 
 ```bash
 MOODLE_SSO_SECRET=<generate with openssl rand -base64 32>
@@ -253,8 +254,11 @@ Changing a provisioned activity's topic rebuilds its SCORM on save (student prog
 └─────────────┘
 
 SSO Flow:
-1. Moodle generates SSO token with shared secret
-2. Redirects to frontend /sso-login?token=...
+1. Moodle generates SSO token with shared secret: exp = iat + 60 s, aud = origin of
+   frontend_url (SkilLand may override the expected value with MOODLE_SSO_AUDIENCE),
+   iss = Moodle wwwroot
+2. sso_redirect.php answers with a self-submitting form that POSTs token and redirect to
+   frontend /sso-login (no query string; Cache-Control: no-store, Referrer-Policy: no-referrer)
 3. Frontend calls backend ssoLogin mutation
 4. Backend verifies token, creates user session
 5. Returns JWT token for subsequent requests
@@ -281,7 +285,7 @@ node --test tests/e2e/unit/*.test.js                 # unit tests of the mock it
 
 `setup/global-setup.js` fails the run when Moodle is not reachable, and `loginToMoodle` throws `Moodle login failed for <user>` instead of carrying on logged out. The suite expects the `admin`, `teacher1` and `student1` accounts from `00_development/create_test_users.php`. The SSO specs set an organization id on the plugin settings page when it is empty and sign tokens with the configured (or `config.php`-forced) SSO secret.
 
-**SkilLand is always mocked.** The `skillandMock` fixture (`fixtures/skilland-mock.js`, auto-used through `fixtures/auth.js`) intercepts Moodle's AJAX endpoint (`/lib/ajax/service.php`) and answers every `mod_skilland_*` call in the batch from per-test handlers; core Moodle calls in the same batch still reach Moodle. Browser navigations to a SkilLand origin (`SKILLAND_URL`, default `http://localhost:3000`, plus `https://app.skilland.ai`) land on a stub page, and the `sso_redirect.php` redirect is recorded instead of followed:
+**SkilLand is always mocked.** The `skillandMock` fixture (`fixtures/skilland-mock.js`, auto-used through `fixtures/auth.js`) intercepts Moodle's AJAX endpoint (`/lib/ajax/service.php`) and answers every `mod_skilland_*` call in the batch from per-test handlers; core Moodle calls in the same batch still reach Moodle. Browser navigations to a SkilLand origin (`SKILLAND_URL`, default `http://localhost:3000`, plus `https://app.skilland.ai`) land on a stub page; the SSO form POST to `/sso-login` is recorded with its method, URL and form fields:
 
 ```js
 test('lists topics', async ({ authenticatedPage, skillandMock, moodleCourse }) => {
@@ -290,6 +294,7 @@ test('lists topics', async ({ authenticatedPage, skillandMock, moodleCourse }) =
   skillandMock.fail('mod_skilland_fetch_lessons_ajax', 'boom')        // Moodle web service exception
   // skillandMock.abort(method): network failure; skillandMock.on(method, args => data) for dynamic answers
   // skillandMock.calls(method): args the page sent; skillandMock.navigations(): SkilLand URLs opened
+  // skillandMock.ssoRequests(): [{ method, url, form: { token, redirect } }] posted to /sso-login
 })
 ```
 
