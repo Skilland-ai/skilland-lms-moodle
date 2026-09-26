@@ -534,6 +534,11 @@ if (!function_exists('create_module')) {
             'visibleoncoursepage' => $GLOBALS['_test_create_module_visibleoncoursepage']
                 ?? ($moduleinfo->visibleoncoursepage ?? 1),
         ]);
+        // $GLOBALS['_test_create_module_throw_after_insert'] (an exception) makes it fail half way,
+        // leaving the course_modules row behind like a real create_module() can.
+        if (!empty($GLOBALS['_test_create_module_throw_after_insert'])) {
+            throw $GLOBALS['_test_create_module_throw_after_insert'];
+        }
         $scormid = $db->insert_record('scorm', (object)[
             'course' => $moduleinfo->course,
             'name' => $moduleinfo->name,

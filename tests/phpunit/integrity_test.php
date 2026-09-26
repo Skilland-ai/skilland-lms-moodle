@@ -317,6 +317,19 @@ class integrity_test extends TestCase {
         $this->assertGreaterThanOrEqual(2026092601, $plugin->version);
     }
 
+    public function test_provisioning_error_strings_exist_in_en_and_es(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            require self::$srcDir . "/lang/$lang/skilland.php";
+            foreach (['error_provision_in_progress', 'error_scorm_parse_failed'] as $key) {
+                $this->assertArrayHasKey($key, $string, "$lang missing $key");
+                $this->assertNotSame('', trim($string[$key]), "$lang $key is empty");
+            }
+            $this->assertStringContainsString('{$a}', $string['error_scorm_parse_failed'],
+                "$lang error_scorm_parse_failed must show the missing SCO identifiers");
+        }
+    }
+
     // ---------------------------------------------------------------
     // Placeholder parameters in lang strings
     // ---------------------------------------------------------------
