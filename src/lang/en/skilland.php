@@ -182,6 +182,7 @@ $string['update_available_desc'] = 'Content has been updated in Skilland. Click 
 $string['error_plugin_disabled'] = 'The Skilland plugin is currently disabled.';
 $string['error_course_not_mapped'] = 'This Moodle course is not mapped to a Skilland course. Set the Skilland Course ID in the course settings first.';
 $string['error_course_not_mapped_to_skill'] = 'The requested Skilland content does not belong to the Skilland course mapped to this Moodle course.';
+$string['error_lessons_not_in_topic'] = 'The selected lessons do not belong to this topic. Reselect the lessons and save again.';
 
 // Errors.
 $string['invalidactivity'] = 'Invalid activity specified.';
