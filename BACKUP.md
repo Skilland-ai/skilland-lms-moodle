@@ -1,9 +1,10 @@
 # Skilland Moodle Plugin - Backup and Restore Logic
 
-The Skilland Moodle plugin supports standard Moodle backup and restore operations, including:
+The Skilland Moodle plugin declares `FEATURE_BACKUP_MOODLE2` in `skilland_supports()`, so Moodle includes its activities in backups and offers them for restore, import, course copy and duplicate:
 - **Course Backup/Restore**: Full course backups including Skilland activities and course-level mappings.
 - **Course Copy**: Duplicating courses within the same site.
 - **Import**: Importing activities from one course to another.
+- **Duplicate**: Duplicating a single activity inside its course.
 
 ## How it Works
 
@@ -13,7 +14,8 @@ The backup implementation is located in `src/backup/moodle2/` and follows standa
 1.  **Activity Instance (`skilland` table)**:
     - All settings (Name, Intro, Auto-update, etc.).
     - SCORM association (`scormcmid`).
-    - Skilland Topic ID.
+    - Skilland Topic ID and its position in the skill (`topic_orderindex`), which lesson numbering (`T4.1`, `T4.2`, …) is built from.
+    - The package's lesson -> SCO identifier map (`scomappings`).
     - Snapshot metadata.
 
 2.  **Course Mapping (`skilland_course` table)**:
@@ -28,18 +30,20 @@ The backup implementation is located in `src/backup/moodle2/` and follows standa
 ### Restore Process & Caveats
 
 #### SCORM Association
-The plugin relies on the standard Moodle `course_module` mapping to restore the link to the associated SCORM package (`scormcmid`).
+The Skilland activity links a hidden SCORM activity (`scormcmid`) and each lesson links one of its SCOs (`skilland_lesson.scoid`). Both are ids of the source site, so they are mapped to the restored SCORM, and that mapping waits until every activity of the restore exists:
 
-> [!WARNING]
-> **Important Caveat:** If you are restoring a course where the Skilland activity is restored *before* the associated SCORM activity, Moodle may not yet know the new ID for the SCORM package.
->
-> The restoration logic attempts to map the ID:
-> ```php
-> $data->scormcmid = $this->get_mappingid('course_module', $data->scormcmid);
-> ```
-> If this mapping returns 0 (not found), the link will be broken. In a standard full course restore, Moodle usually handles dependencies or restores in order, but circular dependencies or specific selective restores can cause issues.
->
-> **Fallback:** If the link is broken, you may need to re-provision the SCORM package via the Skilland block or settings.
+1. The structure step (`restore_skilland_stepslib.php`) stores `scormcmid` and every lesson's `scoid` exactly as they are in the backup. It resolves nothing, because the SCORM activity may come *after* the Skilland activity in the section and is then not restored yet.
+2. `restore_skilland_activity_task::after_restore()`, which Moodle runs once all activities are restored, maps `scormcmid` through the restore's `course_module` mapping and checks that the course module exists in the target course. Each lesson's `scoid` is mapped through the SCORM restore's `scorm_sco` mapping, falling back to the SCO with the lesson's `sco_identifier` in the restored package; a lesson whose SCO cannot be found gets `scoid = null`.
+3. Only when the SCORM is **not part of this restore** (the mapping finds nothing) is a new SCORM provisioned from the Skilland API into the activity's section, provided the activity has visible lessons. A restored SCORM is never replaced, so its learner attempts stay linked.
+
+| Operation | SCORM in the backup | Result |
+|-----------|---------------------|--------|
+| Course backup/restore, course copy | Yes | Linked to the restored SCORM, whatever the section order |
+| Import of both activities | Yes | Linked to the imported SCORM |
+| Import of the Skilland activity alone | No | A new SCORM is provisioned from the API |
+| Duplicate | No | A new SCORM is provisioned from the API; the original keeps its own |
+
+If provisioning fails (API unreachable, no visible lessons), the restore still completes and the activity has no SCORM; open it and re-provision from its settings.
 
 #### Course Mapping
 During restore, the plugin checks if the target course already has an entry in the `skilland_course` table.
@@ -50,12 +54,12 @@ This allows effortless "Course Copy" operations where the new copy becomes a val
 
 #### User Data
 The Skilland activity itself acts primarily as a wrapper/launcher for SCORM content.
-- Student progress and grades are stored within the **SCORM activity**, not the Skilland activity.
-- Therefore, when backing up with "Include user data", the critical user data is in the SCORM module backup.
-- The Skilland plugin restores the *structure* key to launching that content.
+- Student attempts and grades are stored within the **SCORM activity**, not the Skilland activity, so "Include user data" restores them with the SCORM module.
+- The Skilland activity's backup is the same with or without user data. Because the restored activity links the restored SCORM (above), the restored attempts stay attached to its lessons.
+- The per-learner `skilland_progress` summary is not backed up; it is refilled from the restored SCORM tracks (`skilland_refresh_progress()`).
 
 ## Troubleshooting
 
 If deep-linking to specific lessons fails after a restore:
 1.  Check if the SCORM package was successfully restored.
-2.  Verify the `scorm_scoes` table IDs might have changed. The plugin uses `sco_identifier` (string-based) as a robust fallback to find the correct SCO in the new package if the integer ID mapping fails.
+2.  `scorm_scoes` ids always change on restore. The plugin maps them through the SCORM restore and falls back to `sco_identifier` (string-based) to find the SCO in the restored package.

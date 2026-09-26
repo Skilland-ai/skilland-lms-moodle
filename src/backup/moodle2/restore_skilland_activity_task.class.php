@@ -74,13 +74,17 @@ class restore_skilland_activity_task extends restore_activity_task {
     }
 
     /**
-     * Called after the restore process completes.
-     * Re-provisions SCORM content if needed.
+     * Called once every activity of the restore has been restored.
+     *
+     * The structure step stores the backup's own SCORM course module id (scormcmid) and SCO ids
+     * (skilland_lesson.scoid) unmapped, because the linked SCORM activity may come after this one
+     * in the section sequence and is then not restored yet. Here both are mapped to the restored
+     * SCORM. Only when the SCORM is not part of this restore (a single-activity import or
+     * duplicate, or a restore that left it out) is a new package provisioned from the API.
      */
     public function after_restore() {
-        global $DB, $CFG;
+        global $DB;
 
-        // Get the restored activity instance
         $skillandid = $this->get_activityid();
         $skilland = $DB->get_record('skilland', ['id' => $skillandid]);
 
@@ -88,38 +92,135 @@ class restore_skilland_activity_task extends restore_activity_task {
             return;
         }
 
-        // Check if SCORM needs to be re-provisioned
-        // This happens when the backup/restore couldn't map the original SCORM cmid
-        if (empty($skilland->scormcmid) && !empty($skilland->skilland_topicid)) {
-            // Load required functions
-            require_once($CFG->dirroot . '/mod/skilland/locallib.php');
-
-            try {
-                // Get the course and course module
-                $cm = get_coursemodule_from_instance('skilland', $skillandid, 0, false, MUST_EXIST);
-                $course = get_course($cm->course);
-                $sectionnum = $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
-
-                // Check if we have visible lessons to provision
-                $hasvisiblelessons = $DB->record_exists('skilland_lesson', [
-                    'skillandid' => $skillandid,
-                    'visible' => 1
-                ]);
-
-                if ($hasvisiblelessons) {
-                    // Provision the topic SCORM package
-                    $scormcmid = skilland_provision_topic_scorm($skilland, $course, $sectionnum);
-
-                    if ($scormcmid) {
-                        debugging('Skilland: Successfully re-provisioned SCORM (cmid=' . $scormcmid . ') after restore for activity ' . $skillandid, DEBUG_DEVELOPER);
-                    }
-                } else {
-                    debugging('Skilland: Skipping SCORM provisioning after restore - no visible lessons for activity ' . $skillandid, DEBUG_DEVELOPER);
-                }
-            } catch (Exception $e) {
-                // Log the error but don't fail the restore
-                debugging('Skilland: Failed to re-provision SCORM after restore: ' . $e->getMessage(), DEBUG_NORMAL);
-            }
+        try {
+            $scormcmid = $this->map_scorm_cmid($skilland);
+        } catch (Exception $e) {
+            debugging('Skilland: Could not map the SCORM course module after restore: ' . $e->getMessage(),
+                DEBUG_NORMAL);
+            $scormcmid = null;
         }
+        $DB->set_field('skilland', 'scormcmid', $scormcmid, ['id' => $skillandid]);
+        $skilland->scormcmid = $scormcmid;
+
+        $this->map_lesson_scos($skilland);
+
+        if (empty($skilland->scormcmid) && !empty($skilland->skilland_topicid)) {
+            $this->reprovision_scorm($skilland);
+        }
+    }
+
+    /**
+     * The restored SCORM course module the backup's scormcmid maps to.
+     *
+     * @param stdClass $skilland The restored activity record, still holding the backup's scormcmid.
+     * @return int|null The new course module id, or null when the SCORM is not part of this restore.
+     */
+    protected function map_scorm_cmid(stdClass $skilland): ?int {
+        global $DB;
+
+        if (empty($skilland->scormcmid)) {
+            return null;
+        }
+
+        $newcmid = $this->get_mapped_id('course_module', $skilland->scormcmid);
+        if (!$newcmid) {
+            debugging('Skilland: SCORM course module ' . $skilland->scormcmid . ' is not part of this restore',
+                DEBUG_DEVELOPER);
+            return null;
+        }
+        if (!$DB->record_exists('course_modules', ['id' => $newcmid, 'course' => $skilland->course])) {
+            debugging('Skilland: SCORM course module ' . $newcmid . ' not found after restore', DEBUG_DEVELOPER);
+            return null;
+        }
+        return $newcmid;
+    }
+
+    /**
+     * Map each lesson's backed-up SCO id to the SCO of the restored package, by the SCORM restore's
+     * scorm_sco mapping or, failing that, by sco_identifier. Without a restored SCORM every
+     * lesson's scoid is cleared (provisioning maps them again).
+     *
+     * @param stdClass $skilland The restored activity record with its mapped scormcmid.
+     */
+    protected function map_lesson_scos(stdClass $skilland): void {
+        global $DB;
+
+        $scormid = 0;
+        if (!empty($skilland->scormcmid)) {
+            $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $skilland->scormcmid]);
+        }
+
+        foreach ($DB->get_records('skilland_lesson', ['skillandid' => $skilland->id]) as $lesson) {
+            if (empty($lesson->scoid)) {
+                continue;
+            }
+
+            $newscoid = 0;
+            if ($scormid) {
+                try {
+                    $newscoid = $this->get_mapped_id('scorm_sco', $lesson->scoid);
+                } catch (Exception $e) {
+                    $newscoid = 0;
+                }
+                if ($newscoid && !$DB->record_exists('scorm_scoes', ['id' => $newscoid, 'scorm' => $scormid])) {
+                    $newscoid = 0;
+                }
+                if (!$newscoid && !empty($lesson->sco_identifier)) {
+                    $newscoid = (int) $DB->get_field('scorm_scoes', 'id',
+                        ['scorm' => $scormid, 'identifier' => $lesson->sco_identifier]);
+                }
+            }
+
+            $DB->set_field('skilland_lesson', 'scoid', $newscoid ?: null, ['id' => $lesson->id]);
+        }
+    }
+
+    /**
+     * Provision a new topic SCORM from the API for an activity restored without its SCORM.
+     *
+     * @param stdClass $skilland The restored activity record.
+     */
+    protected function reprovision_scorm(stdClass $skilland): void {
+        global $DB, $CFG;
+
+        require_once($CFG->dirroot . '/mod/skilland/locallib.php');
+
+        try {
+            $cm = get_coursemodule_from_instance('skilland', $skilland->id, 0, false, MUST_EXIST);
+            $course = get_course($cm->course);
+            $sectionnum = $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
+
+            $hasvisiblelessons = $DB->record_exists('skilland_lesson', [
+                'skillandid' => $skilland->id,
+                'visible' => 1
+            ]);
+
+            if ($hasvisiblelessons) {
+                $scormcmid = skilland_provision_topic_scorm($skilland, $course, $sectionnum);
+
+                if ($scormcmid) {
+                    debugging('Skilland: Successfully re-provisioned SCORM (cmid=' . $scormcmid .
+                        ') after restore for activity ' . $skilland->id, DEBUG_DEVELOPER);
+                }
+            } else {
+                debugging('Skilland: Skipping SCORM provisioning after restore - no visible lessons for activity ' .
+                    $skilland->id, DEBUG_DEVELOPER);
+            }
+        } catch (Exception $e) {
+            // Log the error but don't fail the restore.
+            debugging('Skilland: Failed to re-provision SCORM after restore: ' . $e->getMessage(), DEBUG_NORMAL);
+        }
+    }
+
+    /**
+     * The new id this restore gave an item of the backup.
+     *
+     * @param string $itemname Backup item name (course_module, scorm_sco).
+     * @param int|string $oldid The id in the backup.
+     * @return int The new id, 0 when the item is not part of this restore.
+     */
+    protected function get_mapped_id(string $itemname, $oldid): int {
+        $record = restore_dbops::get_backup_ids_record($this->get_restoreid(), $itemname, $oldid);
+        return $record ? (int) $record->newitemid : 0;
     }
 }

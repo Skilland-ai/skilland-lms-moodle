@@ -15,8 +15,8 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         $skilland = new backup_nested_element('skilland', array('id'), array(
             'name', 'intro', 'introformat', 'skilland_topicid',
             'snapshotid', 'snapshotcreatedat', 'lastsynced',
-            'autoupdate', 'lockafterfirstaccess', 'hidelabels',
-            'scormcmid', 'scorm_provisioned', 'completionlessons', 'grade', 'timecreated', 'timemodified',
+            'autoupdate', 'lockafterfirstaccess', 'hidelabels', 'topic_orderindex',
+            'scormcmid', 'scorm_provisioned', 'scomappings', 'completionlessons', 'grade', 'timecreated', 'timemodified',
             'skilland_courseid', 'skilland_orgid' // From skilland_course join
         ));
 
@@ -43,7 +43,8 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         $lesson->set_source_table('skilland_lesson', array('skillandid' => backup::VAR_PARENTID));
 
         // Define id annotations
-        // Annotate the SCORM course module ID so it can be properly mapped during restore
+        // The SCORM course module id (and each lesson's scoid) is remapped in
+        // restore_skilland_activity_task::after_restore(), once every activity is restored.
         $skilland->annotate_ids('course_module', 'scormcmid');
         
         // Note: scorm_provisioned is a timestamp field, not an ID - no annotation needed
