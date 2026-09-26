@@ -81,6 +81,26 @@ docker exec -it skilland-back node /app/db/generate-api-key.js <YOUR_ORG_ID>
 
 This will output an API key that you can use in the Moodle plugin settings.
 
+#### Setting them from the command line
+
+`cli/configure_api.php` is a development-only helper: `npm run build` leaves it out of
+`dist/`, so it is never in the release zip. It writes only the settings you pass and never
+takes the key as an option (`--apikey` is rejected): the key comes from the
+`SKILLAND_API_KEY` environment variable or, on a terminal, from a prompt with echo off, and
+is never printed.
+
+```bash
+SKILLAND_API_KEY=... php mod/skilland/cli/configure_api.php \
+    --endpoint=http://host.docker.internal:8000/graphql --allow-insecure --orgid=<YOUR_ORG_ID>
+```
+
+An `http://` endpoint needs `--allow-insecure` (or `$CFG->mod_skilland_allow_http` in
+`config.php`); anything else must be `https://`.
+
+The course custom field (`skilland_course_id`) is created on install, recreated on every
+plugin upgrade and the first time a course is mapped; the settings page only reports
+whether it exists.
+
 ## Testing SSO Login
 
 ### 1. Create a Course in Moodle
@@ -174,6 +194,8 @@ The activity form keeps the lesson selection per topic (`selectionsByTopic`), de
 Web services live in `src/classes/external/<function>.php` (one `mod_skilland\external\<function>` class per function, extending `base`, on Moodle 4.2's `core_external` API), and each `execute()` calls `self::validate_context()` before `require_capability()`; `tests/phpunit/external_validate_context_test.php` guards this (SKL-666).
 
 External functions return `self::client_error($e, '<function>')` in `error` from a last `catch (\Throwable $e)`, so a `TypeError` from a malformed API answer becomes the declared error payload (access checks stay outside the try; `tests/phpunit/external_throwable_test.php` guards this, SKL-659) (the raw message goes to the log only; `mod_skilland_client_error_message()` shows allowlisted codes and the generic `error_api_unavailable` otherwise, plus the raw message when devmode is on); inline and AMD JS logs only through a devmode-gated `log` helper; never log emails. `tests/phpunit/no_pii_logging_test.php` and `client_errors_test.php` guard this (SKL-670).
+
+`mod_skilland_graphql()` retries read queries (never mutations) on transient failures (HTTP 429/502/503/504, a 500 without GraphQL errors, curl connect/timeout errors), so every new write must be a `mutation` document; `tests/phpunit/locallib_graphql_test.php` guards this (SKL-672).
 
 Any new field sent to SkilLand, or any new table with a `userid` field, must be declared in `src/classes/privacy/provider.php`; `tests/phpunit/privacy_provider_test.php` guards this (SKL-660).
 

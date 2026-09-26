@@ -424,6 +424,50 @@ class locallib_http_security_test extends TestCase {
         $this->assertSame($before, $this->tempfiles());
     }
 
+    public function test_download_with_matching_size_passes(): void {
+        $this->config('https://api.skilland.ai/graphql');
+        $this->respond(200, $this->zipbytes());
+
+        $path = mod_skilland_download_package('https://cdn.skilland.ai/p.zip', strlen($this->zipbytes()));
+        try {
+            $this->assertSame(strlen($this->zipbytes()), filesize($path));
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_download_one_byte_short_of_expected_size_fails_and_removes_temp_file(): void {
+        $this->config('https://api.skilland.ai/graphql');
+        $this->respond(200, $this->zipbytes());
+        $before = $this->tempfiles();
+
+        $e = $this->expect_code(
+            fn() => mod_skilland_download_package('https://cdn.skilland.ai/p.zip', strlen($this->zipbytes()) + 1),
+            'error_scorm_download_failed');
+
+        $this->assertSame('Size mismatch', $e->a);
+        $this->assertSame($before, $this->tempfiles());
+    }
+
+    public function test_download_expected_size_zero_skips_the_check(): void {
+        $this->config('https://api.skilland.ai/graphql');
+        $this->respond(200, $this->zipbytes());
+
+        $path = mod_skilland_download_package('https://cdn.skilland.ai/p.zip', 0);
+        $this->assertFileExists($path);
+        @unlink($path);
+    }
+
+    public function test_download_is_not_retried(): void {
+        $this->config('https://api.skilland.ai/graphql');
+        $GLOBALS['_test_curl_requests'] = [];
+        $this->respond(503, 'busy');
+
+        $this->expect_code(fn() => mod_skilland_download_package('https://cdn.skilland.ai/p.zip'),
+            'error_scorm_download_failed');
+        $this->assertCount(1, $GLOBALS['_test_curl_requests']);
+    }
+
     public function test_download_exactly_at_cap_is_accepted(): void {
         $this->config('https://api.skilland.ai/graphql', ['package_max_mb' => 1]);
         $this->respond(200, $this->zip_of_size(1024 * 1024));
@@ -472,7 +516,7 @@ class locallib_http_security_test extends TestCase {
         $source = file_get_contents(__DIR__ . '/../../src/locallib.php');
         $this->assertSame(1, preg_match('/function skilland_download_topic_scorm_package\(.*?\n}\n/s', $source, $m));
         $body = $m[0];
-        $download = strpos($body, 'mod_skilland_download_package($packageurl)');
+        $download = strpos($body, 'mod_skilland_download_package($packageurl, (int) ($scorminfo[\'packageSize\'] ?? 0))');
         $hash = strpos($body, 'hash_file($algorithm, $tempfile)');
         $this->assertNotFalse($download);
         $this->assertNotFalse($hash);

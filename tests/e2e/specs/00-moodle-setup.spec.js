@@ -48,6 +48,8 @@ test.describe('Moodle Setup Verification', () => {
   test('Skilland plugin settings page is accessible', async ({ authenticatedPage }) => {
     await goToSkillandSettings(authenticatedPage)
     await expect(authenticatedPage.locator('#id_s_mod_skilland_orgid')).toBeAttached()
+    // The settings page is declarative: no GET link creates the course custom field.
+    await expect(authenticatedPage.locator('a[href*="createcustomfield"]')).toHaveCount(0)
 
     const pageContent = await authenticatedPage.content()
     const hasSettings =

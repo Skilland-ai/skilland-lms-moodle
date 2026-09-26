@@ -4,7 +4,8 @@
 // Every instance records its constructor settings, options, headers and requested URL
 // into $GLOBALS['_test_curl_last']; every request URL is appended to $GLOBALS['_test_curl_requests'].
 // $GLOBALS['_test_curl_responses'] (a list) queues one response per request, in order: each request
-// shifts the next one into $GLOBALS['_test_curl_response'].
+// shifts the next one into $GLOBALS['_test_curl_response']. A response's 'headers' (name => value)
+// are what getResponse() returns for it.
 
 if (!class_exists('curl')) {
     class curl {
@@ -71,6 +72,13 @@ if (!class_exists('curl')) {
                 return $GLOBALS['_test_curl_response']['errno'] ?? 0;
             }
             return 7; // CURLE_COULDNT_CONNECT
+        }
+
+        public function getResponse(): array {
+            if (isset($GLOBALS['_test_curl_response'])) {
+                return $GLOBALS['_test_curl_response']['headers'] ?? [];
+            }
+            return [];
         }
 
         public function error(): string {

@@ -1,39 +1,37 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Admin settings for mod_skilland.
+ *
+ * Declarative only: this file runs on every admin page load, so it never writes to the
+ * database. The course custom field is created on install, on upgrade and the first time
+ * a course is mapped.
+ *
+ * @package    mod_skilland
+ * @copyright  2024
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 defined('MOODLE_INTERNAL') || die;
-
-// Handle custom field creation request - must be before $ADMIN->fulltree check.
-$createfield = optional_param('createcustomfield', 0, PARAM_INT);
-if ($createfield && confirm_sesskey()) {
-    require_capability('moodle/site:config', context_system::instance());
-    require_once(__DIR__ . '/locallib.php');
-
-    $field = skilland_ensure_course_customfield();
-    if ($field) {
-        redirect(new moodle_url('/admin/settings.php', ['section' => 'modsettingskilland']),
-            get_string('customfield_created', 'mod_skilland'), null, \core\output\notification::NOTIFY_SUCCESS);
-    } else {
-        redirect(new moodle_url('/admin/settings.php', ['section' => 'modsettingskilland']),
-            get_string('customfield_create_failed', 'mod_skilland'), null, \core\output\notification::NOTIFY_ERROR);
-    }
-}
 
 if ($ADMIN->fulltree) {
     require_once(__DIR__ . '/locallib.php');
-    // Check if custom field exists.
     $field = skilland_get_course_customfield();
-
-    // Custom field status and creation button.
-    $fieldstatus = $field ? get_string('customfield_exists', 'mod_skilland') : get_string('customfield_missing', 'mod_skilland');
-    $description = $fieldstatus;
-    if (!$field) {
-        $createurl = new moodle_url('/admin/settings.php', [
-            'section' => 'modsettingskilland',
-            'createcustomfield' => 1,
-            'sesskey' => sesskey()
-        ]);
-        $description .= ' ' . html_writer::link($createurl, get_string('create_customfield_button', 'mod_skilland'),
-            ['class' => 'btn btn-primary btn-sm']);
-    }
+    $description = $field ? get_string('customfield_exists', 'mod_skilland') : get_string('customfield_missing', 'mod_skilland');
 
     $settings->add(new admin_setting_heading('mod_skilland/customfield_status',
         get_string('customfield_status', 'mod_skilland'),
@@ -52,7 +50,7 @@ if ($ADMIN->fulltree) {
     // Organization ID setting.
     $settings->add(new admin_setting_configtext('mod_skilland/orgid',
         get_string('settings_orgid', 'mod_skilland'),
-        get_string('settings_orgid_desc', 'mod_skilland'), '', PARAM_TEXT));
+        get_string('settings_orgid_desc', 'mod_skilland'), '', PARAM_ALPHANUMEXT));
 
     // GraphQL endpoint setting.
     $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/graphql_endpoint',

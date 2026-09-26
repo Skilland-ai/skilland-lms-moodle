@@ -32,7 +32,8 @@ module.exports = function(grunt) {
             cli: {
                 expand: true,
                 cwd: '.',
-                src: ['cli/**'],
+                // configure_api.php is a development-only helper, never shipped in the release.
+                src: ['cli/**', '!cli/configure_api.php'],
                 dest: 'dist/'
             }
         },

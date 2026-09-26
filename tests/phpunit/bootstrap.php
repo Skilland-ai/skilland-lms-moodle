@@ -27,6 +27,8 @@ $GLOBALS['CFG'] = $CFG;
 // Track calls to debugging() for assertions.
 $GLOBALS['_test_debug_messages'] = [];
 $GLOBALS['_test_plugin_config'] = [];
+// GraphQL retry delays are recorded here instead of slept (mod_skilland_retry_sleep()).
+$GLOBALS['_test_skilland_sleeps'] = [];
 
 if (!function_exists('debugging')) {
     function debugging(string $message, int $level = DEBUG_NORMAL): void {

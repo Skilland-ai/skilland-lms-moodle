@@ -98,13 +98,10 @@ $string['error_config_missing_topicid'] = 'Se requiere el ID de Tema de Skilland
 $string['error_config_missing_lessonid'] = 'Se requiere el ID de Lección de Skilland para obtener el paquete SCORM.';
 $string['configure_plugin_settings'] = 'Configurar ajustes del plugin';
 
-// Custom field creation in settings.
+// Course custom field status in settings.
 $string['customfield_status'] = 'Estado del Campo Personalizado del Curso';
 $string['customfield_exists'] = 'El campo personalizado existe';
-$string['customfield_missing'] = 'Campo personalizado no encontrado - haga clic en el botón de abajo para crearlo';
-$string['create_customfield_button'] = 'Crear Campo Personalizado';
-$string['customfield_created'] = '¡Campo personalizado creado exitosamente!';
-$string['customfield_create_failed'] = 'Error al crear el campo personalizado. Por favor, revise los registros de error o créelo manualmente.';
+$string['customfield_missing'] = 'Campo personalizado no encontrado. Se vuelve a crear en la próxima actualización del plugin o la primera vez que un curso se vincula a un curso de SkilLand.';
 
 // View page.
 $string['no_lessons_configured'] = 'Aún no se han seleccionado lecciones para este tema. Edite la configuración de la actividad para agregar lecciones.';
