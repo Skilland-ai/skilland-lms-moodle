@@ -240,26 +240,33 @@ For issues or questions:
 2. Review this guide and the main README
 3. Contact the development team
 
+## CI and releases
+
+Every pull request to `main` runs `.github/workflows/ci.yml`:
+
+- **`test`**: `npm run lint` (ESLint over `tests/e2e` and the AMD sources in `src/amd/src`), `php -l` on every PHP file under `src/`, `cli/` and `scripts/` (vendor excluded) in a `php:8.2-cli` container, then PHPUnit via `npm run test:unit`.
+- **`version`** (pull requests only): `node scripts/check_version.js` against the PR base, then a gitleaks scan of the source tree.
+
+Every merge to `main` publishes a release, so the version check requires, against the base branch's `src/version.php`:
+
+1. `$plugin->version` higher than the base (format `YYYYMMDDXX`);
+2. a different `$plugin->release` string;
+3. `$plugin->maturity` matching the release string: `alpha` → `MATURITY_ALPHA`, `beta` → `MATURITY_BETA`, `rc` → `MATURITY_RC`, anything else → `MATURITY_STABLE`.
+
+Run it locally with `BASE_REF=origin/main node scripts/check_version.js` (without `BASE_REF` it compares against `HEAD`). `SKIP_VERSION_CHECK=1` skips it.
+
+`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files, one minified AMD module per source, no `tests/`, `node_modules/`, dev vendor packages or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit fails the run instead of skipping it. Actions are pinned by commit SHA and the gitleaks image by version tag.
+
 ## Git Hooks
 
 This project uses **Husky** to manage git hooks.
 
 ### Pre-commit Hook
-On every commit, the following checks run automatically:
+On every commit, `.husky/pre-commit`:
 
-1.  **Version Check**: Verifies that `$plugin->version` in `src/version.php` has been increased.
-2.  **Auto-Build**: Runs `npm run build` to update the `dist/` directory.
-3.  **Add to Commit**: Automatically adds the updated `dist/` files to your commit.
+1.  **Blocks `dist/`**: refuses a commit that adds or modifies files under `dist/` (it is built by CI).
+2.  **Lint**: runs `npm run lint`.
+3.  **Unit tests**: runs `npm run test:unit` (PHPUnit in Docker).
 
-### Bypassing Checks
-If you need to make a commit without bumping the version (e.g., updating documentation) but **still want the build to run**, use the `SKIP_VERSION_CHECK` environment variable:
-
-```bash
-SKIP_VERSION_CHECK=1 git commit -m "Update docs"
-```
-
-If you want to skip **everything** (including the build), use `--no-verify`:
-```bash
-git commit -m "WIP" --no-verify
-```
+The version bump is enforced by CI on the pull request, not by the hook.
 
