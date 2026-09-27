@@ -95,6 +95,11 @@ class scorm_build_before_delete_test extends TestCase {
         return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 
+    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    private function rest_response(array $body): array {
+        return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+    }
+
     private function zipbytes(): string {
         return base64_decode('UEsDBBQAAAAAAGC1OV3tN8mLCwAAAAsAAAAPAAAAaW1zbWFuaWZlc3QueG1sPG1hbmlmZXN0Lz5QSwECFAMUAAAAAABgtTld7TfJiwsAAAALAAAADwAAAAAAAAAAAAAAgAEAAAAAaW1zbWFuaWZlc3QueG1sUEsFBgAAAAABAAEAPQAAADgAAAAAAA==');
     }
@@ -109,14 +114,14 @@ class scorm_build_before_delete_test extends TestCase {
         foreach ($mappings as $lessonid => $scoid) {
             $list[] = ['lessonId' => $lessonid, 'scoId' => $scoid];
         }
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topicScorm' => [
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response([
             'packageUrl' => 'https://cdn.skilland.ai/topic1.zip',
             'packageSize' => strlen($this->zipbytes()),
             'packageHash' => '',
             'generatedAt' => '2026-03-01T00:00:00Z',
             'expiresAt' => '',
             'mappings' => $list,
-        ]]);
+        ]);
     }
 
     private function queue_zip(): void {

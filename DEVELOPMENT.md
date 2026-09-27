@@ -53,8 +53,8 @@ This starts:
    Outbound requests keep Moodle's curl security (blocked hosts and ports) on and never
    follow redirects. A local `http://` or Docker endpoint (`localhost`, `host.docker.internal`,
    `skilland-back`, private IPs) is reachable only with `$CFG->mod_skilland_allow_http`, which
-   `00_development/config.php` sets. SCORM packages must come from the GraphQL endpoint host or
-   a host listed in the **SCORM package hosts** setting (`mod_skilland/package_hosts`), and are
+   `00_development/config.php` sets. SCORM packages must come from the frontend URL host, the
+   GraphQL endpoint host or a host listed in the **SCORM package hosts** setting (`mod_skilland/package_hosts`), and are
    rejected above `mod_skilland/package_max_mb` or when they are not a zip.
 
    The secret must be at least 32 bytes. The plugin rejects shorter values and any secret
@@ -209,6 +209,8 @@ External functions return `self::client_error($e, '<function>')` in `error` from
 
 `mod_skilland_graphql()` retries read queries (never mutations) on transient failures (HTTP 429/502/503/504, a 500 without GraphQL errors, curl connect/timeout errors), so every new write must be a `mutation` document; `tests/phpunit/locallib_graphql_test.php` guards this (SKL-672).
 
+Topic SCORM lookups use the SkilLand REST routes through `mod_skilland_rest_get()` (`GET {frontend_url}/api/moodle/topics/{id}/scorm-hash` and `.../scorm`, `Authorization: Bearer <apikey>`, same retries and redirect refusal as GraphQL; a failure throws `mod_skilland\rest_exception` carrying `httpcode`, 0 for a transport failure). `mod_skilland_check_topic_snapshot()` and `mod_skilland_fetch_topic_scorm()` fall back to the legacy GraphQL queries only after a transport failure or HTTP 401/403/404 and only while `graphql_endpoint` is set; a 409 (topic without lessons) is `error_scorm_not_available` and never falls back (SKL-791).
+
 Any new field sent to SkilLand, or any new table with a `userid` field, must be declared in `src/classes/privacy/provider.php`; `tests/phpunit/privacy_provider_test.php` guards this (SKL-660).
 
 ## Common Development Tasks
@@ -309,11 +311,11 @@ Production code never carries `$GLOBALS` test hooks. Everything a test needs to 
 
 | Seam | Default | Used by |
 |------|---------|---------|
-| `\mod_skilland\local\api_client` | `http_api_client`, bound in `mod_skilland\hooks::di_configuration()` (registered in `db/hooks.php`); on a Behat site `local\testing\fixture_api_client` | `mod_skilland_graphql()`, `mod_skilland_download_package()` - every call to SkilLand |
+| `\mod_skilland\local\api_client` | `http_api_client`, bound in `mod_skilland\hooks::di_configuration()` (registered in `db/hooks.php`); on a Behat site `local\testing\fixture_api_client` | `mod_skilland_graphql()`, `mod_skilland_rest_get()`, `mod_skilland_download_package()` - every call to SkilLand |
 | `\mod_skilland\local\topic_scorm_updater` | itself (wraps `skilland_update_topic_scorm()`) | `skilland_update_instance()`, the `sync_content` task, the `update_topic_scorm` web service |
 | `\mod_skilland\local\retry_sleeper` | itself (`usleep`) | `mod_skilland_retry_sleep()` between GraphQL retries |
 
-A test replaces one with `\core\di::set(api_client::class, $fake)`; Moodle's `advanced_testcase` resets the container between tests. The stub suite ships a `\core\di` stub with the same `get` / `set` / `reset_container` API plus doubles in `tests/phpunit/stubs/test_doubles.php`: `fake_api_client` (canned responses keyed by GraphQL operation name, falling back to the curl stub; `fake_api_client::topic_snapshot($hash)` for `TopicScormHash`), `fake_topic_scorm_updater` (a fixed cmid or a closure) and `recording_retry_sleeper` (the suite default, so no stub test ever sleeps). A stub test that binds a double calls `\core\di::reset_container()` in `setUp()` and `tearDown()`.
+A test replaces one with `\core\di::set(api_client::class, $fake)`; Moodle's `advanced_testcase` resets the container between tests. The stub suite ships a `\core\di` stub with the same `get` / `set` / `reset_container` API plus doubles in `tests/phpunit/stubs/test_doubles.php`: `fake_api_client` (canned responses keyed by GraphQL operation name, or by the REST route's last path segment with `respond_rest()`, falling back to the curl stub; `fake_api_client::topic_snapshot($hash)` for the `scorm-hash` route), `fake_topic_scorm_updater` (a fixed cmid or a closure) and `recording_retry_sleeper` (the suite default, so no stub test ever sleeps). A stub test that binds a double calls `\core\di::reset_container()` in `setUp()` and `tearDown()`.
 
 ## E2E tests
 

@@ -63,6 +63,12 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
 
         $this->assertSame(1, $this->client->count_calls('GetTopicScorm'));
         $this->assertSame(1, $this->client->count_calls('TopicScormHash'));
+        // Both lookups went through the REST routes, not the legacy GraphQL queries.
+        $paths = array_column($this->client->calls, 'path');
+        $this->assertCount(2, $paths);
+        foreach ($paths as $path) {
+            $this->assertMatchesRegularExpression('#^/api/moodle/topics/[^/]+/scorm(-hash)?$#', $path);
+        }
         $this->assertCount(1, $this->client->downloads);
         $this->assertSame('https://packages.skilland.test/topic-1.zip', $this->client->downloads[0]['url']);
     }

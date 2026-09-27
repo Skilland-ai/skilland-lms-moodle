@@ -116,4 +116,73 @@ class check_topic_snapshot_test extends TestCase {
 
         $this->assertSame(0, $this->execute_clean()['studentattemptcount']);
     }
+
+    // ---------------------------------------------------------------
+    // The remote hash comes from the REST route (SKL-791)
+    // ---------------------------------------------------------------
+
+    private static function rest(int $code, ?array $body = null): array {
+        return ['body' => $body === null ? '' : json_encode($body), 'http_code' => $code, 'errno' => 0, 'error' => ''];
+    }
+
+    private static function hash_body(string $contenthash): array {
+        return ['contentHash' => $contenthash, 'packageHash' => 'p', 'generatedAt' => '2026-01-01T00:00:00Z',
+            'hasPackage' => true, 'isStale' => false];
+    }
+
+    public function test_reports_the_rest_content_hash_with_a_bearer_key(): void {
+        $this->db->get_manager()->set_table_exists('scorm_attempt', false);
+        $GLOBALS['_test_curl_responses'] = [self::rest(200, self::hash_body('new-hash'))];
+
+        $result = $this->execute_clean();
+
+        $this->assertTrue($result['isstale']);
+        $this->assertSame('new-hash', $result['contenthash']);
+        $this->assertNull($result['error'] ?? null);
+        $this->assertSame(['https://localhost:8000/api/moodle/topics/topic-a1/scorm-hash'],
+            $GLOBALS['_test_curl_requests']);
+        $this->assertContains('Authorization: Bearer key1', $GLOBALS['_test_curl_last']['headers']);
+    }
+
+    public function test_same_rest_hash_is_not_stale(): void {
+        $this->db->get_manager()->set_table_exists('scorm_attempt', false);
+        $GLOBALS['_test_curl_responses'] = [self::rest(200, self::hash_body('old-hash'))];
+
+        $result = $this->execute_clean();
+
+        $this->assertFalse($result['isstale']);
+        $this->assertSame('old-hash', $result['contenthash']);
+    }
+
+    public function test_rest_404_falls_back_to_the_graphql_endpoint(): void {
+        $this->db->get_manager()->set_table_exists('scorm_attempt', false);
+        $GLOBALS['_test_curl_responses'] = [
+            self::rest(404),
+            ['body' => json_encode(['data' => ['topicScormHash' => self::hash_body('gql-hash')]]), 'http_code' => 200,
+                'errno' => 0, 'error' => ''],
+        ];
+
+        $result = $this->execute_clean();
+
+        $this->assertSame('gql-hash', $result['contenthash']);
+        $this->assertSame([
+            'https://localhost:8000/api/moodle/topics/topic-a1/scorm-hash',
+            'https://localhost:8000/graphql',
+        ], $GLOBALS['_test_curl_requests']);
+    }
+
+    public function test_rest_401_without_graphql_endpoint_reports_unreachable(): void {
+        $this->db->get_manager()->set_table_exists('scorm_attempt', false);
+        $GLOBALS['_test_plugin_config']['mod_skilland']->graphql_endpoint = '';
+        $GLOBALS['_test_plugin_config']['mod_skilland']->frontend_url = 'https://app.skilland.test';
+        $GLOBALS['_test_curl_responses'] = [self::rest(401)];
+
+        $result = $this->execute_clean();
+
+        $this->assertFalse($result['isstale']);
+        $this->assertSame('', $result['contenthash']);
+        $this->assertSame('Could not reach Skilland API', $result['error']);
+        $this->assertSame(['https://app.skilland.test/api/moodle/topics/topic-a1/scorm-hash'],
+            $GLOBALS['_test_curl_requests']);
+    }
 }

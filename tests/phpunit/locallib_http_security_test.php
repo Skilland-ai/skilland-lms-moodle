@@ -176,6 +176,40 @@ class locallib_http_security_test extends TestCase {
         $this->assertArrayNotHasKey('_test_curl_requests', $GLOBALS);
     }
 
+    public function test_download_accepts_the_frontend_host_even_off_the_package_hosts_list(): void {
+        $this->config('', ['frontend_url' => 'https://learn.customer.example', 'package_hosts' => '']);
+        $this->respond(200, $this->zipbytes());
+
+        $path = mod_skilland_download_package('https://learn.customer.example/api/moodle/packages/p.zip?sig=1');
+
+        @unlink($path);
+        $this->assertSame(['https://learn.customer.example/api/moodle/packages/p.zip?sig=1'],
+            $GLOBALS['_test_curl_requests']);
+    }
+
+    public function test_download_accepts_presigned_s3_urls_by_default(): void {
+        $this->config('', ['frontend_url' => 'https://app.skilland.ai']);
+        foreach (['https://skilland-scorm.s3.eu-west-1.amazonaws.com/t/p.zip?X-Amz-Signature=a',
+                'https://s3.eu-west-1.amazonaws.com/skilland-scorm/t/p.zip?X-Amz-Signature=a'] as $url) {
+            $this->respond(200, $this->zipbytes());
+            @unlink(mod_skilland_download_package($url));
+        }
+        $this->assertCount(2, $GLOBALS['_test_curl_requests']);
+    }
+
+    public function test_download_frontend_host_does_not_admit_other_hosts(): void {
+        $this->config('', ['frontend_url' => 'https://learn.customer.example', 'package_hosts' => '']);
+        $this->expect_code(fn() => mod_skilland_download_package('https://evil.example/p.zip'),
+            'error_package_host_not_allowed');
+        $this->assertArrayNotHasKey('_test_curl_requests', $GLOBALS);
+    }
+
+    public function test_download_local_frontend_host_needs_the_dev_flag(): void {
+        $this->config('', ['frontend_url' => 'https://localhost:3000', 'package_hosts' => '']);
+        $this->expect_code(fn() => mod_skilland_download_package('https://localhost:3000/p.zip'),
+            'error_package_host_not_allowed');
+    }
+
     public function test_download_rejects_html_body(): void {
         $this->config('https://api.skilland.ai/graphql');
         $this->respond(200, '<html>login</html>');

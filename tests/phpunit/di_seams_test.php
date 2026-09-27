@@ -75,11 +75,47 @@ class di_seams_test extends TestCase {
         $fake = \fake_api_client::topic_snapshot(['contentHash' => 'h1', 'hasPackage' => true]);
 
         $this->assertSame(['contentHash' => 'h1', 'hasPackage' => true], mod_skilland_check_topic_snapshot('t1'));
-        $this->assertSame([['operation' => 'TopicScormHash', 'variables' => ['topicId' => 't1']]], $fake->calls);
+        $this->assertSame(['/api/moodle/topics/t1/scorm-hash'], $fake->restcalls);
+        $this->assertSame([], $fake->calls);
+    }
+
+    public function test_rest_get_goes_through_the_bound_api_client(): void {
+        $fake = \fake_api_client::install()->respond_rest('scorm', ['packageUrl' => 'u']);
+
+        $this->assertSame(['packageUrl' => 'u'], mod_skilland_rest_get('/api/moodle/topics/t1/scorm'));
+        $this->assertSame(['/api/moodle/topics/t1/scorm'], $fake->restcalls);
+    }
+
+    public function test_fixture_client_answers_rest_routes_from_the_graphql_fixtures(): void {
+        $client = new \mod_skilland\local\testing\fixture_api_client();
+        \core\di::set(api_client::class, $client);
+
+        $hash = mod_skilland_check_topic_snapshot('topic 1');
+        $scorm = mod_skilland_fetch_topic_scorm('topic 1');
+
+        $this->assertSame('hash-v1', $hash['contentHash']);
+        $this->assertSame(['lesson-1' => 'sco-lesson-1', 'lesson-2' => 'sco-lesson-2'], $scorm['mappings']);
+        $this->assertSame(['TopicScormHash', 'GetTopicScorm'], $client->operations());
+        $this->assertSame(['/api/moodle/topics/topic%201/scorm-hash', '/api/moodle/topics/topic%201/scorm'],
+            array_column($client->calls, 'path'));
+        $this->assertSame(['topicId' => 'topic 1'], $client->calls[0]['variables']);
+    }
+
+    public function test_fixture_client_null_scorm_is_not_available(): void {
+        $client = new \mod_skilland\local\testing\fixture_api_client();
+        $client->set_response('GetTopicScorm', ['topicScorm' => null]);
+        \core\di::set(api_client::class, $client);
+
+        try {
+            mod_skilland_fetch_topic_scorm('t1');
+            $this->fail('Expected error_scorm_not_available');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_scorm_not_available', $e->errorcode);
+        }
     }
 
     public function test_check_topic_snapshot_returns_null_when_the_api_client_throws(): void {
-        \fake_api_client::install()->respond('TopicScormHash', new \moodle_exception('error_graphql_http'));
+        \fake_api_client::install()->respond_rest('scorm-hash', new \moodle_exception('error_graphql_http'));
 
         $this->assertNull(mod_skilland_check_topic_snapshot('t1'));
     }

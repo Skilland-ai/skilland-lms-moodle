@@ -52,13 +52,13 @@ if ($ADMIN->fulltree) {
         get_string('settings_orgid', 'mod_skilland'),
         get_string('settings_orgid_desc', 'mod_skilland'), '', PARAM_ALPHANUMEXT));
 
-    // GraphQL endpoint setting.
+    // Legacy GraphQL endpoint setting (fallback for the REST API).
     $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/graphql_endpoint',
         get_string('settings_graphql_endpoint', 'mod_skilland'),
         get_string('settings_graphql_endpoint_desc', 'mod_skilland'),
         'https://api.skilland.ai/graphql'));
 
-    // Hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host.
+    // Hosts SCORM packages may be downloaded from, besides the frontend URL and GraphQL endpoint hosts.
     $settings->add(new admin_setting_configtext('mod_skilland/package_hosts',
         get_string('settings_package_hosts', 'mod_skilland'),
         get_string('settings_package_hosts_desc', 'mod_skilland'),
@@ -69,7 +69,7 @@ if ($ADMIN->fulltree) {
         get_string('settings_package_max_mb', 'mod_skilland'),
         get_string('settings_package_max_mb_desc', 'mod_skilland'), 200, PARAM_INT));
 
-    // Frontend URL setting (for SSO redirects).
+    // Frontend URL setting (SSO redirects and the base of the REST API).
     $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),
         get_string('settings_frontend_url_desc', 'mod_skilland'),

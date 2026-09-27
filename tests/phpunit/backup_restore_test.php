@@ -276,17 +276,22 @@ class backup_restore_test extends TestCase {
         return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 
+    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    private function rest_response(array $body): array {
+        return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+    }
+
     /** Queue the topicScorm GraphQL answer and the package download a re-provision makes. */
     private function queue_package(): void {
         $zip = base64_decode('UEsDBBQAAAAAAGC1OV3tN8mLCwAAAAsAAAAPAAAAaW1zbWFuaWZlc3QueG1sPG1hbmlmZXN0Lz5QSwECFAMUAAAAAABgtTld7TfJiwsAAAALAAAADwAAAAAAAAAAAAAAgAEAAAAAaW1zbWFuaWZlc3QueG1sUEsFBgAAAAABAAEAPQAAADgAAAAAAA==');
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topicScorm' => [
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response([
             'packageUrl' => 'https://cdn.skilland.ai/topic1.zip',
             'packageSize' => strlen($zip),
             'packageHash' => '',
             'generatedAt' => '2026-01-02T00:00:00Z',
             'expiresAt' => '',
             'mappings' => [['lessonId' => 'L1', 'scoId' => 'sco_1'], ['lessonId' => 'L2', 'scoId' => 'sco_2']],
-        ]]);
+        ]);
         $GLOBALS['_test_curl_responses'][] = ['body' => $zip, 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 

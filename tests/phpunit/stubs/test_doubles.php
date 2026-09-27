@@ -9,10 +9,11 @@ use mod_skilland\local\retry_sleeper;
 use mod_skilland\local\topic_scorm_updater;
 
 /**
- * api_client answering canned responses keyed by GraphQL operation name.
+ * api_client answering canned responses keyed by GraphQL operation name (graphql()) or by the
+ * route's last path segment (rest_get()).
  *
  * A response is the `data` array to return, a Throwable to throw, or a Closure($query, $variables)
- * returning either. Operations with no canned response go to the fallback client — by default the
+ * returning either. Operations and routes with no canned response go to the fallback client — by default the
  * real http_api_client, so tests driving the curl stub keep working alongside canned answers.
  */
 class fake_api_client implements api_client {
@@ -30,6 +31,12 @@ class fake_api_client implements api_client {
 
     /** @var array<int, array{url: string, expectedsize: int}> Every download_package() call. */
     public $downloads = [];
+
+    /** @var array<string, mixed> Canned rest_get() answers keyed by the route's last path segment. */
+    private $restresponses = [];
+
+    /** @var string[] Every rest_get() path, in order. */
+    public $restcalls = [];
 
     public function __construct(?api_client $fallback = null) {
         $this->fallback = $fallback;
@@ -51,11 +58,20 @@ class fake_api_client implements api_client {
     }
 
     /**
-     * What mod_skilland_check_topic_snapshot() sees for the next TopicScormHash queries:
-     * the hash array, or null for "no snapshot" (the check returns null).
+     * What mod_skilland_check_topic_snapshot() sees for the next scorm-hash REST calls:
+     * the hash array, or null for "no snapshot" (an empty body; the check returns null).
      */
     public static function topic_snapshot(?array $snapshot): self {
-        return self::current()->respond('TopicScormHash', ['topicScormHash' => $snapshot]);
+        return self::current()->respond_rest('scorm-hash', $snapshot ?? []);
+    }
+
+    /**
+     * Answer rest_get() for every path whose last segment is $route (scorm-hash, scorm): the decoded
+     * body, a Throwable to throw, or a Closure($path) returning either.
+     */
+    public function respond_rest(string $route, $response): self {
+        $this->restresponses[$route] = $response;
+        return $this;
     }
 
     public function respond(string $operation, $response): self {
@@ -82,6 +98,23 @@ class fake_api_client implements api_client {
         $response = $this->responses[$operation];
         if ($response instanceof \Closure) {
             $response = $response($query, $variables);
+        }
+        if ($response instanceof \Throwable) {
+            throw $response;
+        }
+        return $response;
+    }
+
+    public function rest_get(string $path): array {
+        $this->restcalls[] = $path;
+        $segments = explode('/', trim($path, '/'));
+        $route = (string) end($segments);
+        if (!array_key_exists($route, $this->restresponses)) {
+            return $this->fallback()->rest_get($path);
+        }
+        $response = $this->restresponses[$route];
+        if ($response instanceof \Closure) {
+            $response = $response($path);
         }
         if ($response instanceof \Throwable) {
             throw $response;

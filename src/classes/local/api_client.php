@@ -31,8 +31,8 @@ defined('MOODLE_INTERNAL') || die();
  *
  * Production binds it to {@see http_api_client} in {@see \mod_skilland\hooks::di_configuration()}.
  * Tests replace it with \core\di::set(api_client::class, $fake); production code never checks for
- * test hooks. mod_skilland_graphql() and mod_skilland_download_package() are the public entry
- * points and forward here.
+ * test hooks. mod_skilland_graphql(), mod_skilland_rest_get() and mod_skilland_download_package() are the
+ * public entry points and forward here.
  */
 interface api_client {
     /**
@@ -48,6 +48,19 @@ interface api_client {
      * @throws \mod_skilland\graphql_exception When the response carries a GraphQL error.
      */
     public function graphql(string $query, array $variables = []): array;
+
+    /**
+     * GET a SkilLand REST route below the frontend URL, authenticated with the API key as a Bearer token.
+     *
+     * Transient failures are retried; redirects are refused.
+     *
+     * @param string $path Route path, e.g. /api/moodle/topics/{id}/scorm-hash.
+     * @return array The decoded JSON body.
+     * @throws \moodle_exception When the API key is missing, the URL is not HTTPS or the server redirects.
+     * @throws \mod_skilland\rest_exception On a non-2xx status or a transport failure (httpcode 0), or
+     *     when a 2xx body is not JSON.
+     */
+    public function rest_get(string $path): array;
 
     /**
      * Download a SCORM package to a temp file after validating its URL, size and format.

@@ -22,7 +22,8 @@ use mod_skilland\local\api_client;
  * SkilLand API client answering from canned fixtures, for PHPUnit and Behat.
  *
  * GraphQL responses are keyed by operation name (the name after `query` / `mutation`) and read
- * from tests/fixtures/api_responses.json. download_package() returns a fresh copy of the SCORM 1.2
+ * from tests/fixtures/api_responses.json; the REST routes that replaced an operation answer from
+ * its fixture (see REST_ROUTES). download_package() returns a fresh copy of the SCORM 1.2
  * package zipped from tests/fixtures/scorm/. Every call is recorded, and a test can replace any
  * response, make an operation or the download throw, or build the package from another directory.
  *
@@ -37,7 +38,7 @@ class fixture_api_client implements api_client {
     /** @var array Operation name => response data, \Throwable to throw, or \Closure(array $variables): array. */
     protected array $responses;
 
-    /** @var array[] GraphQL calls made, each ['operation' => string, 'variables' => array]. */
+    /** @var array[] GraphQL and REST calls made, each ['operation' => string, 'variables' => array], plus 'path' for REST. */
     public array $calls = [];
 
     /** @var array[] Downloads made, each ['url' => string, 'expectedsize' => int]. */
@@ -175,6 +176,51 @@ class fixture_api_client implements api_client {
             throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
         }
         return $response;
+    }
+
+    /**
+     * REST routes answered from the fixture of the GraphQL operation they replace: last path
+     * segment => [operation name, root field].
+     */
+    public const REST_ROUTES = [
+        'scorm-hash' => ['TopicScormHash', 'topicScormHash'],
+        'scorm' => ['GetTopicScorm', 'topicScorm'],
+    ];
+
+    /**
+     * Answer a REST route from the fixture of the GraphQL operation it replaces.
+     *
+     * The call is recorded under that operation name (with the path), so count_calls() and
+     * set_response() keep working for either transport. A null root field answers an empty body.
+     *
+     * @param string $path Route path, e.g. /api/moodle/topics/{id}/scorm-hash.
+     * @return array
+     * @throws \moodle_exception error_api_unavailable for a route without a fixture.
+     */
+    public function rest_get(string $path): array {
+        $segments = explode('/', trim($path, '/'));
+        $route = self::REST_ROUTES[end($segments)] ?? null;
+        $topicid = count($segments) >= 2 ? rawurldecode($segments[count($segments) - 2]) : '';
+        if ($route === null) {
+            $this->calls[] = ['operation' => $path, 'variables' => [], 'path' => $path];
+            throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
+        }
+        [$operation, $field] = $route;
+        $variables = ['topicId' => $topicid];
+        $this->calls[] = ['operation' => $operation, 'variables' => $variables, 'path' => $path];
+
+        $response = $this->responses[$operation] ?? null;
+        if ($response instanceof \Throwable) {
+            throw $response;
+        }
+        if ($response instanceof \Closure) {
+            $response = $response($variables);
+        }
+        if ($response === null) {
+            throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
+        }
+        $body = $response[$field] ?? null;
+        return is_array($body) ? $body : [];
     }
 
     /**
