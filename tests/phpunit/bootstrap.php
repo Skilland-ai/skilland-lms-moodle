@@ -66,11 +66,10 @@ spl_autoload_register(function ($class) {
 
 // Load source files that define plain functions (not classes).
 // These are guarded by defined('MOODLE_INTERNAL') || die() which we satisfy above.
+// The view.php render helpers moved into locallib.php (SKL-691), so this also covers what used
+// to need a token-extraction stub to avoid view.php's script-level code.
 require_once __DIR__ . '/../../src/locallib.php';
 require_once __DIR__ . '/../../src/lib.php';
-
-// Load view.php function definitions (extracted to avoid script-level code).
-require_once __DIR__ . '/stubs/view_functions.php';
 
 // Doubles for the plugin's \core\di seams. GraphQL retry delays are recorded instead of slept
 // in every test; a test that asserts them binds its own recording_retry_sleeper.

@@ -295,7 +295,7 @@ class external_scoping_test extends TestCase {
 
         $backup = $this->srcFile('backup/moodle2/backup_skilland_stepslib.php');
         $this->assertMatchesRegularExpression("/new backup_nested_element\('lesson'/", $backup);
-        preg_match("/new backup_nested_element\('lesson',.*?\)\);/s", $backup, $m);
+        preg_match("/new backup_nested_element\('lesson',.*?\]\);/s", $backup, $m);
         $this->assertNotEmpty($m);
         $this->assertStringNotContainsString('scormcmid', $m[0]);
 
