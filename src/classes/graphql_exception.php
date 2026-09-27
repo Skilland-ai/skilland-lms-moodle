@@ -18,7 +18,7 @@
  * Exception raised for an error returned in a GraphQL response body.
  *
  * @package    mod_skilland
- * @copyright  2024
+ * @copyright  2024 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

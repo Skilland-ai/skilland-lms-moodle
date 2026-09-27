@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/skilland/backup/moodle2/restore_skilland_stepslib.php');
@@ -6,6 +21,10 @@ require_once($CFG->dirroot . '/mod/skilland/backup/moodle2/restore_skilland_step
 /**
  * Skilland restore task that provides all the settings and steps to perform one
  * complete restore of the activity
+ *
+ * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_skilland_activity_task extends restore_activity_task {
 
@@ -27,9 +46,9 @@ class restore_skilland_activity_task extends restore_activity_task {
      * Define the contents for this activity
      */
     static public function define_decode_contents() {
-        $contents = array();
+        $contents = [];
 
-        $contents[] = new restore_decode_content('skilland', array('intro'), 'skilland');
+        $contents[] = new restore_decode_content('skilland', ['intro'], 'skilland');
 
         return $contents;
     }
@@ -39,7 +58,7 @@ class restore_skilland_activity_task extends restore_activity_task {
      * by the 'restore_decode_interlinks' step
      */
     static public function define_decode_rules() {
-        $rules = array();
+        $rules = [];
 
         $rules[] = new restore_decode_rule('SKILLANDVIEWBYID', '/mod/skilland/view.php?id=$1', 'course_module');
         $rules[] = new restore_decode_rule('SKILLANDINDEX', '/mod/skilland/index.php?id=$1', 'course');
@@ -52,7 +71,7 @@ class restore_skilland_activity_task extends restore_activity_task {
      * by the 'restore_decode_interlinks' step
      */
     static public function define_restore_log_rules() {
-        $rules = array();
+        $rules = [];
 
         $rules[] = new restore_log_rule('skilland', 'add', 'view.php?id={course_module}', '{name}');
         $rules[] = new restore_log_rule('skilland', 'update', 'view.php?id={course_module}', '{name}');
@@ -66,7 +85,7 @@ class restore_skilland_activity_task extends restore_activity_task {
      * by the 'restore_decode_interlinks' step
      */
     static public function define_restore_log_rules_for_course() {
-        $rules = array();
+        $rules = [];
 
         $rules[] = new restore_log_rule('skilland', 'view all', 'index.php?id={course}', '{course}');
 

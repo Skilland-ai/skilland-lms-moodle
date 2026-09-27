@@ -31,7 +31,7 @@ require_once(__DIR__ . '/../../lib.php');
  * has a ready package, re-provisions the SCORM package automatically.
  *
  * @package    mod_skilland
- * @copyright  2024
+ * @copyright  2024 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class sync_content extends \core\task\scheduled_task {

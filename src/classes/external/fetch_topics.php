@@ -31,7 +31,7 @@ require_once(__DIR__ . '/../../locallib.php');
  * Web service mod_skilland_fetch_topics_ajax: list the topics of the Skilland course linked to a Moodle course.
  *
  * @package    mod_skilland
- * @copyright  2024
+ * @copyright  2024 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class fetch_topics extends base {

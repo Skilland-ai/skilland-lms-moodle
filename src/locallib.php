@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 defined('MOODLE_INTERNAL') || die();
 
 use mod_skilland\graphql_exception;
@@ -10,6 +25,10 @@ use mod_skilland\rest_exception;
  *
  * This file contains helper functions for managing Moodle course-to-Skilland course mappings
  * and other internal operations.
+ *
+ * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 /**
@@ -35,7 +54,7 @@ function skilland_is_enabled(): bool {
  */
 function skilland_get_course_mapping($courseid) {
     global $DB;
-    return $DB->get_record('skilland_course', array('course' => $courseid));
+    return $DB->get_record('skilland_course', ['course' => $courseid]);
 }
 
 /**
@@ -46,7 +65,7 @@ function skilland_get_course_mapping($courseid) {
  */
 function skilland_course_has_mapping($courseid) {
     global $DB;
-    return $DB->record_exists('skilland_course', array('course' => $courseid));
+    return $DB->record_exists('skilland_course', ['course' => $courseid]);
 }
 
 /**
@@ -66,7 +85,7 @@ function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null
     }
 
     // Check if mapping already exists
-    $existing = $DB->get_record('skilland_course', array('course' => $courseid));
+    $existing = $DB->get_record('skilland_course', ['course' => $courseid]);
 
     $now = time();
 
@@ -103,7 +122,7 @@ function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null
 function skilland_update_course_sync($courseid) {
     global $DB;
 
-    $mapping = $DB->get_record('skilland_course', array('course' => $courseid));
+    $mapping = $DB->get_record('skilland_course', ['course' => $courseid]);
     if (!$mapping) {
         return false;
     }
@@ -134,7 +153,7 @@ function skilland_get_skilland_courseid($courseid) {
  */
 function skilland_delete_course_mapping($courseid) {
     global $DB;
-    return $DB->delete_records('skilland_course', array('course' => $courseid));
+    return $DB->delete_records('skilland_course', ['course' => $courseid]);
 }
 
 /**
@@ -365,7 +384,7 @@ function skilland_topic_belongs_to_course(string $topicid, string $skillandcours
  * The activity form posts `selected_lessons` as a JSON object keyed by lesson ID.
  * IDs are compared as strings, so numeric and string IDs match. A non-empty JSON
  * list is not a lesson map: its indexes are returned, as strings, as foreign IDs.
- * Anything else that is not a non-empty JSON object ('', '{}', '[]', 'array()',
+ * Anything else that is not a non-empty JSON object ('', '{}', '[]', '[]',
  * invalid JSON, a scalar) yields no foreign IDs.
  *
  * @param string $json Submitted selected_lessons value
