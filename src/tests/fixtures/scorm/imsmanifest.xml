@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="skilland-fixture-topic-1" version="1.0"
+          xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"
+          xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd">
+  <metadata>
+    <schema>ADL SCORM</schema>
+    <schemaversion>1.2</schemaversion>
+  </metadata>
+  <organizations default="skilland-fixture-org">
+    <organization identifier="skilland-fixture-org">
+      <title>Fixture topic one</title>
+      <item identifier="sco-lesson-1" identifierref="res-lesson-1" isvisible="true">
+        <title>Lesson one</title>
+      </item>
+      <item identifier="sco-lesson-2" identifierref="res-lesson-2" isvisible="true">
+        <title>Lesson two</title>
+      </item>
+    </organization>
+  </organizations>
+  <resources>
+    <resource identifier="res-lesson-1" type="webcontent" adlcp:scormtype="sco" href="lesson.html?lesson=1">
+      <file href="lesson.html"/>
+    </resource>
+    <resource identifier="res-lesson-2" type="webcontent" adlcp:scormtype="sco" href="lesson.html?lesson=2">
+      <file href="lesson.html"/>
+    </resource>
+  </resources>
+</manifest>

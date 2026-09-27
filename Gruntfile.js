@@ -20,7 +20,8 @@ module.exports = function(grunt) {
             main: {
                 expand: true,
                 cwd: 'src/',
-                src: ['**'],
+                // Moodle PHPUnit/Behat tests and their fixture API client are never shipped in the release.
+                src: ['**', '!tests/**', '!classes/local/testing/**'],
                 dest: 'dist/'
             },
             vendor: {
