@@ -5,8 +5,9 @@ namespace mod_skilland\tests;
 use PHPUnit\Framework\TestCase;
 
 /**
- * SKL-664: the course-mapping field on the course settings page (source scan of classes/hooks.php),
- * the pending Studio path kept in the session, and create_course storing it instead of minting a token.
+ * SKL-664: the course-mapping field on the course settings page (source scan of classes/hooks.php
+ * and the mod_skilland/course_mapping AMD module it loads, SKL-681), the pending Studio path kept
+ * in the session, and create_course storing it instead of minting a token.
  */
 class course_mapping_field_test extends TestCase {
 
@@ -22,9 +23,13 @@ class course_mapping_field_test extends TestCase {
         return file_get_contents(__DIR__ . '/../../src/classes/hooks.php');
     }
 
+    private static function module_source(): string {
+        return file_get_contents(__DIR__ . '/../../src/amd/src/course_mapping.js');
+    }
+
     /**
-     * Returns the body of an inline JS function emitted from PHP, up to the line that closes it
-     * at the declaration's indentation.
+     * Returns the body of a JS function declaration, up to the line that closes it at the
+     * declaration's indentation.
      */
     private function js_function_body(string $source, string $name): string {
         $pattern = '/^([ \t]*)function\s+' . preg_quote($name, '/') . '\s*\([^)]*\)\s*\{\n(.*?)^\1\}/ms';
@@ -61,31 +66,40 @@ class course_mapping_field_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // hooks.php source scan
+    // hooks.php + amd/src/course_mapping.js source scan
     // ---------------------------------------------------------------
 
     public function test_no_create_option_in_the_dropdown(): void {
         $this->assertStringNotContainsString('__create_new__', self::hooks_source());
+        $this->assertStringNotContainsString('__create_new__', self::module_source());
     }
 
     public function test_field_is_not_found_by_english_label_or_description(): void {
-        $source = self::hooks_source();
-        foreach (['Skilland Course ID', 'The Skilland Course ID associated', 'used to link all Skilland activities'] as $text) {
-            $this->assertStringNotContainsString($text, $source);
+        foreach ([self::hooks_source(), self::module_source()] as $source) {
+            foreach (['Skilland Course ID', 'The Skilland Course ID associated', 'used to link all Skilland activities'] as $text) {
+                $this->assertStringNotContainsString($text, $source);
+            }
         }
     }
 
-    public function test_field_is_found_by_name_in_both_scripts(): void {
-        $source = self::hooks_source();
-        $this->assertSame(2, substr_count($source, 'document.querySelector(\'[name=\"customfield_skilland_course_id\"]\')'));
+    public function test_field_is_found_by_name_once_for_both_controls(): void {
+        $source = self::module_source();
+        // One lookup by name feeds both the dropdown and the "Go to SkilLand" button.
+        $this->assertSame(1, substr_count($source, 'document.querySelector(\'[name="customfield_skilland_course_id"]\')'));
         $this->assertStringNotContainsString('input[id*=', $source);
+        $this->assertStringNotContainsString('input[id*=', self::hooks_source());
         $this->assertStringContainsString("closest('.fitem')", $source);
+        $start = $this->js_function_body($source, 'start');
+        $this->assertStringContainsString('insertGoToSkillandButton(fieldInput,', $start);
+        $this->assertStringContainsString('buildMappingField(fieldInput,', $start);
     }
 
     public function test_only_the_select_submits_the_value(): void {
-        $source = self::hooks_source();
-        $this->assertDoesNotMatchRegularExpression("/type\s*=\s*'hidden'/", $source);
-        $this->assertStringNotContainsString('hiddenInput', $source);
+        $source = self::module_source();
+        foreach ([$source, self::hooks_source()] as $scanned) {
+            $this->assertDoesNotMatchRegularExpression("/type\s*=\s*'hidden'/", $scanned);
+            $this->assertStringNotContainsString('hiddenInput', $scanned);
+        }
         $this->assertSame(1, preg_match_all('/\.name\s*=(?!=)/', $source), 'exactly one element gets a name');
         $this->assertSame(1, substr_count($source, 'select.name = fieldInput.name;'));
         $this->assertStringContainsString('fieldInput.disabled = true;', $source);
@@ -94,14 +108,15 @@ class course_mapping_field_test extends TestCase {
     }
 
     public function test_no_submit_listener_and_no_window_open(): void {
-        $source = self::hooks_source();
-        $this->assertStringNotContainsString("addEventListener('submit'", $source);
-        $this->assertStringNotContainsString('window.open', $source);
-        $this->assertStringNotContainsString('pendingRedirectUrl', $source);
+        foreach ([self::hooks_source(), self::module_source()] as $source) {
+            $this->assertStringNotContainsString("addEventListener('submit'", $source);
+            $this->assertStringNotContainsString('window.open', $source);
+            $this->assertStringNotContainsString('pendingRedirectUrl', $source);
+        }
     }
 
     public function test_create_goes_through_the_button_and_a_confirmation(): void {
-        $source = self::hooks_source();
+        $source = self::module_source();
         $this->assertStringContainsString("createBtn.id = 'skilland-create-course-btn';", $source);
         $this->assertStringContainsString("createBtn.type = 'button';", $source);
         $this->assertStringContainsString("createBtn.className = 'btn btn-secondary", $source);
@@ -110,6 +125,8 @@ class course_mapping_field_test extends TestCase {
 
         $this->assertSame(1, substr_count($source, 'saveCancelPromise'));
         $this->assertSame(1, substr_count($source, 'mod_skilland_create_course_ajax'));
+        $this->assertStringNotContainsString('saveCancelPromise', self::hooks_source());
+        $this->assertStringNotContainsString('mod_skilland_create_course_ajax', self::hooks_source());
         $click = $this->js_function_body($source, 'onCreateClick');
         $this->assertStringContainsString('saveCancelPromise', $click);
         $this->assertStringContainsString('mod_skilland_create_course_ajax', $click);
@@ -120,9 +137,23 @@ class course_mapping_field_test extends TestCase {
         $this->assertStringContainsString('escapeHtml(courseName)', $click);
     }
 
+    public function test_create_button_is_built_only_after_the_strings_resolve(): void {
+        $source = self::module_source();
+        $start = $this->js_function_body($source, 'start');
+        $this->assertMatchesRegularExpression(
+            '/loadStrings\(\)\.then\(function\(strings\)\s*\{[^}]*buildMappingField\(fieldInput, config, strings\);/s',
+            $start
+        );
+        $this->assertStringContainsString('.catch(Notification.exception);', $start);
+        // Enabled only once the course list has loaded.
+        $this->assertStringContainsString('createBtn.disabled = true;', $source);
+        $this->assertStringContainsString('createBtn.disabled = false;', $source);
+    }
+
     public function test_stale_mapping_shows_unknown_option_and_warning(): void {
-        $source = self::hooks_source();
-        $this->assertStringContainsString("json_encode(\\get_string('course_unknown', 'mod_skilland'", $source);
+        $source = self::module_source();
+        $this->assertMatchesRegularExpression("/key:\s*'course_unknown',\s*param:\s*idPlaceholder\b/", $source);
+        $this->assertStringContainsString('strings.courseUnknown.split(idPlaceholder).join(currentValue);', $source);
         $this->assertStringContainsString('unknown.value = currentValue;', $source);
         $this->assertStringContainsString('unknown.selected = true;', $source);
         $this->assertStringContainsString("'alert alert-warning", $source);
@@ -131,11 +162,11 @@ class course_mapping_field_test extends TestCase {
     }
 
     public function test_fetch_failure_restores_the_text_input(): void {
-        $body = $this->js_function_body(self::hooks_source(), 'restoreTextInput');
+        $body = $this->js_function_body(self::module_source(), 'restoreTextInput');
         $this->assertStringContainsString('container.parentNode.removeChild(container);', $body);
         $this->assertStringContainsString('fieldInput.id = originalId;', $body);
         $this->assertStringContainsString('fieldInput.disabled = false;', $body);
-        $this->assertSame(2, substr_count(self::hooks_source(), 'restoreTextInput();'));
+        $this->assertSame(2, substr_count(self::module_source(), 'restoreTextInput();'));
     }
 
     public function test_go_to_button_carries_the_course_id(): void {
@@ -143,14 +174,35 @@ class course_mapping_field_test extends TestCase {
             "#new \\\\moodle_url\('/mod/skilland/sso_redirect\.php', \[\s*'courseid' => \\\$courseid,\s*'sesskey' => sesskey\(\),#",
             self::hooks_source()
         );
+        $this->assertStringContainsString("'ssourl' => \$ssourl->out(false),", self::hooks_source());
+        $body = $this->js_function_body(self::module_source(), 'insertGoToSkillandButton');
+        $this->assertStringContainsString('link.href = ssoUrl;', $body);
+        $this->assertStringContainsString("div.id = 'skilland-goto-btn';", $body);
+        $this->assertStringNotContainsString('insertEdukamButton', self::module_source());
     }
 
-    public function test_new_strings_reach_js_as_hex_escaped_json(): void {
-        $source = self::hooks_source();
+    public function test_hooks_loads_the_course_mapping_module(): void {
+        $hooks = self::hooks_source();
+        $this->assertSame(1, substr_count($hooks, "\$PAGE->requires->js_call_amd('mod_skilland/course_mapping', 'init', [["));
+        foreach (['<script', 'js_amd_inline(', 'js_init_code(', 'json_encode('] as $needle) {
+            $this->assertStringNotContainsString($needle, $hooks);
+        }
+        foreach (['courseid', 'coursename', 'linked', 'ssourl', 'debug'] as $key) {
+            $this->assertMatchesRegularExpression("/'$key' => /", $hooks, "init config lacks $key");
+        }
+        $this->assertFileDoesNotExist(__DIR__ . '/../../src/amd/src/course_mapping_field.js');
+        $this->assertFileDoesNotExist(__DIR__ . '/../../src/amd/build/course_mapping_field.min.js');
+        $this->assertFileExists(__DIR__ . '/../../src/amd/build/course_mapping.min.js');
+    }
+
+    public function test_new_strings_reach_js_through_core_str(): void {
+        $source = self::module_source();
+        $hooks = self::hooks_source();
+        $this->assertStringContainsString('Str.get_strings(', $source);
         foreach (['create_course_confirm_title', 'create_course_confirm_body', 'create_course_confirm_replace',
                 'create_course_confirm_yes', 'course_unknown', 'course_unknown_warning'] as $key) {
-            $this->assertMatchesRegularExpression("/json_encode\(\\\\get_string\('$key', 'mod_skilland'/", $source,
-                "$key is not emitted through json_encode");
+            $this->assertMatchesRegularExpression("/key:\s*'$key'/", $source, "$key is not fetched through core/str");
+            $this->assertStringNotContainsString("get_string('$key'", $hooks, "$key is still rendered in PHP");
         }
     }
 

@@ -57,7 +57,14 @@ class no_pii_logging_test extends TestCase {
     }
 
     public static function js_sources(): array {
-        $files = ['mod_form.php' => ['mod_form.php'], 'classes/hooks.php' => ['classes/hooks.php']];
+        // SKL-681: the form and course settings scripts are AMD modules; the PHP files that load
+        // them stay in the list so no console call can come back inline.
+        $files = [
+            'mod_form.php' => ['mod_form.php'],
+            'classes/hooks.php' => ['classes/hooks.php'],
+            'amd/src/mod_form.js' => ['amd/src/mod_form.js'],
+            'amd/src/course_mapping.js' => ['amd/src/course_mapping.js'],
+        ];
         foreach (glob(self::SRC . '/amd/src/*.js') as $path) {
             $relative = 'amd/src/' . basename($path);
             $files[$relative] = [$relative];
@@ -101,6 +108,7 @@ class no_pii_logging_test extends TestCase {
      */
     public function test_console_output_only_through_the_log_helper(string $file): void {
         $source = file_get_contents(self::SRC . '/' . $file);
+        $this->assertNotFalse($source, "Cannot read $file");
 
         $rest = $this->strip_log_helper($source, $file);
 
@@ -109,11 +117,14 @@ class no_pii_logging_test extends TestCase {
         $this->assertStringNotContainsString('Object.keys(error)', $source);
     }
 
-    public function test_inline_scripts_embed_the_devmode_flag(): void {
-        foreach (['mod_form.php', 'classes/hooks.php'] as $file) {
-            $source = file_get_contents(self::SRC . '/' . $file);
-            $this->assertStringContainsString("json_encode((bool) get_config('mod_skilland', 'devmode')", $source,
-                $file);
+    public function test_modules_receive_the_devmode_flag(): void {
+        $modules = ['mod_form.php' => 'amd/src/mod_form.js', 'classes/hooks.php' => 'amd/src/course_mapping.js'];
+        foreach ($modules as $php => $module) {
+            $source = file_get_contents(self::SRC . '/' . $php);
+            $this->assertMatchesRegularExpression("/'\\w+'\\s*=>\\s*\\(bool\\) get_config\\('mod_skilland', 'devmode'\\)/",
+                $source, "$php must pass the devmode flag in the module's init config");
+            $this->assertMatchesRegularExpression('/\\bdebug\\s*=\\s*[^;]*\\bconfig\\.\\w+/',
+                file_get_contents(self::SRC . '/' . $module), "$module must take debug from its init config");
         }
     }
 
