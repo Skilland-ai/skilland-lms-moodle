@@ -2610,24 +2610,24 @@ function mod_skilland_map_graphql_error(array $error): never {
             throw new graphql_exception('error_config_missing_apikey', $errorcode);
 
         case 'SKILLAND_INVALID_ORG_ID_FORMAT':
-            $detailedMsg = $errordetails ?: 'Invalid Organization ID format. Please check your Organization ID in plugin settings.';
+            $detailedMsg = $errordetails ?: get_string('error_graphql_invalid_orgid_format', 'mod_skilland');
             throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_ORG_NOT_FOUND':
-            $detailedMsg = $errordetails ?: 'Organization not found. Please verify your Organization ID in plugin settings.';
+            $detailedMsg = $errordetails ?: get_string('error_graphql_org_not_found', 'mod_skilland');
             throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_API_KEY_NOT_FOUND':
-            $detailedMsg = $errordetails ?: 'No API key found for this organization. Please generate an API key in Skilland organization settings.';
+            $detailedMsg = $errordetails ?: get_string('error_graphql_apikey_not_found', 'mod_skilland');
             throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_API_KEY_INACTIVE':
-            $detailedMsg = $errordetails ?: 'API key is inactive. Please regenerate the API key in Skilland organization settings.';
+            $detailedMsg = $errordetails ?: get_string('error_graphql_apikey_inactive', 'mod_skilland');
             throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
 
         case 'SKILLAND_INVALID_API_KEY':
         case 'SKILLAND_ORG_MISMATCH':
-            $detailedMsg = $errordetails ?: 'Invalid API key. Please verify your API key in plugin settings.';
+            $detailedMsg = $errordetails ?: get_string('error_graphql_invalid_apikey', 'mod_skilland');
             throw new graphql_exception('error_config_invalid_credentials', $errorcode, $detailedMsg);
 
         default:

@@ -3,6 +3,7 @@ defined('MOODLE_INTERNAL') || die;
 
 $string['pluginname']   = 'Contenido Skilland';
 $string['modulename']   = 'Contenido Skilland';
+$string['modulename_help'] = 'Vincula un tema de SkilLand y sus lecciones como una actividad de Moodle, provisionada como contenido SCORM que registra el progreso del alumnado.';
 $string['modulenameplural'] = 'Contenidos Skilland';
 $string['skilland:addinstance'] = 'Añadir una nueva actividad de contenido Skilland';
 $string['skilland:view'] = 'Ver contenido Skilland';
@@ -100,14 +101,31 @@ $string['error_graphql'] = 'Error de GraphQL: {$a}';
 $string['error_graphql_unknown'] = 'Error de GraphQL desconocido';
 $string['error_http'] = 'HTTP {$a}';
 $string['error_fetch_courses'] = 'Error al obtener cursos de Skilland. Por favor, verifique su configuración e intente de nuevo.';
+$string['error_fetch_courses_detail'] = 'Error al obtener cursos de Skilland: {$a}';
 $string['error_fetch_topics'] = 'Error al obtener temas';
+$string['error_fetch_topics_detail'] = 'Error al obtener temas de Skilland: {$a}';
+$string['error_create_course'] = 'Error al crear curso: {$a}';
+$string['error_create_course_failed'] = 'Error al crear el curso en Skilland.';
+$string['loading_courses'] = 'Cargando cursos de Skilland...';
+$string['select_skilland_course'] = 'Seleccionar un curso de Skilland...';
+$string['no_courses_available'] = 'No hay cursos disponibles';
+$string['error_loading_courses'] = 'Error al cargar cursos: {$a}';
+$string['error_unknown'] = 'Error desconocido';
+$string['error_no_valid_id_provisioning'] = 'No se proporcionó un ID válido para el aprovisionamiento';
+$string['error_network'] = 'Error de red';
+$string['updated_on'] = 'Actualizado {$a}';
+$string['error_graphql_invalid_orgid_format'] = 'Formato de ID de Organización inválido. Verifique su ID de Organización en los ajustes del plugin.';
+$string['error_graphql_org_not_found'] = 'Organización no encontrada. Verifique su ID de Organización en los ajustes del plugin.';
+$string['error_graphql_apikey_not_found'] = 'No se encontró una clave API para esta organización. Genere una clave API en los ajustes de organización de Skilland.';
+$string['error_graphql_apikey_inactive'] = 'La clave API está inactiva. Regenere la clave API en los ajustes de organización de Skilland.';
+$string['error_graphql_invalid_apikey'] = 'Clave API inválida. Verifique su clave API en los ajustes del plugin.';
 $string['error_config_missing_courseid'] = 'Se requiere el ID de Curso de Skilland para obtener temas.';
 $string['error_config_missing_topicid'] = 'Se requiere el ID de Tema de Skilland para obtener lecciones.';
 $string['error_config_missing_lessonid'] = 'Se requiere el ID de Lección de Skilland para obtener el paquete SCORM.';
 $string['configure_plugin_settings'] = 'Configurar ajustes del plugin';
 
 // Course custom field status in settings.
-$string['customfield_status'] = 'Estado del Campo Personalizado del Curso';
+$string['customfield_status'] = 'Estado del campo personalizado del curso';
 $string['customfield_exists'] = 'El campo personalizado existe';
 $string['customfield_missing'] = 'Campo personalizado no encontrado. Se vuelve a crear en la próxima actualización del plugin o la primera vez que un curso se vincula a un curso de SkilLand.';
 
@@ -126,14 +144,14 @@ $string['aria_previous_lesson'] = 'Lección anterior: {$a}';
 $string['aria_next_lesson'] = 'Siguiente lección: {$a}';
 $string['no_previous_lesson'] = 'No hay lección anterior';
 $string['no_next_lesson'] = 'No hay siguiente lección';
-$string['launch_lesson'] = 'Iniciar Lección';
-$string['content_coming_soon'] = 'Contenido Próximamente';
-$string['content_being_prepared'] = 'El contenido de esta lección está siendo preparado. Por favor, vuelva más tarde.';
+$string['launch_lesson'] = 'Iniciar lección';
+$string['content_coming_soon'] = 'Contenido próximamente';
+$string['content_being_prepared'] = 'El contenido de esta lección o tema se está preparando. Vuelva más tarde.';
 $string['content_last_updated'] = 'Contenido actualizado por última vez: {$a}. Cualquier actualización de esta actividad reinicia el progreso en ella.';
-$string['content_not_provisioned'] = 'Contenido Aún No Disponible';
+$string['content_not_provisioned'] = 'Contenido aún no disponible';
 $string['lesson_not_available'] = 'Esta lección no está disponible en esta actividad.';
-$string['scorm_not_ready'] = 'Esta lección aún no está lista para reproducir. Por favor, espere a que el contenido sea provisionado.';
-$string['scorm_missing_reprovision'] = 'El paquete de contenido de esta actividad se ha eliminado. Vuelva a provisionarlo para que las lecciones se puedan reproducir.';
+$string['scorm_not_ready'] = 'Esta lección aún no está lista para reproducir. Por favor, espere a que el contenido esté preparado.';
+$string['scorm_missing_reprovision'] = 'El paquete de contenido de esta actividad se ha eliminado. Vuelva a prepararlo para que las lecciones se puedan reproducir.';
 
 // SCORM integration.
 $string['error_scorm_not_available'] = 'El contenido SCORM no está disponible para esta lección.';
@@ -146,24 +164,24 @@ $string['error_provision_in_progress'] = 'El contenido SCORM de esta actividad y
 $string['error_scorm_parse_failed'] = 'No se pudo convertir el paquete SCORM en lecciones ejecutables: {$a}';
 $string['scorm_downloading'] = 'Descargando contenido de la lección...';
 $string['scorm_download_complete'] = 'Descarga completa';
-$string['provision_content'] = 'Provisionar Contenido';
+$string['provision_content'] = 'Preparar contenido';
 $string['provision_content_desc'] = 'Descargar y crear la lección SCORM desde Skilland.';
-$string['provision_topic'] = 'Provisionar Contenido del Tema';
+$string['provision_topic'] = 'Preparar contenido del tema';
 $string['provision_topic_desc'] = 'Descargar y crear el paquete SCORM que contiene todas las lecciones de este tema.';
-$string['provisioning'] = 'Provisionando contenido...';
-$string['provision_success'] = '¡Contenido provisionado exitosamente!';
-$string['provision_failed'] = 'Error al provisionar contenido: {$a}';
+$string['provisioning'] = 'Preparando contenido...';
+$string['provision_success'] = '¡Contenido preparado correctamente!';
+$string['provision_failed'] = 'Error al preparar el contenido: {$a}';
 $string['provisioning_wait_hint'] = 'Esto puede tardar varios minutos en temas grandes. Mantén esta página abierta.';
 $string['provisioning_elapsed'] = 'Preparando contenido… {$a}';
 $string['provisioning_timeout_message'] = 'Esto está tardando más de lo esperado. Sigue ejecutándose en segundo plano: puedes actualizar esta página en unos minutos para comprobarlo.';
 
 // New content indicator.
-$string['new_content_available'] = 'Nuevo Contenido Disponible';
+$string['new_content_available'] = 'Nuevo contenido disponible';
 
 // Update from Skilland.
-$string['update_from_skilland'] = 'Actualizar Desde Skilland';
+$string['update_from_skilland'] = 'Actualizar desde Skilland';
 $string['updating'] = 'Actualizando...';
-$string['update_confirm_title'] = '¿Actualizar Contenido?';
+$string['update_confirm_title'] = '¿Actualizar contenido?';
 $string['update_confirm_message'] = 'Esto descargará el contenido más reciente de Skilland y reemplazará el paquete SCORM actual.';
 $string['update_confirm_message_students'] = 'Esto descargará el contenido más reciente de Skilland y reemplazará el paquete SCORM actual. {$a} estudiante(s) tienen progreso en este tema que se eliminará permanentemente y no podrá recuperarse.';
 
@@ -175,14 +193,14 @@ $string['lockafterfirstaccess_hint'] = 'Para mantener el contenido actual sin ca
 $string['topic_change_confirm_title'] = '¿Cambiar el tema?';
 $string['topic_change_confirm'] = 'Cambiar el tema reemplaza el contenido de esta actividad.';
 $string['topic_change_confirm_students'] = 'Cambiar el tema reemplaza el contenido de esta actividad. {$a} estudiante(s) tienen progreso que se eliminará permanentemente.';
-$string['topic_changed_reprovision_failed'] = 'Se ha cambiado el tema, pero no se ha podido generar su contenido. Abre la actividad y usa Provisionar Contenido del Tema para crearlo.';
+$string['topic_changed_reprovision_failed'] = 'Se ha cambiado el tema, pero no se ha podido generar su contenido. Abre la actividad y usa Preparar contenido del tema para crearlo.';
 $string['lesson_sco_missing'] = 'Esta lección no está en el paquete de contenido actual. Usa Actualizar Desde Skilland en los ajustes de la actividad para regenerarlo.';
 $string['update_success'] = 'Contenido actualizado exitosamente desde Skilland.';
 $string['update_error'] = 'Error al actualizar el contenido';
 
 // Edit in Skilland.
-$string['edit_in_skilland'] = 'Editar Contenido';
-$string['edit_lessons_in_skilland'] = 'Editar Lecciones en Skilland';
+$string['edit_in_skilland'] = 'Editar contenido';
+$string['edit_lessons_in_skilland'] = 'Editar lecciones en Skilland';
 $string['edit_in_skilland_desc'] = 'Haga clic para abrir el editor de lecciones de Skilland. Iniciará sesión automáticamente con su cuenta de Moodle.';
 $string['edit_in_skilland_header'] = 'Editar en Skilland';
 $string['edit_in_skilland_header_desc'] = 'Editar contenido del curso "{$a}" en la plataforma Skilland';
@@ -192,8 +210,8 @@ $string['sso_continue'] = 'Continuar a SkilLand';
 $string['sso_redirecting'] = 'Iniciando sesión en SkilLand…';
 
 // Lesson selection.
-$string['select_all'] = 'Seleccionar Todo';
-$string['deselect_all'] = 'Deseleccionar Todo';
+$string['select_all'] = 'Seleccionar todo';
+$string['deselect_all'] = 'Deseleccionar todo';
 
 // Configure Skilland button.
 $string['configure_skilland'] = 'Configurar Skilland';
@@ -206,7 +224,7 @@ $string['creating_course'] = 'Creando curso en Skilland...';
 
 // Auto-update / scheduled task.
 $string['task_sync_content'] = 'Sincronizar contenido de Skilland para actividades con actualización automática';
-$string['update_available'] = 'Actualización Disponible';
+$string['update_available'] = 'Actualización disponible';
 $string['update_available_desc'] = 'El contenido ha sido actualizado en Skilland. Haga clic en el botón para actualizar el paquete SCORM.';
 
 // Plugin disabled.

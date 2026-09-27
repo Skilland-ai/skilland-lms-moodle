@@ -29,6 +29,15 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
     /** @var {string|null} elapsedTemplate The "Preparing content… {$a}" string, fetched once */
     var elapsedTemplate = null;
 
+    /** @var {string} noValidIdText The 'error_no_valid_id_provisioning' string, fetched once at init */
+    var noValidIdText = 'No valid ID provided for provisioning';
+
+    /** @var {string} networkErrorText The 'error_network' string, fetched once at init */
+    var networkErrorText = 'Network error occurred';
+
+    /** @var {string} unknownErrorText The 'error_unknown' string, fetched once at init */
+    var unknownErrorText = 'Unknown error occurred';
+
     /**
      * Log a message to console if debug mode is enabled.
      *
@@ -62,6 +71,16 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
 
         log('Skilland provision_scorm: skillandId=' + skillandId + ', cmId=' + cmId);
 
+        Str.get_strings([
+            {key: 'error_no_valid_id_provisioning', component: 'mod_skilland'},
+            {key: 'error_network', component: 'mod_skilland'},
+            {key: 'error_unknown', component: 'mod_skilland'}
+        ]).done(function(strings) {
+            noValidIdText = strings[0];
+            networkErrorText = strings[1];
+            unknownErrorText = strings[2];
+        });
+
         // Bind click handler to provision button.
         $('#skilland-provision-btn').on('click', function(e) {
             e.preventDefault();
@@ -70,7 +89,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
             if (skillandId > 0) {
                 provisionTopicContent(skillandId, cmId);
             } else {
-                showError('No valid ID provided for provisioning');
+                showError(noValidIdText);
             }
         });
     };
@@ -185,7 +204,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
                     }, 1000);
                 } else {
                     // Error from the server.
-                    showError(response.error || 'Unknown error occurred');
+                    showError(response.error || unknownErrorText);
                     $button.prop('disabled', false).removeClass('d-none');
                     $loading.addClass('d-none');
                 }
@@ -193,7 +212,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
             .fail(function(error) {
                 clearProvisionTimers();
                 // AJAX error.
-                var errorMsg = error.message || error.error || 'Network error occurred';
+                var errorMsg = error.message || error.error || networkErrorText;
                 showError(errorMsg);
                 $button.prop('disabled', false).removeClass('d-none');
                 $loading.addClass('d-none');

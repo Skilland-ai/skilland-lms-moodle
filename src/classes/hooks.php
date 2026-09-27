@@ -42,11 +42,25 @@ class hooks {
                 // Placeholders the script swaps for the (escaped) course name and the stale course id.
                 $nameplaceholder = '__SKILLAND_COURSE_NAME__';
                 $idplaceholder = '__SKILLAND_COURSE_ID__';
+                $errorplaceholder = '__SKILLAND_ERROR__';
                 $nameplaceholderjs = json_encode($nameplaceholder, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
                 $idplaceholderjs = json_encode($idplaceholder, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $errorplaceholderjs = json_encode($errorplaceholder, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
                 $confirmbody = json_encode(\get_string('create_course_confirm_body', 'mod_skilland', $nameplaceholder),
                     JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
                 $unknownlabel = json_encode(\get_string('course_unknown', 'mod_skilland', $idplaceholder),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $loadingcoursesjs = json_encode(\get_string('loading_courses', 'mod_skilland'),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $selectskillandcoursejs = json_encode(\get_string('select_skilland_course', 'mod_skilland'),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $errorfetchcoursesjs = json_encode(\get_string('error_fetch_courses', 'mod_skilland'),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $errorcreatecoursejs = json_encode(\get_string('error_create_course', 'mod_skilland', $errorplaceholder),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $errorcreatecoursefailedjs = json_encode(\get_string('error_create_course_failed', 'mod_skilland'),
+                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+                $errorfetchcoursesdetailjs = json_encode(\get_string('error_fetch_courses_detail', 'mod_skilland', $errorplaceholder),
                     JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
 
                 $js = "
@@ -72,6 +86,7 @@ class hooks {
                     var linked = " . $linked . ";
                     var namePlaceholder = " . $nameplaceholderjs . ";
                     var idPlaceholder = " . $idplaceholderjs . ";
+                    var errorPlaceholder = " . $errorplaceholderjs . ";
                     var strings = {
                         createInSkilland: " . json_encode(\get_string('create_in_skilland', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
                         creatingCourse: " . json_encode(\get_string('creating_course', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
@@ -80,7 +95,13 @@ class hooks {
                         confirmReplace: " . json_encode(\get_string('create_course_confirm_replace', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
                         confirmYes: " . json_encode(\get_string('create_course_confirm_yes', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
                         courseUnknown: " . $unknownlabel . ",
-                        courseUnknownWarning: " . json_encode(\get_string('course_unknown_warning', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . "
+                        courseUnknownWarning: " . json_encode(\get_string('course_unknown_warning', 'mod_skilland'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ",
+                        loadingCourses: " . $loadingcoursesjs . ",
+                        selectSkillandCourse: " . $selectskillandcoursejs . ",
+                        errorFetchCourses: " . $errorfetchcoursesjs . ",
+                        errorCreateCourse: " . $errorcreatecoursejs . ",
+                        errorCreateCourseFailed: " . $errorcreatecoursefailedjs . ",
+                        errorFetchCoursesDetail: " . $errorfetchcoursesdetailjs . "
                     };
 
                     log('Skilland: Initializing course mapping field for course', moodleCourseId);
@@ -116,7 +137,7 @@ class hooks {
                         select.style.width = '100%';
                         var loadingOption = document.createElement('option');
                         loadingOption.value = currentValue;
-                        loadingOption.textContent = 'Loading courses from Skilland...';
+                        loadingOption.textContent = strings.loadingCourses;
                         select.appendChild(loadingOption);
 
                         var createBtn = document.createElement('button');
@@ -177,7 +198,7 @@ class hooks {
                                     }])[0].then(function(resp) {
                                         if (resp.error) {
                                             notification.addNotification({
-                                                message: escapeHtml('Failed to create course: ' + resp.error),
+                                                message: escapeHtml(strings.errorCreateCourse.split(errorPlaceholder).join(resp.error)),
                                                 type: 'error'
                                             });
                                             return;
@@ -186,7 +207,7 @@ class hooks {
                                         linked = true;
                                     }).catch(function() {
                                         notification.addNotification({
-                                            message: 'Failed to create course in Skilland.',
+                                            message: strings.errorCreateCourseFailed,
                                             type: 'error'
                                         });
                                     }).then(function() {
@@ -212,13 +233,13 @@ class hooks {
                                 if (response.error) {
                                     restoreTextInput();
                                     notification.addNotification({
-                                        message: escapeHtml('Failed to fetch courses from Skilland: ' + response.error),
+                                        message: escapeHtml(strings.errorFetchCoursesDetail.split(errorPlaceholder).join(response.error)),
                                         type: 'error'
                                     });
                                     return;
                                 }
 
-                                select.innerHTML = '<option value=\"\">Select a Skilland course...</option>';
+                                select.innerHTML = '<option value=\"\">' + escapeHtml(strings.selectSkillandCourse) + '</option>';
 
                                 var found = false;
                                 (response.courses || []).forEach(function(course) {
@@ -256,7 +277,7 @@ class hooks {
                                 log('Skilland: AJAX error', error && error.message);
                                 restoreTextInput();
                                 notification.addNotification({
-                                    message: 'Failed to fetch courses from Skilland. Please check your API configuration.',
+                                    message: strings.errorFetchCourses,
                                     type: 'error'
                                 });
                             });

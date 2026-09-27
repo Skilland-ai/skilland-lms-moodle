@@ -1,4 +1,4 @@
-define(['jquery', 'core/ajax', 'core/notification'], function($, ajax, notification) {
+define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, ajax, notification, Str) {
     return {
         init: function(courseid) {
             // Find the Skilland Course ID custom field input.
@@ -38,86 +38,104 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, ajax, notificat
                 var formItem = fieldInput.closest('.fitem');
                 var currentValue = fieldInput.val();
 
-                // Create a container for the enhanced field.
-                var container = $('<div>').addClass('skilland-course-mapping-field');
+                Str.get_strings([
+                    {key: 'loading_courses', component: 'mod_skilland'},
+                    {key: 'select_skilland_course', component: 'mod_skilland'},
+                    {key: 'no_courses_available', component: 'mod_skilland'},
+                    {key: 'error_loading_courses', component: 'mod_skilland'},
+                    {key: 'error_unknown', component: 'mod_skilland'},
+                    {key: 'error_fetch_courses', component: 'mod_skilland'}
+                ]).done(function(strings) {
+                    var loadingCoursesText = strings[0];
+                    var selectSkillandCourseText = strings[1];
+                    var noCoursesAvailableText = strings[2];
+                    var errorLoadingCoursesTemplate = strings[3];
+                    var errorUnknownText = strings[4];
+                    var errorFetchCoursesText = strings[5];
 
-                // Create a select dropdown.
-                var select = $('<select>')
-                    .attr('name', fieldInput.attr('name'))
-                    .attr('id', fieldInput.attr('id'))
-                    .addClass('form-control')
-                    .css('width', '100%');
+                    // Create a container for the enhanced field.
+                    var container = $('<div>').addClass('skilland-course-mapping-field');
 
-                // Add a loading option initially.
-                select.append($('<option>').text('Loading courses from Skilland...').val(''));
+                    // Create a select dropdown.
+                    var select = $('<select>')
+                        .attr('name', fieldInput.attr('name'))
+                        .attr('id', fieldInput.attr('id'))
+                        .addClass('form-control')
+                        .css('width', '100%');
 
-                // Create a hidden input to store the value (for form submission).
-                var hiddenInput = $('<input>')
-                    .attr('type', 'hidden')
-                    .attr('name', fieldInput.attr('name'))
-                    .attr('value', currentValue);
+                    // Add a loading option initially.
+                    select.append($('<option>').text(loadingCoursesText).val(''));
 
-                // Replace the text input with our enhanced field.
-                fieldInput.after(container);
-                container.append(select);
-                container.append(hiddenInput);
-                fieldInput.hide();
+                    // Create a hidden input to store the value (for form submission).
+                    var hiddenInput = $('<input>')
+                        .attr('type', 'hidden')
+                        .attr('name', fieldInput.attr('name'))
+                        .attr('value', currentValue);
 
-                // Sync select value to hidden input and original field.
-                select.on('change', function() {
-                    var value = $(this).val();
-                    hiddenInput.val(value);
-                    fieldInput.val(value);
-                });
+                    // Replace the text input with our enhanced field.
+                    fieldInput.after(container);
+                    container.append(select);
+                    container.append(hiddenInput);
+                    fieldInput.hide();
 
-                // Fetch courses from Skilland via AJAX.
-                ajax.call([{
-                    methodname: 'mod_skilland_fetch_courses_ajax',
-                    args: {moodlecourseid: courseid}
-                }])[0].then(function(response) {
-                    select.empty();
-
-                    // Add default option.
-                    select.append($('<option>').text('Select a Skilland course...').val(''));
-
-                    if (response.courses && response.courses.length > 0) {
-                        // Populate dropdown with courses.
-                        response.courses.forEach(function(course) {
-                            var optionText = course.name;
-                            if (course.code) {
-                                optionText += ' (' + course.code + ')';
-                            }
-                            if (course.status) {
-                                optionText += ' [' + course.status + ']';
-                            }
-
-                            var option = $('<option>')
-                                .text(optionText)
-                                .val(course.id);
-
-                            if (course.id === currentValue) {
-                                option.prop('selected', true);
-                                hiddenInput.val(course.id);
-                            }
-
-                            select.append(option);
-                        });
-                    } else {
-                        select.append($('<option>').text('No courses available').val(''));
-                    }
-                }).catch(function(error) {
-                    select.empty();
-                    select.append($('<option>').text('Error loading courses: ' + (error.message || 'Unknown error')).val(''));
-
-                    // Show error notification.
-                    notification.addNotification({
-                        message: 'Failed to fetch courses from Skilland. Please check your API configuration.',
-                        type: 'error'
+                    // Sync select value to hidden input and original field.
+                    select.on('change', function() {
+                        var value = $(this).val();
+                        hiddenInput.val(value);
+                        fieldInput.val(value);
                     });
 
-                    // Show the original input as fallback.
-                    fieldInput.show();
-                    container.hide();
+                    // Fetch courses from Skilland via AJAX.
+                    ajax.call([{
+                        methodname: 'mod_skilland_fetch_courses_ajax',
+                        args: {moodlecourseid: courseid}
+                    }])[0].then(function(response) {
+                        select.empty();
+
+                        // Add default option.
+                        select.append($('<option>').text(selectSkillandCourseText).val(''));
+
+                        if (response.courses && response.courses.length > 0) {
+                            // Populate dropdown with courses.
+                            response.courses.forEach(function(course) {
+                                var optionText = course.name;
+                                if (course.code) {
+                                    optionText += ' (' + course.code + ')';
+                                }
+                                if (course.status) {
+                                    optionText += ' [' + course.status + ']';
+                                }
+
+                                var option = $('<option>')
+                                    .text(optionText)
+                                    .val(course.id);
+
+                                if (course.id === currentValue) {
+                                    option.prop('selected', true);
+                                    hiddenInput.val(course.id);
+                                }
+
+                                select.append(option);
+                            });
+                        } else {
+                            select.append($('<option>').text(noCoursesAvailableText).val(''));
+                        }
+                    }).catch(function(error) {
+                        select.empty();
+                        select.append($('<option>')
+                            .text(errorLoadingCoursesTemplate.replace('{$a}', error.message || errorUnknownText))
+                            .val(''));
+
+                        // Show error notification.
+                        notification.addNotification({
+                            message: errorFetchCoursesText,
+                            type: 'error'
+                        });
+
+                        // Show the original input as fallback.
+                        fieldInput.show();
+                        container.hide();
+                    });
                 });
             }
         }
