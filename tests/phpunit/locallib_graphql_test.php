@@ -229,6 +229,100 @@ class locallib_graphql_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
+    // mod_skilland_map_graphql_error() — fallback messages (SKL-671)
+    //
+    // When the API sends no extensions.details, each of these codes falls back to a
+    // get_string() lookup (previously a hardcoded English string). The bootstrap stub for
+    // get_string() just echoes the identifier back, so asserting $e->a equals that
+    // identifier confirms the code path calls get_string() with the right key rather than
+    // silently keeping (or reintroducing) a hardcoded string.
+    // ---------------------------------------------------------------
+
+    public function test_map_error_invalid_org_id_format_falls_back_to_lang_string(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Bad format',
+                'extensions' => ['code' => 'SKILLAND_INVALID_ORG_ID_FORMAT'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_graphql_invalid_orgid_format', $e->a);
+        }
+    }
+
+    public function test_map_error_org_not_found_falls_back_to_lang_string(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Not found',
+                'extensions' => ['code' => 'SKILLAND_ORG_NOT_FOUND'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_graphql_org_not_found', $e->a);
+        }
+    }
+
+    public function test_map_error_api_key_not_found_falls_back_to_lang_string(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Key not found',
+                'extensions' => ['code' => 'SKILLAND_API_KEY_NOT_FOUND'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_graphql_apikey_not_found', $e->a);
+        }
+    }
+
+    public function test_map_error_api_key_inactive_falls_back_to_lang_string(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Key inactive',
+                'extensions' => ['code' => 'SKILLAND_API_KEY_INACTIVE'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_graphql_apikey_inactive', $e->a);
+        }
+    }
+
+    public function test_map_error_invalid_api_key_falls_back_to_lang_string(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Invalid key',
+                'extensions' => ['code' => 'SKILLAND_INVALID_API_KEY'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_graphql_invalid_apikey', $e->a);
+        }
+    }
+
+    public function test_map_error_org_mismatch_falls_back_to_lang_string(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Mismatch',
+                'extensions' => ['code' => 'SKILLAND_ORG_MISMATCH'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_graphql_invalid_apikey', $e->a);
+        }
+    }
+
+    public function test_map_error_details_still_take_priority_over_lang_string(): void {
+        try {
+            mod_skilland_map_graphql_error([
+                'message' => 'Bad format',
+                'extensions' => ['code' => 'SKILLAND_INVALID_ORG_ID_FORMAT', 'details' => 'Custom detail'],
+            ]);
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('Custom detail', $e->a);
+        }
+    }
+
+    // ---------------------------------------------------------------
     // mod_skilland_map_graphql_error() — missing keys
     // ---------------------------------------------------------------
 
