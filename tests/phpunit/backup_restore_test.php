@@ -36,7 +36,7 @@ class backup_restore_test extends TestCase {
         '_test_curl_response', '_test_curl_responses', '_test_curl_last', '_test_curl_requests',
         '_test_lock_available', '_test_lock_calls', '_test_create_module_calls', '_test_create_module_throw',
         '_test_scorm_scoes', '_test_events', '_test_cm_from_db', '_test_get_coursemodule_from_instance',
-        '_test_topic_snapshot', '_test_create_module_throw_after_insert', '_test_get_coursemodule_from_id',
+        '_test_create_module_throw_after_insert', '_test_get_coursemodule_from_id',
     ];
 
     /** @var string A dirroot whose mod/skilland points at src, for the task files' require_once. */
@@ -80,6 +80,7 @@ class backup_restore_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         $this->originaldirroot = $GLOBALS['CFG']->dirroot;
         $GLOBALS['CFG']->dirroot = self::$dirroot;
         \restore_dbops::$mappings = [];
@@ -89,7 +90,7 @@ class backup_restore_test extends TestCase {
         $GLOBALS['USER'] = (object) ['id' => 2];
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_cm_from_db'] = true;
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
         $GLOBALS['_test_scorm_scoes'] = [
             ['identifier' => 'org', 'launch' => ''],
             ['identifier' => 'sco_1', 'launch' => 'l1.html'],
@@ -155,6 +156,7 @@ class backup_restore_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         $GLOBALS['CFG']->dirroot = $this->originaldirroot;
         \restore_dbops::$mappings = [];
         parent::tearDown();

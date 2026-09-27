@@ -501,8 +501,8 @@ class locallib_fetch_test extends TestCase {
             ],
         ]);
 
-        // Clear any test hook.
-        unset($GLOBALS['_test_topic_snapshot']);
+        // Use the real transport (the curl stub), not a fake api_client.
+        \core\di::reset_container();
 
         $result = mod_skilland_check_topic_snapshot('t1');
 
@@ -520,7 +520,7 @@ class locallib_fetch_test extends TestCase {
             'error' => '',
         ];
 
-        unset($GLOBALS['_test_topic_snapshot']);
+        \core\di::reset_container();
 
         $result = mod_skilland_check_topic_snapshot('t1');
 
@@ -532,7 +532,7 @@ class locallib_fetch_test extends TestCase {
         $this->setValidConfig();
         $this->stubGraphqlResponse(['topicScormHash' => null]);
 
-        unset($GLOBALS['_test_topic_snapshot']);
+        \core\di::reset_container();
 
         $result = mod_skilland_check_topic_snapshot('t1');
 

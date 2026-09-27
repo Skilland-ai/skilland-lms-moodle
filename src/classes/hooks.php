@@ -8,6 +8,27 @@ defined('MOODLE_INTERNAL') || die();
  */
 class hooks {
     /**
+     * Bind the plugin's injectable services in the Moodle DI container.
+     *
+     * The SkilLand transport is the real HTTPS client, except on a Behat site, where the
+     * fixture client (when installed) answers from canned responses instead of the network.
+     *
+     * @param \core\hook\di_configuration $hook
+     */
+    public static function di_configuration(\core\hook\di_configuration $hook): void {
+        $hook->add_definition(
+            \mod_skilland\local\api_client::class,
+            function (): \mod_skilland\local\api_client {
+                $fixture = \mod_skilland\local\testing\fixture_api_client::class;
+                if (defined('BEHAT_SITE_RUNNING') && BEHAT_SITE_RUNNING && class_exists($fixture)) {
+                    return new $fixture();
+                }
+                return new \mod_skilland\local\http_api_client();
+            },
+        );
+    }
+
+    /**
      * Callback for before_footer_html_generation hook.
      *
      * @param \core\hook\output\before_footer_html_generation $hook

@@ -19,8 +19,8 @@ class scorm_build_before_delete_test extends TestCase {
         '_test_curl_response', '_test_curl_responses', '_test_curl_last', '_test_curl_requests',
         '_test_lock_available', '_test_lock_calls', '_test_create_module_calls', '_test_create_module_throw',
         '_test_create_module_throw_after_insert', '_test_scorm_scoes', '_test_events', '_test_deleted_cmids',
-        '_test_course_delete_throw', '_test_stored_files', '_test_cm_from_db', '_test_update_topic_scorm',
-        '_test_topic_snapshot', '_test_get_coursemodule_from_instance',
+        '_test_course_delete_throw', '_test_stored_files', '_test_cm_from_db',
+        '_test_get_coursemodule_from_instance',
     ];
 
     protected function setUp(): void {
@@ -28,12 +28,13 @@ class scorm_build_before_delete_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         $this->use_db(new \FakeDatabase());
         $GLOBALS['USER'] = (object) ['id' => 2];
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
         $GLOBALS['_test_cm_from_db'] = true;
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
         $GLOBALS['_test_scorm_scoes'] = [
             ['identifier' => 'org', 'launch' => ''],
             ['identifier' => 'sco_1', 'launch' => 'l1.html'],
@@ -52,6 +53,7 @@ class scorm_build_before_delete_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         parent::tearDown();
     }
 
@@ -325,8 +327,8 @@ class scorm_build_before_delete_test extends TestCase {
     }
 
     public function test_cron_update_writes_the_snapshot_hash_exactly_once_and_links_the_new_module(): void {
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2026-03-01T00:00:00Z',
-            'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2026-03-01T00:00:00Z',
+            'hasPackage' => true, 'isStale' => false]);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object) ['id' => 90, 'instance' => 7, 'course' => 3,
             'section' => 1];
         $this->queue_lessons();

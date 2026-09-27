@@ -20,8 +20,7 @@ class locallib_provision_scorm_test extends TestCase {
         '_test_lock_available', '_test_lock_calls', '_test_create_module_calls', '_test_create_module_throw',
         '_test_create_module_visibleoncoursepage', '_test_scorm_scoes', '_test_events', '_test_deleted_cmids',
         '_test_course_delete_throw', '_test_set_visible_calls', '_test_stored_files', '_test_cm_from_db',
-        '_test_get_coursemodule_from_id', '_test_update_topic_scorm', '_test_create_module_throw_after_insert',
-        '_test_topic_snapshot',
+        '_test_get_coursemodule_from_id', '_test_create_module_throw_after_insert',
     ];
 
     protected function setUp(): void {
@@ -29,6 +28,7 @@ class locallib_provision_scorm_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         $this->db = new \FakeDatabase();
         $GLOBALS['DB'] = $this->db;
         $GLOBALS['USER'] = (object) ['id' => 2];
@@ -39,7 +39,7 @@ class locallib_provision_scorm_test extends TestCase {
         // unless a caller threads one through. Default to "no hash" via the test hook so existing
         // tests that don't care about it never consume the curl queue meant for the package
         // download; tests that do care override this per-test.
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
         $GLOBALS['_test_scorm_scoes'] = [
             ['identifier' => 'org', 'launch' => ''],
             ['identifier' => 'sco_1', 'launch' => 'l1.html'],
@@ -72,6 +72,7 @@ class locallib_provision_scorm_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         foreach ($this->zips as $zip) {
             @unlink($zip);
         }
@@ -924,7 +925,7 @@ class locallib_provision_scorm_test extends TestCase {
      * function), so no separate restore-specific provisioning code is needed.
      */
     public function test_provision_stores_content_hash_as_snapshotid(): void {
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'remotehash1', 'generatedAt' => '2026-01-02T00:00:00Z'];
+        \fake_api_client::topic_snapshot(['contentHash' => 'remotehash1', 'generatedAt' => '2026-01-02T00:00:00Z']);
         $this->queue_package();
 
         skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
@@ -940,7 +941,7 @@ class locallib_provision_scorm_test extends TestCase {
 
     /** A failed hash fetch (null from the API) must never block provisioning. */
     public function test_provision_stores_empty_snapshotid_when_hash_fetch_fails(): void {
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
         $this->queue_package();
 
         $cmid = skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
@@ -951,7 +952,7 @@ class locallib_provision_scorm_test extends TestCase {
 
     /** The "already provisioned" short-circuit mirrors the stored snapshotid onto the caller too. */
     public function test_already_provisioned_short_circuit_copies_snapshotid(): void {
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'firsthash', 'generatedAt' => '2026-01-02T00:00:00Z'];
+        \fake_api_client::topic_snapshot(['contentHash' => 'firsthash', 'generatedAt' => '2026-01-02T00:00:00Z']);
         $this->queue_package();
         skilland_provision_topic_scorm($this->skilland(), $this->course(), 0);
 
@@ -970,7 +971,7 @@ class locallib_provision_scorm_test extends TestCase {
             ['scormcmid' => 50, 'scorm_provisioned' => 1, 'snapshotid' => 'oldhash']));
         $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
             'lessons' => []]]);
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'freshhash', 'generatedAt' => '2026-02-01T00:00:00Z'];
+        \fake_api_client::topic_snapshot(['contentHash' => 'freshhash', 'generatedAt' => '2026-02-01T00:00:00Z']);
         $this->queue_package();
 
         skilland_update_topic_scorm($this->skilland(), $this->course(), 1);
@@ -986,7 +987,7 @@ class locallib_provision_scorm_test extends TestCase {
             ['scormcmid' => 50, 'scorm_provisioned' => 1, 'snapshotid' => 'oldhash']));
         $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
             'lessons' => []]]);
-        // setUp defaults _test_topic_snapshot to null (no hash); passing $contenthash explicitly
+        // setUp defaults the topic snapshot to null (no hash); passing $contenthash explicitly
         // must win over that default, proving the caller's pre-fetched hash is used as-is instead
         // of being re-fetched (and instead of falling back to the default's empty string).
         $this->queue_package();

@@ -403,7 +403,7 @@ function skilland_lessons_outside_topic(string $json, array $topiclessons): arra
 }
 
 /**
- * Execute a GraphQL query against Skilland's GraphQL endpoint.
+ * Execute a GraphQL query against Skilland through the injectable api_client (\core\di).
  *
  * @param string $query The GraphQL query string
  * @param array $variables Optional variables for the query
@@ -411,6 +411,18 @@ function skilland_lessons_outside_topic(string $json, array $topiclessons): arra
  * @throws moodle_exception If configuration is missing or API call fails
  */
 function mod_skilland_graphql(string $query, array $variables = []): array {
+    return \core\di::get(\mod_skilland\local\api_client::class)->graphql($query, $variables);
+}
+
+/**
+ * Execute a GraphQL query against Skilland's GraphQL endpoint over HTTPS (http_api_client).
+ *
+ * @param string $query The GraphQL query string
+ * @param array $variables Optional variables for the query
+ * @return array The decoded JSON response data
+ * @throws moodle_exception If configuration is missing or API call fails
+ */
+function mod_skilland_graphql_http(string $query, array $variables = []): array {
     global $CFG;
 
     // Ensure curl class is available.
@@ -559,11 +571,6 @@ function mod_skilland_graphql(string $query, array $variables = []): array {
  * @return array|null Hash info array with contentHash, packageHash, generatedAt, hasPackage, isStale — or null on failure.
  */
 function mod_skilland_check_topic_snapshot(string $topicid): ?array {
-    // Test hook: return override value if set (used by PHPUnit tests).
-    if (array_key_exists('_test_topic_snapshot', $GLOBALS)) {
-        return $GLOBALS['_test_topic_snapshot'];
-    }
-
     $query = <<<'GRAPHQL'
 query TopicScormHash($topicId: ID!) {
   topicScormHash(topicId: $topicId) {
@@ -1491,12 +1498,6 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
  * @throws moodle_exception If update fails or provisioning is already in progress
  */
 function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?string $contenthash = null) {
-    // Test hook: return override value if set (used by PHPUnit tests).
-    if (array_key_exists('_test_update_topic_scorm', $GLOBALS)) {
-        $hook = $GLOBALS['_test_update_topic_scorm'];
-        return $hook instanceof \Closure ? $hook($skilland, $course, $sectionnum) : $hook;
-    }
-
     global $DB;
 
     skilland_require_scorm_apis();
@@ -2291,7 +2292,7 @@ function mod_skilland_package_host_allowed(string $packageurl, string $endpoint)
 }
 
 /**
- * Download a SCORM package to a temp file after validating its URL, size and format.
+ * Download a SCORM package through the injectable api_client (\core\di).
  *
  * @param string $packageurl
  * @param int $expectedsize Size in bytes the API announced for the package; 0 skips the check.
@@ -2299,6 +2300,18 @@ function mod_skilland_package_host_allowed(string $packageurl, string $endpoint)
  * @throws moodle_exception On any failed check; the temp file is removed first.
  */
 function mod_skilland_download_package(string $packageurl, int $expectedsize = 0): string {
+    return \core\di::get(\mod_skilland\local\api_client::class)->download_package($packageurl, $expectedsize);
+}
+
+/**
+ * Download a SCORM package to a temp file after validating its URL, size and format.
+ *
+ * @param string $packageurl
+ * @param int $expectedsize Size in bytes the API announced for the package; 0 skips the check.
+ * @return string Path of the downloaded zip; the caller deletes it.
+ * @throws moodle_exception On any failed check; the temp file is removed first.
+ */
+function mod_skilland_download_package_http(string $packageurl, int $expectedsize = 0): string {
     mod_skilland_require_https($packageurl, 'package');
 
     $endpoint = (string) (get_config('mod_skilland', 'graphql_endpoint') ?? '');
@@ -2460,16 +2473,12 @@ function mod_skilland_retry_delay_ms(int $attempt, ?string $retryafter): int {
 }
 
 /**
- * Sleep between retries. Tests record the delay in $GLOBALS['_test_skilland_sleeps'] instead.
+ * Sleep between retries through the injectable retry_sleeper (\core\di).
  *
  * @param int $ms
  */
 function mod_skilland_retry_sleep(int $ms): void {
-    if (array_key_exists('_test_skilland_sleeps', $GLOBALS) && is_array($GLOBALS['_test_skilland_sleeps'])) {
-        $GLOBALS['_test_skilland_sleeps'][] = $ms;
-        return;
-    }
-    usleep(max(0, $ms) * 1000);
+    \core\di::get(\mod_skilland\local\retry_sleeper::class)->sleep_ms($ms);
 }
 
 /**
