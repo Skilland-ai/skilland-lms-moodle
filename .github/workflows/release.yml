@@ -207,6 +207,46 @@ jobs:
           git tag -a "$TAG" -m "Release $RELEASE"
           git push origin "$TAG"
 
+      - name: Build release notes
+        if: steps.check_release.outputs.exists == 'false'
+        id: changelog
+        run: |
+          RELEASE="${{ steps.version.outputs.release }}"
+          MOODLEVERSION="${{ steps.version.outputs.moodle_version }}"
+
+          # Pull the section for this version out of CHANGELOG.md, e.g. "## [0.9.35-beta]"
+          # up to (not including) the next "## " heading.
+          NOTES=$(awk -v ver="$RELEASE" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md)
+
+          # Trim leading/trailing blank lines.
+          NOTES=$(printf '%s\n' "$NOTES" | sed -e '/./,$!d' -e ':a' -e '/^\n*$/{$d;N;ba' -e '}')
+
+          if [ -n "$NOTES" ]; then
+            echo "Found CHANGELOG.md section for $RELEASE"
+          else
+            echo "No CHANGELOG.md section for $RELEASE, falling back to the default template"
+            NOTES=$'### Requirements\n- Moodle 4.2 or later'
+          fi
+
+          {
+            echo "body<<RELEASE_BODY_EOF"
+            echo "## Skilland Moodle Plugin $RELEASE"
+            echo
+            echo "**Moodle Version:** $MOODLEVERSION"
+            echo
+            echo "$NOTES"
+            echo
+            echo "### Installation"
+            echo "1. Download \`mod_skilland-$MOODLEVERSION.zip\`"
+            echo "2. Extract to your Moodle's \`mod/\` directory"
+            echo "3. Visit Site Administration > Notifications to complete installation"
+            echo "RELEASE_BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
@@ -214,18 +254,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.version.outputs.tag }}
           name: Release ${{ steps.version.outputs.release }} (${{ steps.version.outputs.moodle_version }})
-          body: |
-            ## Skilland Moodle Plugin ${{ steps.version.outputs.release }}
-
-            **Moodle Version:** ${{ steps.version.outputs.moodle_version }}
-
-            ### Installation
-            1. Download `mod_skilland-${{ steps.version.outputs.moodle_version }}.zip`
-            2. Extract to your Moodle's `mod/` directory
-            3. Visit Site Administration > Notifications to complete installation
-
-            ### Requirements
-            - Moodle 4.2 or later
+          body: ${{ steps.changelog.outputs.body }}
           files: |
             mod_skilland-${{ steps.version.outputs.moodle_version }}.zip
           draft: false
