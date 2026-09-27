@@ -6,7 +6,9 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Source-text guards for the XSS sinks fixed in SKL-674: SkilLand API data and
- * language strings must never reach innerHTML or addslashes-built JS literals.
+ * language strings must never reach innerHTML or addslashes-built JS literals. Since SKL-681
+ * the activity form and course settings scripts are AMD modules (amd/src/mod_form.js,
+ * amd/src/course_mapping.js) that take their strings from core/str.
  */
 class xss_sinks_test extends TestCase {
 
@@ -66,6 +68,8 @@ class xss_sinks_test extends TestCase {
         return [
             'mod_form.php' => ['mod_form.php'],
             'classes/hooks.php' => ['classes/hooks.php'],
+            'amd/src/mod_form.js' => ['amd/src/mod_form.js'],
+            'amd/src/course_mapping.js' => ['amd/src/course_mapping.js'],
         ];
     }
 
@@ -74,7 +78,8 @@ class xss_sinks_test extends TestCase {
      */
     public function test_no_innerhtml_assignment_concatenates_untrusted_data(string $file): void {
         $source = $this->source($file);
-        $tainted = ['response\.', 'error\.message', 'errorText', 'displayText', '\$buttontext', '\$ssourl'];
+        $tainted = ['response\.', 'resp\.', 'error\.message', 'errorText', 'displayText', '\$buttontext', '\$ssourl',
+            'ssoUrl', 'labelText', 'courseName', 'currentValue'];
         $pattern = '/\.innerHTML\s*[+]?=([^;]*)(' . implode('|', $tainted) . ')/';
 
         $offenders = [];
@@ -87,7 +92,7 @@ class xss_sinks_test extends TestCase {
     }
 
     /**
-     * Returns the body of an inline JS function emitted from PHP, up to the
+     * Returns the body of a JS function declaration, up to the
      * first line that closes it at the declaration's indentation.
      */
     private function js_function_body(string $source, string $name): string {
@@ -102,7 +107,7 @@ class xss_sinks_test extends TestCase {
     public function test_escape_html_helper_escapes_all_five_characters_ampersand_first(string $file): void {
         $body = $this->js_function_body($this->source($file), 'escapeHtml');
 
-        // The source is a PHP double-quoted string, so \" in it is a literal " in the emitted JS.
+        // Tolerates a \" (an escaped quote carried over from a PHP double-quoted string) as a literal ".
         $this->assertGreaterThan(0, preg_match_all("#\.replace\(/(.+?)/g,\s*'([^']*)'\)#", $body, $m, PREG_SET_ORDER));
         $pairs = [];
         foreach ($m as $match) {
@@ -122,8 +127,8 @@ class xss_sinks_test extends TestCase {
 
     public static function notification_files(): array {
         return [
-            'mod_form.php' => ['mod_form.php'],
-            'classes/hooks.php' => ['classes/hooks.php'],
+            'amd/src/mod_form.js' => ['amd/src/mod_form.js'],
+            'amd/src/course_mapping.js' => ['amd/src/course_mapping.js'],
         ];
     }
 
@@ -148,7 +153,7 @@ class xss_sinks_test extends TestCase {
     }
 
     public function test_error_helpers_render_messages_as_text(): void {
-        $source = $this->source('mod_form.php');
+        $source = $this->source('amd/src/mod_form.js');
 
         $lessons = $this->js_function_body($source, 'showLessonsError');
         $this->assertStringContainsString('errorSpan.textContent = message;', $lessons);
@@ -168,17 +173,20 @@ class xss_sinks_test extends TestCase {
     }
 
     public function test_course_name_and_code_are_rendered_as_text(): void {
-        $source = $this->source('mod_form.php');
+        $source = $this->source('amd/src/mod_form.js');
         $this->assertStringContainsString('nameSpan.textContent = response.course.name;', $source);
         $this->assertStringContainsString("codeSpan.textContent = ' (' + response.course.code + ')';", $source);
         $this->assertStringNotContainsString('displayText', $source);
+        $this->assertStringNotContainsString('displayText', $this->source('mod_form.php'));
         // The only innerHTML left in the course display is the server-built edit link.
         $this->assertMatchesRegularExpression("/editLinkSpan\.innerHTML = '\(' \+ editLinkHtml \+ '\)';/", $source);
-        $this->assertMatchesRegularExpression('/var editLinkHtml = " \. json_encode\(\$editlink\) \. ";/', $source);
+        // editLinkHtml is the html_writer-built $editlink, handed over in the module's init config.
+        $this->assertMatchesRegularExpression('/var editLinkHtml = config\.\w+;/', $source);
+        $this->assertMatchesRegularExpression('/\'\w+\'\s*=>\s*\$editlink\b/', $this->source('mod_form.php'));
     }
 
     public function test_topic_description_fills_the_intro_editor_as_escaped_text(): void {
-        $source = $this->source('mod_form.php');
+        $source = $this->source('amd/src/mod_form.js');
 
         // The intro is an editor on #id_introeditor; #id_intro does not exist on the form (SKL-759).
         $this->assertStringNotContainsString("getElementById('id_intro')", $source);
@@ -203,35 +211,72 @@ class xss_sinks_test extends TestCase {
     }
 
     public function test_topic_options_are_built_with_textcontent(): void {
-        $source = $this->source('mod_form.php');
+        $source = $this->source('amd/src/mod_form.js');
         $this->assertStringContainsString('option.textContent = optionText;', $source);
         $this->assertDoesNotMatchRegularExpression('/innerHTML\s*[+]?=[^;]*(topic\.name|optionText|description)/', $source);
     }
 
-    public function test_hooks_emit_php_values_into_js_as_hex_escaped_json(): void {
-        $hooks = $this->source('classes/hooks.php');
+    public static function php_files_that_load_modules(): array {
+        return [
+            'mod_form.php' => ['mod_form.php'],
+            'classes/hooks.php' => ['classes/hooks.php'],
+        ];
+    }
+
+    /**
+     * SKL-681: no JavaScript is emitted from PHP any more, so no PHP value is ever spliced into
+     * a JS literal; the scripts are AMD modules whose PHP values arrive as js_call_amd arguments.
+     *
+     * @dataProvider php_files_that_load_modules
+     */
+    public function test_php_emits_no_inline_javascript(string $file): void {
+        $source = $this->source($file);
 
         // No PHP value spliced inside a hand-quoted JS string literal.
-        $this->assertDoesNotMatchRegularExpression("/'\"\s*\.\s*[\\\\\\\$a-z_]/i", $hooks);
+        $this->assertDoesNotMatchRegularExpression("/'\"\s*\.\s*[\\\\\\\$a-z_]/i", $source);
 
-        $this->assertGreaterThan(0, preg_match_all('/json_encode\(([^;]*)\);?/', $hooks, $m));
-        foreach ($m[1] as $args) {
-            foreach (['JSON_HEX_TAG', 'JSON_HEX_APOS', 'JSON_HEX_QUOT', 'JSON_HEX_AMP'] as $flag) {
-                $this->assertStringContainsString($flag, $args, "json_encode in hooks.php without $flag: $args");
-            }
+        foreach (['<script', 'js_amd_inline(', 'js_init_code('] as $needle) {
+            $this->assertStringNotContainsString($needle, $source, "$file still emits inline JavaScript ($needle)");
         }
+        $this->assertStringContainsString("js_call_amd('mod_skilland/", $source);
+    }
 
+    public static function amd_modules(): array {
+        return [
+            'amd/src/mod_form.js' => ['amd/src/mod_form.js'],
+            'amd/src/course_mapping.js' => ['amd/src/course_mapping.js'],
+        ];
+    }
+
+    /**
+     * @dataProvider amd_modules
+     */
+    public function test_modules_take_their_strings_from_core_str(string $file): void {
+        $source = $this->source($file);
+        $this->assertMatchesRegularExpression("#define\(\[[^\]]*'core/str'#", $source);
+        $this->assertStringContainsString('get_strings(', $source);
+        // A string that cannot be loaded is reported, never replaced by hardcoded text.
+        $this->assertStringContainsString('Notification.exception', $source);
+    }
+
+    public function test_hooks_strings_and_go_to_button_reach_the_dom_as_text(): void {
+        $hooks = $this->source('classes/hooks.php');
+        $module = $this->source('amd/src/course_mapping.js');
+
+        $this->assertStringContainsString("js_call_amd('mod_skilland/course_mapping', 'init'", $hooks);
+        $this->assertStringNotContainsString('json_encode(', $hooks);
         foreach (['creating_course', 'create_in_skilland', 'go_to_skilland'] as $key) {
-            $this->assertMatchesRegularExpression(
-                "/json_encode\(\\\\?get_string\('$key', 'mod_skilland'\), JSON_HEX_TAG/",
-                $hooks,
-                "get_string('$key') is not emitted through json_encode"
-            );
+            $this->assertStringNotContainsString("get_string('$key'", $hooks, "get_string('$key') is still rendered in PHP");
+            $this->assertMatchesRegularExpression("/key:\s*'$key'/", $module, "$key is not fetched through core/str");
         }
 
-        $this->assertStringContainsString('link.href = " . $ssourljs . ";', $hooks);
-        $this->assertStringContainsString('label.textContent = " . $buttontext . ";', $hooks);
-        $this->assertStringNotContainsString('div.innerHTML', $hooks);
+        $this->assertStringContainsString("'ssourl' => \$ssourl->out(false),", $hooks);
+        $this->assertStringContainsString('link.href = ssoUrl;', $module);
+        $this->assertStringContainsString('label.textContent = labelText;', $module);
+        $this->assertStringContainsString('insertGoToSkillandButton(fieldInput, config.ssourl, strings.goToSkilland);', $module);
+        $this->assertStringNotContainsString('div.innerHTML', $module);
+        // The course list is built with createElement/textContent only.
+        $this->assertStringNotContainsString('innerHTML', $module);
     }
 
     public function test_hex_flags_neutralise_script_breakout(): void {
@@ -250,7 +295,7 @@ class xss_sinks_test extends TestCase {
     }
 
     public function test_hooks_notifications_escape_api_errors(): void {
-        $hooks = $this->source('classes/hooks.php');
+        $hooks = $this->source('amd/src/course_mapping.js');
         $this->assertMatchesRegularExpression('/function\s+escapeHtml\s*\(/', $hooks);
         $this->assertSame(0, preg_match('/message:(?![^\n]*escapeHtml\()[^\n]*\b(resp|response)\.error\b/', $hooks),
             'addNotification message concatenates resp.error/response.error without escapeHtml');
@@ -265,9 +310,11 @@ class xss_sinks_test extends TestCase {
         );
 
         // SKL-664: the course form never opens redirect_url; the Studio link is offered after the save.
-        $hooks = $this->source('classes/hooks.php');
-        $this->assertStringNotContainsString('window.open', $hooks);
-        $this->assertStringNotContainsString('redirect_url', $hooks);
-        $this->assertStringNotContainsString('pendingRedirectUrl', $hooks);
+        foreach (['classes/hooks.php', 'amd/src/course_mapping.js'] as $file) {
+            $source = $this->source($file);
+            $this->assertStringNotContainsString('window.open', $source, $file);
+            $this->assertStringNotContainsString('redirect_url', $source, $file);
+            $this->assertStringNotContainsString('pendingRedirectUrl', $source, $file);
+        }
     }
 }

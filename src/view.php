@@ -160,6 +160,16 @@ function skilland_detect_missing_scorm(stdClass $skilland): bool {
 }
 
 /**
+ * The mod_skilland renderer of this page.
+ *
+ * @return \mod_skilland\output\renderer
+ */
+function skilland_view_renderer(): \mod_skilland\output\renderer {
+    global $PAGE;
+    return $PAGE->get_renderer('mod_skilland');
+}
+
+/**
  * Render the lesson list view with progress indicators.
  *
  * @param stdClass $skilland The skilland activity record.
@@ -169,148 +179,26 @@ function skilland_detect_missing_scorm(stdClass $skilland): bool {
  * @return string HTML output.
  */
 function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex = 1) {
-    global $OUTPUT, $USER;
+    global $USER;
 
-    $html = '';
+    $progress = [];
+    $canprovision = false;
+    if (!empty($lessons)) {
+        // Merge the learner's SCORM tracks into the progress store, then read it (SKL-668).
+        if (skilland_refresh_progress($skilland, (int) $USER->id)) {
+            skilland_recompute_user($skilland, (int) $USER->id);
+        }
+        $progress = skilland_get_user_progress((int) $skilland->id, (int) $USER->id);
 
-    if (empty($lessons)) {
-        $html .= html_writer::div(
-            get_string('no_lessons_configured', 'mod_skilland'),
-            'alert alert-info'
-        );
-        return $html;
+        logger::debug('Progress', 'Progress for user ' . $USER->id . ', skilland ' . $skilland->id . ': ' . json_encode($progress));
+
+        // Teachers see which visible lessons are missing from the installed package (SKL-655).
+        $canprovision = !empty($skilland->scormcmid) &&
+            has_capability('mod/skilland:provision', context_module::instance($cm->id));
     }
 
-    // Merge the learner's SCORM tracks into the progress store, then read it (SKL-668).
-    if (skilland_refresh_progress($skilland, (int) $USER->id)) {
-        skilland_recompute_user($skilland, (int) $USER->id);
-    }
-    $progress = skilland_get_user_progress((int) $skilland->id, (int) $USER->id);
-
-    logger::debug('Progress', 'Progress for user ' . $USER->id . ', skilland ' . $skilland->id . ': ' . json_encode($progress));
-
-    $html .= html_writer::start_div('skilland-lessons-container');
-    $html .= html_writer::tag('h3', get_string('lessons', 'mod_skilland'), ['class' => 'skilland-lessons-header']);
-
-    $html .= html_writer::start_div('skilland-lessons-list');
-
-    // Teachers see which visible lessons are missing from the installed package (SKL-655).
-    $canprovision = !empty($skilland->scormcmid) &&
-        has_capability('mod/skilland:provision', context_module::instance($cm->id));
-
-    $lessonindex = 1;
-    foreach ($lessons as $lesson) {
-        // Determine if lesson can be played (has SCO mapped).
-        $canplay = !empty($lesson->scoid) && !empty($skilland->scormcmid);
-
-        if ($canplay) {
-            // Direct link to SCORM player.
-            $lessonurl = new moodle_url('/mod/skilland/view.php', [
-                'id' => $cm->id,
-                'play' => $lesson->id
-            ]);
-        } else {
-            // No link if not playable.
-            $lessonurl = null;
-        }
-
-        // Get progress status for this lesson.
-        $lessonprogress = isset($progress[$lesson->id]) ? $progress[$lesson->id] : null;
-        $status = $lessonprogress['status'] ?? 'not_started';
-        $score = $lessonprogress['score'] ?? null;
-
-        // Determine styling based on progress status.
-        switch ($status) {
-            case 'completed':
-            case 'passed':
-                $completionclass = 'skilland-lesson-completed';
-                $completionicon = 'fa-check-circle';
-                $statustext = get_string('completed', 'mod_skilland');
-                break;
-            case 'incomplete':
-            case 'browsed':
-                $completionclass = 'skilland-lesson-in-progress';
-                $completionicon = 'fa-clock-o';
-                $statustext = get_string('in_progress', 'mod_skilland');
-                break;
-            case 'failed':
-                $completionclass = 'skilland-lesson-failed';
-                $completionicon = 'fa-times-circle';
-                $statustext = get_string('failed', 'mod_skilland');
-                break;
-            default:
-                if ($canplay) {
-                    $completionclass = 'skilland-lesson-available';
-                    $completionicon = 'fa-play-circle';
-                    $statustext = get_string('ready_to_start', 'mod_skilland');
-                } else {
-                    $completionclass = 'skilland-lesson-pending';
-                    $completionicon = 'fa-circle-o';
-                    $statustext = get_string('not_started', 'mod_skilland');
-                }
-                break;
-        }
-
-        // Card element - link if playable, div otherwise.
-        if ($lessonurl) {
-            $html .= html_writer::start_tag('a', [
-                'href' => $lessonurl->out(false),
-                'class' => 'skilland-lesson-card ' . $completionclass
-            ]);
-        } else {
-            $html .= html_writer::start_div('skilland-lesson-card skilland-lesson-disabled ' . $completionclass);
-        }
-
-        // Lesson number badge (L1.1, L1.2, etc.).
-        $lessonlabel = 'L' . $topicorderindex . '.' . $lessonindex;
-        if (empty($skilland->hidelabels)) {
-            $html .= html_writer::div($lessonlabel, 'skilland-lesson-number');
-        }
-
-        // Lesson content.
-        $html .= html_writer::start_div('skilland-lesson-content');
-        $html .= html_writer::tag('span', format_string($lesson->title), ['class' => 'skilland-lesson-title']);
-
-        // Meta info.
-        $meta = [];
-        if (!empty($lesson->updatedat)) {
-            $meta[] = get_string('updated', 'mod_skilland') . ': ' . userdate($lesson->updatedat, get_string('strftimedateshort'));
-        }
-        // Show score if available.
-        if ($score !== null && $score !== '') {
-            $meta[] = get_string('score', 'mod_skilland') . ': ' . $score . '%';
-        }
-        if (!empty($meta)) {
-            $html .= html_writer::div(implode(' · ', $meta), 'skilland-lesson-meta');
-        }
-        if ($canprovision && empty($lesson->scoid)) {
-            $html .= html_writer::div(get_string('lesson_sco_missing', 'mod_skilland'),
-                'alert alert-warning skilland-lesson-sco-missing small py-1 px-2 mt-1 mb-0');
-        }
-        $html .= html_writer::end_div(); // lesson-content.
-
-        // Status indicator.
-        $html .= html_writer::div(
-            html_writer::tag('i', '', [
-                'class' => 'fa ' . $completionicon . ' skilland-status-icon',
-                'aria-hidden' => 'true',
-            ]) .
-            html_writer::tag('span', $statustext, ['class' => 'skilland-status-text']),
-            'skilland-lesson-status'
-        );
-
-        if ($lessonurl) {
-            $html .= html_writer::end_tag('a');
-        } else {
-            $html .= html_writer::end_div();
-        }
-        $lessonindex++;
-    }
-
-    $html .= html_writer::end_div(); // lessons-list.
-    $html .= html_writer::end_div(); // lessons-container.
-
-    return $html;
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_list(
+        $skilland, $lessons, $cm, (int) $topicorderindex, $progress, $canprovision));
 }
 
 /**
@@ -324,42 +212,22 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
  * @return string HTML output.
  */
 function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topicorderindex = 1) {
-    global $OUTPUT, $USER, $DB, $PAGE;
+    global $USER, $DB, $PAGE, $CFG;
 
-    $html = '';
-
-    // Calculate lesson index within the topic.
-    $lessonindex = 1;
-    $found = false;
-    foreach ($alllessons as $l) {
-        if ($l->id == $lesson->id) {
-            $found = true;
-            break;
-        }
-        $lessonindex++;
-    }
-    $lessonlabel = 'L' . $topicorderindex . '.' . $lessonindex;
+    $renderer = skilland_view_renderer();
 
     // Check the lesson is visible here, has a valid SCO mapping and the SCORM module still exists.
+    $found = \mod_skilland\output\lesson_navigation::position_of($lesson, $alllessons) !== null;
     $scormcm = null;
     if ($found && !empty($lesson->scoid) && !empty($skilland->scormcmid)) {
         $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
     }
     if (!$scormcm) {
-        $html .= html_writer::div(
-            get_string('scorm_not_ready', 'mod_skilland'),
-            'alert alert-warning'
-        );
-        $backurl = new moodle_url('/mod/skilland/view.php', ['id' => $cm->id]);
-        $html .= html_writer::div(
-            html_writer::link($backurl, get_string('back_to_lessons', 'mod_skilland'), ['class' => 'btn btn-secondary']),
-            'mt-3'
-        );
-        return $html;
+        return $renderer->render(new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons,
+            (int) $topicorderindex, null));
     }
 
     // Build the SCORM player URL.
-    global $CFG;
     $scorm = $DB->get_record('scorm', ['id' => $scormcm->instance], '*', MUST_EXIST);
 
     // Get or create a SCORM attempt for this user.
@@ -378,64 +246,15 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         'display' => 'popup'
     ]);
 
-    // Prepare lesson title.
-    $backurl = new moodle_url('/mod/skilland/view.php', ['id' => $cm->id]);
-    $lessontitle = empty($skilland->hidelabels)
-        ? $lessonlabel . ' - ' . format_string($lesson->title)
-        : format_string($lesson->title);
-
-    // Start fullscreen wrapper (auto-enabled on load).
-    $html .= html_writer::start_div('skilland-fullscreen-wrapper', [
-        'id' => 'skilland-fullscreen-wrapper',
-        'data-fullscreen' => 'true'
-    ]);
-
-    // Fixed header bar with back link, title, and toggle button.
-    $html .= html_writer::start_div('skilland-fullscreen-header');
-
-    // Left: Back to lessons link.
-    $html .= html_writer::link($backurl, '← ' . get_string('back_to_lessons', 'mod_skilland'), [
-        'class' => 'skilland-fullscreen-back'
-    ]);
-
-    // Center: Lesson title. A heading (not a span) so it takes its place in the page's
-    // heading structure, and focusable so it can receive focus when the overlay opens.
-    $html .= html_writer::tag('h2', $lessontitle, [
-        'class' => 'skilland-fullscreen-title',
-        'id' => 'skilland-fullscreen-title',
-        'tabindex' => '-1',
-    ]);
-
-    // Right: Close button (X) - same action as back to lessons.
-    $html .= html_writer::link($backurl, '×', [
-        'class' => 'skilland-fullscreen-close',
-        'title' => get_string('back_to_lessons', 'mod_skilland'),
-        'aria-label' => get_string('back_to_lessons', 'mod_skilland')
-    ]);
-
-    $html .= html_writer::end_div(); // End header.
-
-    // Iframe container.
-    $html .= html_writer::start_div('skilland-fullscreen-content');
-    $html .= html_writer::tag('iframe', '', [
-        'src' => $scormplayerurl->out(false),
-        'class' => 'skilland-fullscreen-iframe',
-        'allowfullscreen' => 'true',
-        'allow' => 'fullscreen',
-        'title' => format_string($lesson->title)
-    ]);
-    $html .= html_writer::end_div(); // End content.
-
-    // Bottom navigation bar (prev/next lesson).
-    $html .= skilland_render_fullscreen_navigation($lesson, $alllessons, $cm, $topicorderindex, $skilland);
-
-    $html .= html_writer::end_div(); // End fullscreen wrapper.
+    $player = new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons, (int) $topicorderindex,
+        $scormplayerurl);
+    $html = $renderer->render($player);
 
     // Load the fullscreen JavaScript module.
     $devmode = get_config('mod_skilland', 'devmode');
     $PAGE->requires->js_call_amd('mod_skilland/fullscreen_player', 'init', [[
         'debug' => (bool)$devmode,
-        'backurl' => $backurl->out(false)
+        'backurl' => $player->get_back_url()->out(false)
     ]]);
 
     return $html;
@@ -452,66 +271,8 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
  * @return string HTML output.
  */
 function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
-    $html = '';
-    $lessonsarray = array_values($alllessons);
-    $currentindex = null;
-
-    foreach ($lessonsarray as $i => $l) {
-        if ($l->id == $currentlesson->id) {
-            $currentindex = $i;
-            break;
-        }
-    }
-
-    if ($currentindex === null) {
-        return '';
-    }
-
-    $html .= html_writer::start_div('skilland-player-nav');
-
-    // Previous lesson link.
-    if ($currentindex > 0) {
-        $prev = $lessonsarray[$currentindex - 1];
-        // Only link if the previous lesson has a SCO mapped.
-        if (!empty($prev->scoid) && !empty($skilland->scormcmid)) {
-            $prevurl = new moodle_url('/mod/skilland/view.php', ['id' => $cm->id, 'play' => $prev->id]);
-            $prevlabel = 'L' . $topicorderindex . '.' . $currentindex;
-            $prevtext = empty($skilland->hidelabels)
-                ? '← ' . $prevlabel . ' - ' . format_string($prev->title)
-                : '← ' . format_string($prev->title);
-            $html .= html_writer::link($prevurl, $prevtext, [
-                'class' => 'skilland-nav-prev'
-            ]);
-        } else {
-            $html .= html_writer::span('', 'skilland-nav-prev');
-        }
-    } else {
-        $html .= html_writer::span('', 'skilland-nav-prev');
-    }
-
-    // Next lesson link.
-    if ($currentindex < count($lessonsarray) - 1) {
-        $next = $lessonsarray[$currentindex + 1];
-        // Only link if the next lesson has a SCO mapped.
-        if (!empty($next->scoid) && !empty($skilland->scormcmid)) {
-            $nexturl = new moodle_url('/mod/skilland/view.php', ['id' => $cm->id, 'play' => $next->id]);
-            $nextlabel = 'L' . $topicorderindex . '.' . ($currentindex + 2);
-            $nexttext = empty($skilland->hidelabels)
-                ? $nextlabel . ' - ' . format_string($next->title) . ' →'
-                : format_string($next->title) . ' →';
-            $html .= html_writer::link($nexturl, $nexttext, [
-                'class' => 'skilland-nav-next'
-            ]);
-        } else {
-            $html .= html_writer::span('', 'skilland-nav-next');
-        }
-    } else {
-        $html .= html_writer::span('', 'skilland-nav-next');
-    }
-
-    $html .= html_writer::end_div();
-
-    return $html;
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
+        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_PLAYER));
 }
 
 /**
@@ -525,90 +286,8 @@ function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $to
  * @return string HTML output.
  */
 function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
-    $html = '';
-    $lessonsarray = array_values($alllessons);
-    $currentindex = null;
-
-    foreach ($lessonsarray as $i => $l) {
-        if ($l->id == $currentlesson->id) {
-            $currentindex = $i;
-            break;
-        }
-    }
-
-    if ($currentindex === null) {
-        return '';
-    }
-
-    $html .= html_writer::start_div('skilland-fullscreen-nav');
-
-    // Previous lesson link.
-    if ($currentindex > 0) {
-        $prev = $lessonsarray[$currentindex - 1];
-        if (!empty($prev->scoid) && !empty($skilland->scormcmid)) {
-            $prevurl = new moodle_url('/mod/skilland/view.php', ['id' => $cm->id, 'play' => $prev->id]);
-            $prevlabel = 'L' . $topicorderindex . '.' . $currentindex;
-            $prevtext = empty($skilland->hidelabels)
-                ? $prevlabel . ' - ' . format_string($prev->title)
-                : format_string($prev->title);
-            $html .= html_writer::link($prevurl,
-                html_writer::tag('span', '←', ['class' => 'skilland-fullscreen-nav-arrow', 'aria-hidden' => 'true']) .
-                html_writer::tag('span', $prevtext, ['class' => 'skilland-fullscreen-nav-text']),
-                [
-                    'class' => 'skilland-fullscreen-nav-prev',
-                    'aria-label' => get_string('aria_previous_lesson', 'mod_skilland', $prevtext),
-                ]
-            );
-        } else {
-            $html .= html_writer::span(
-                html_writer::tag('span', get_string('no_previous_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
-                'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled',
-                ['aria-disabled' => 'true']
-            );
-        }
-    } else {
-        $html .= html_writer::span(
-            html_writer::tag('span', get_string('no_previous_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
-            'skilland-fullscreen-nav-prev skilland-fullscreen-nav-disabled',
-            ['aria-disabled' => 'true']
-        );
-    }
-
-    // Next lesson link.
-    if ($currentindex < count($lessonsarray) - 1) {
-        $next = $lessonsarray[$currentindex + 1];
-        if (!empty($next->scoid) && !empty($skilland->scormcmid)) {
-            $nexturl = new moodle_url('/mod/skilland/view.php', ['id' => $cm->id, 'play' => $next->id]);
-            $nextlabel = 'L' . $topicorderindex . '.' . ($currentindex + 2);
-            $nexttext = empty($skilland->hidelabels)
-                ? $nextlabel . ' - ' . format_string($next->title)
-                : format_string($next->title);
-            $html .= html_writer::link($nexturl,
-                html_writer::tag('span', $nexttext, ['class' => 'skilland-fullscreen-nav-text']) .
-                html_writer::tag('span', '→', ['class' => 'skilland-fullscreen-nav-arrow', 'aria-hidden' => 'true']),
-                [
-                    'class' => 'skilland-fullscreen-nav-next',
-                    'aria-label' => get_string('aria_next_lesson', 'mod_skilland', $nexttext),
-                ]
-            );
-        } else {
-            $html .= html_writer::span(
-                html_writer::tag('span', get_string('no_next_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
-                'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled',
-                ['aria-disabled' => 'true']
-            );
-        }
-    } else {
-        $html .= html_writer::span(
-            html_writer::tag('span', get_string('no_next_lesson', 'mod_skilland'), ['class' => 'visually-hidden']),
-            'skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled',
-            ['aria-disabled' => 'true']
-        );
-    }
-
-    $html .= html_writer::end_div();
-
-    return $html;
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
+        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN));
 }
 
 /**
@@ -621,43 +300,7 @@ function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm,
 function skilland_render_provision_view($skilland, $cm) {
     global $PAGE;
 
-    $html = '';
-
-    $html .= html_writer::start_div('skilland-provision-container text-center py-5', [
-        'id' => 'skilland-provision-container',
-        'data-skillandid' => $skilland->id,
-        'data-cmid' => $cm->id
-    ]);
-
-    $html .= html_writer::tag('div', '📦', ['class' => 'skilland-placeholder-icon', 'aria-hidden' => 'true']);
-    $html .= html_writer::tag('h4', get_string('content_not_provisioned', 'mod_skilland'));
-    $html .= html_writer::tag('p', get_string('provision_topic_desc', 'mod_skilland'), ['class' => 'text-muted mb-3']);
-
-    // Provision button.
-    $html .= html_writer::tag('button', get_string('provision_topic', 'mod_skilland'), [
-        'class' => 'btn btn-primary btn-lg skilland-provision-btn',
-        'id' => 'skilland-provision-btn',
-        'data-skillandid' => $skilland->id,
-        'data-cmid' => $cm->id
-    ]);
-
-    // Loading spinner (hidden by default). role="status"/aria-live announces the elapsed-time
-    // updates and the eventual timeout message to screen reader users (SKL-697).
-    $html .= html_writer::div(
-        html_writer::tag('i', '', ['class' => 'fa fa-spinner fa-spin fa-2x', 'aria-hidden' => 'true']) .
-        html_writer::tag('p', get_string('provisioning', 'mod_skilland'), ['class' => 'mt-2']) .
-        html_writer::tag('p', '', ['class' => 'mt-1 skilland-provision-elapsed', 'id' => 'skilland-provision-elapsed']) .
-        html_writer::tag('p', get_string('provisioning_wait_hint', 'mod_skilland'),
-            ['class' => 'text-muted small mt-2']),
-        'skilland-provision-loading d-none',
-        ['id' => 'skilland-provision-loading', 'role' => 'status', 'aria-live' => 'polite']
-    );
-
-    // Error message area (hidden by default).
-    $html .= html_writer::div('', 'alert alert-danger d-none mt-3', ['id' => 'skilland-provision-error',
-        'role' => 'alert']);
-
-    $html .= html_writer::end_div();
+    $html = skilland_view_renderer()->render(new \mod_skilland\output\provision($skilland, $cm));
 
     // Load the JavaScript module for provisioning.
     $devmode = get_config('mod_skilland', 'devmode');

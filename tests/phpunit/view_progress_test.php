@@ -31,6 +31,7 @@ class view_progress_test extends TestCase {
         $GLOBALS['_test_plugin_config'] = [];
         $GLOBALS['USER'] = (object) ['id' => 50];
         $GLOBALS['OUTPUT'] = new \stdClass();
+        $GLOBALS['PAGE'] = new \test_moodle_page();
         \mod_skilland\logger::reset_cache();
     }
 

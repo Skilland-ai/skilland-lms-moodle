@@ -1,0 +1,53 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_skilland/provision
+
+    The teacher's prompt to build the SCORM package of a topic that has none yet.
+    mod_skilland/provision_scorm drives the button, the progress and the error area.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * data-skillandid - The activity instance id.
+    * data-cmid - The activity's course module id.
+
+    Context variables required for this template:
+    * skillandid - The activity instance id.
+    * cmid - The activity's course module id.
+
+    Example context (json):
+    {
+        "skillandid": 7,
+        "cmid": 42
+    }
+}}
+<div class="skilland-provision-container text-center py-5" id="skilland-provision-container" data-skillandid="{{skillandid}}" data-cmid="{{cmid}}">
+    <div class="skilland-placeholder-icon" aria-hidden="true">📦</div>
+    <h4>{{#str}}content_not_provisioned, mod_skilland{{/str}}</h4>
+    <p class="text-muted mb-3">{{#str}}provision_topic_desc, mod_skilland{{/str}}</p>
+    <button class="btn btn-primary btn-lg skilland-provision-btn" id="skilland-provision-btn" data-skillandid="{{skillandid}}" data-cmid="{{cmid}}">{{#str}}provision_topic, mod_skilland{{/str}}</button>
+    {{! role="status" / aria-live announce the elapsed time and the eventual timeout message (SKL-697). }}
+    <div class="skilland-provision-loading d-none" id="skilland-provision-loading" role="status" aria-live="polite">
+        <i class="fa fa-spinner fa-spin fa-2x" aria-hidden="true"></i>
+        <p class="mt-2">{{#str}}provisioning, mod_skilland{{/str}}</p>
+        <p class="mt-1 skilland-provision-elapsed" id="skilland-provision-elapsed"></p>
+        <p class="text-muted small mt-2">{{#str}}provisioning_wait_hint, mod_skilland{{/str}}</p>
+    </div>
+    <div class="alert alert-danger d-none mt-3" id="skilland-provision-error" role="alert"></div>
+</div>
