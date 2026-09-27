@@ -206,6 +206,15 @@ if (!function_exists('fullname')) {
     }
 }
 
+if (!function_exists('isguestuser')) {
+    // Like Moodle's: the site guest is the user whose id is $CFG->siteguest.
+    function isguestuser($user = null): bool {
+        global $CFG;
+        $id = is_object($user) ? ($user->id ?? 0) : $user;
+        return !empty($CFG->siteguest) && !empty($id) && (int) $CFG->siteguest === (int) $id;
+    }
+}
+
 if (!function_exists('enrol_get_users_courses')) {
     function enrol_get_users_courses($userid, $active = true) {
         return $GLOBALS['_test_enrolled_courses'] ?? [];

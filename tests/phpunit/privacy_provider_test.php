@@ -30,6 +30,7 @@ class privacy_provider_test extends TestCase {
 
     /** SSO payload key => field declared on the 'skilland' external location. */
     private const PAYLOAD_FIELD_MAP = [
+        'sub' => 'userid',
         'email' => 'email',
         'name' => 'fullname',
         'role' => 'role',
@@ -159,7 +160,7 @@ class privacy_provider_test extends TestCase {
         $this->assertSame('privacy:metadata:skilland_progress', $metadata['database_table:skilland_progress']['summary']);
 
         $this->assertArrayHasKey('external_location:skilland', $metadata);
-        $this->assertSame(['email', 'fullname', 'role', 'courseaccess'],
+        $this->assertSame(['userid', 'email', 'fullname', 'role', 'courseaccess'],
             array_keys($metadata['external_location:skilland']['fields']));
         $this->assertSame('privacy:metadata:skilland', $metadata['external_location:skilland']['summary']);
     }

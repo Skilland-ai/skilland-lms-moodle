@@ -16,11 +16,31 @@ class locallib_sso_token_test extends TestCase {
         $GLOBALS['_test_plugin_config'] = [];
         $GLOBALS['_test_enrolled_courses'] = [];
         \mod_skilland\logger::reset_cache();
+        // The token is only minted for an account the database says may sign in.
+        $this->seedAccounts([$this->account(1), $this->account(42)]);
     }
 
     protected function tearDown(): void {
         unset($GLOBALS['_test_enrolled_courses']);
+        unset($GLOBALS['CFG']->siteguest);
+        $GLOBALS['DB']->seed('user', []);
         parent::tearDown();
+    }
+
+    /** An active, confirmed manual account as the user table holds it. */
+    private function account(int $id, array $overrides = []): \stdClass {
+        return (object) array_merge([
+            'id' => $id,
+            'username' => 'user' . $id,
+            'auth' => 'manual',
+            'confirmed' => 1,
+            'deleted' => 0,
+            'suspended' => 0,
+        ], $overrides);
+    }
+
+    private function seedAccounts(array $accounts): void {
+        $GLOBALS['DB']->seed('user', $accounts);
     }
 
     private function makeUser(array $overrides = []): \stdClass {
@@ -48,8 +68,133 @@ class locallib_sso_token_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
+    // skilland_generate_sso_token() — accounts that may not sign in (SKL-647)
+    // ---------------------------------------------------------------
+
+    /** @return array<string, array{0: array, 1: string}> account overrides => logged reason */
+    public static function refused_accounts(): array {
+        return [
+            'suspended' => [['suspended' => 1], 'suspended'],
+            'deleted' => [['deleted' => 1], 'deleted'],
+            'unconfirmed' => [['confirmed' => 0], 'unconfirmed'],
+            'nologin' => [['auth' => 'nologin'], 'nologin'],
+        ];
+    }
+
+    /**
+     * @dataProvider refused_accounts
+     */
+    public function test_generate_token_refuses_account_that_may_not_sign_in(array $overrides, string $reason): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'sso_secret' => $this->ssoSecret,
+            'devmode' => true,
+        ];
+        $this->seedAccounts([$this->account(1, $overrides)]);
+
+        try {
+            skilland_generate_sso_token($this->makeUser(), 'org1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
+            $this->assertSame('mod_skilland', $e->module);
+        }
+
+        $messages = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+        $this->assertStringContainsString('Refused token for user id 1: ' . $reason, $messages);
+        $this->assertStringNotContainsString('teacher@school.com', $messages);
+        $this->assertStringNotContainsString('Generated token', $messages);
+    }
+
+    public function test_generate_token_refuses_guest_user(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
+        $GLOBALS['CFG']->siteguest = 2;
+        $this->seedAccounts([$this->account(2, ['username' => 'guest'])]);
+
+        try {
+            skilland_generate_sso_token($this->makeUser(['id' => 2, 'email' => 'root@localhost']), 'org1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
+        }
+    }
+
+    public function test_generate_token_refuses_account_missing_from_database(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
+
+        try {
+            skilland_generate_sso_token($this->makeUser(['id' => 99]), 'org1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
+        }
+    }
+
+    public function test_generate_token_refuses_user_id_zero(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
+        $this->seedAccounts([$this->account(0)]);
+
+        try {
+            skilland_generate_sso_token($this->makeUser(['id' => 0]), 'org1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
+        }
+    }
+
+    public function test_generate_token_reads_account_state_fresh_from_database(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
+        // The session copy still says active; the account was suspended after sign-in.
+        $sessionuser = $this->makeUser(['auth' => 'manual', 'confirmed' => 1, 'deleted' => 0, 'suspended' => 0]);
+        $this->seedAccounts([$this->account(1, ['suspended' => 1])]);
+
+        try {
+            skilland_generate_sso_token($sessionuser, 'org1');
+            $this->fail('Expected exception');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
+        }
+
+        $reads = array_values(array_filter($GLOBALS['DB']->get_calls_for('get_record'),
+            fn($call) => $call['table'] === 'user'));
+        $this->assertNotEmpty($reads);
+        $this->assertSame(['id' => 1], $reads[count($reads) - 1]['conditions']);
+    }
+
+    public function test_generate_token_ignores_stale_session_flags_of_an_active_account(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
+        // A session copy flagged suspended does not refuse an account the database says is active.
+        $token = skilland_generate_sso_token($this->makeUser(['suspended' => 1]), 'org1');
+
+        $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
+        $this->assertSame('1', $decoded->sub);
+    }
+
+    public function test_refused_account_error_string_exists_in_every_language(): void {
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include(__DIR__ . '/../../src/lang/' . $lang . '/skilland.php');
+            $this->assertArrayHasKey('error_sso_user_not_allowed', $string, "$lang is missing error_sso_user_not_allowed");
+            $this->assertStringContainsString('SkilLand', $string['error_sso_user_not_allowed']);
+        }
+    }
+
+    // ---------------------------------------------------------------
     // skilland_generate_sso_token() — payload construction
     // ---------------------------------------------------------------
+
+    public function test_generate_token_subject_is_the_moodle_user_id_as_a_string(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'sso_secret' => $this->ssoSecret,
+        ];
+
+        $token = skilland_generate_sso_token($this->makeUser(['id' => 42]), 'org1');
+
+        $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
+        $this->assertSame('42', $decoded->sub);
+        // A JSON string, not a number: SkilLand compares it as text.
+        [, $body] = explode('.', $token);
+        $this->assertStringContainsString('"sub":"42"', JWT::urlsafeB64Decode($body));
+    }
 
     public function test_generate_token_returns_valid_jwt(): void {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[

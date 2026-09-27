@@ -95,6 +95,14 @@ class admin_setting_sso_secret_test extends TestCase {
         $this->assertSame('error_sso_secret_too_short', $this->setting()->validate(bin2hex(str_repeat("\xab", 16))));
     }
 
+    public function test_accepts_64_hex_char_organization_secret(): void {
+        // SKL-647: SkilLand hands out hex(HMAC-SHA256(master, 'skilland:moodle-sso:v1:' . orgId)).
+        // 64 hex chars are valid base64 and decode to 48 bytes, above the minimum.
+        $secret = hash_hmac('sha256', 'skilland:moodle-sso:v1:' . 'org-fixture', str_repeat('m', 32));
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $secret);
+        $this->assertTrue($this->setting()->validate($secret));
+    }
+
     public function test_rejects_blocklisted_base64_secret_of_32_bytes(): void {
         $secret = base64_encode(str_repeat("\x7f", 32));
         testable_admin_setting_sso_secret::$hashes = [hash('sha256', $secret)];
