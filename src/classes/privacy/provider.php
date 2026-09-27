@@ -59,6 +59,7 @@ class provider implements
         ], 'privacy:metadata:skilland_progress');
 
         $collection->add_external_location_link('skilland', [
+            'userid' => 'privacy:metadata:skilland:userid',
             'email' => 'privacy:metadata:skilland:email',
             'fullname' => 'privacy:metadata:skilland:fullname',
             'role' => 'privacy:metadata:skilland:role',

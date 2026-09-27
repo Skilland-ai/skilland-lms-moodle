@@ -89,7 +89,7 @@ Go to **Site administration → Plugins → Activity modules → Skilland conten
 - **Frontend URL**: The URL of the Skilland frontend application (default: `https://app.skilland.ai`).
   - For local development: `http://localhost:3000`
   - This is where the SSO handoff is posted when teachers click "Edit Lessons in Skilland"
-- **SSO Shared Secret**: The shared secret for SSO authentication. SkilLand's `MOODLE_SSO_SECRET` must equal it, and it must be at least 32 bytes long (`openssl rand -base64 32`).
+- **SSO Shared Secret**: Your organization's Moodle SSO secret, copied from SkilLand › Settings › Integrations › Moodle. SkilLand derives a secret for each organization, so it only works together with this site's **Organization ID**. It must be at least 32 bytes long.
 
 #### SSO handoff
 
@@ -98,6 +98,9 @@ Opening SkilLand Studio signs an HS256 JWT with the SSO shared secret and hands 
 - `exp`: `iat` + 60 seconds, just long enough for the form to submit.
 - `aud`: the origin (`scheme://host[:port]`) of the Frontend URL. The SkilLand side may override the audience it expects with `MOODLE_SSO_AUDIENCE`.
 - `iss`: this Moodle site's `wwwroot`.
+- `sub`: the Moodle user id, as a string. SkilLand binds the SkilLand account to the organization, `iss` and `sub`, not to the email address.
+
+Tokens are only issued to accounts that may sign in, read from the user table at click time: guest, suspended, deleted, unconfirmed and `nologin` accounts get an error page instead.
 - **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only.
 - **Maximum SCORM package size (MB)**: Downloads larger than this are aborted (default: `200`).
 
@@ -163,7 +166,7 @@ The plugin implements Moodle's Privacy API (`classes/privacy/provider.php`), so 
 
 **Sent to SkilLand** (the organisation's SkilLand platform):
 
-- **Signing in to SkilLand Studio (SSO)**: the user's email, full name, the SkilLand role they get, and the Moodle courses they are enrolled in that are linked to a SkilLand course.
+- **Signing in to SkilLand Studio (SSO)**: the user's Moodle user id, email, full name, the SkilLand role they get, and the Moodle courses they are enrolled in that are linked to a SkilLand course.
 - **Listing a teacher's SkilLand courses** in the activity form: the teacher's email.
 - **Creating a SkilLand course from Moodle**: the teacher's email; SkilLand creates an account for that email if none exists.
 
