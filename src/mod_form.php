@@ -617,6 +617,8 @@ class mod_skilland_mod_form extends moodleform_mod {
                     var updateConfirmActionLabel = " . json_encode($updateconfirmactionlabel) . ";
                     var updateSuccessText = " . json_encode(get_string('update_success', 'mod_skilland')) . ";
                     var updateErrorText = " . json_encode(get_string('update_error', 'mod_skilland')) . ";
+                    var errorFetchTopicsDetailTemplate = " . json_encode(get_string('error_fetch_topics_detail', 'mod_skilland')) . ";
+                    var updatedOnTemplate = " . json_encode(get_string('updated_on', 'mod_skilland')) . ";
                     var skillandInstanceId = " . json_encode($this->_instance ?? 0) . ";
                     var cmId = " . json_encode($this->_cm->id ?? 0) . ";
 
@@ -664,7 +666,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                     }
 
                     // Set initial loading state.
-                    topicSelect.innerHTML = '<option value=\"\">' + loadingText + '...</option>';
+                    topicSelect.innerHTML = '<option value=\"\">' + loadingText + '</option>';
                     topicSelect.disabled = true;
 
                     // Set up update button click handler
@@ -836,7 +838,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                         if (isNaN(date.getTime())) {
                             return '';
                         }
-                        return 'Updated ' + date.toLocaleString();
+                        return updatedOnTemplate.replace('{$a}', date.toLocaleString());
                     }
 
                     function parseTimestamp(value) {
@@ -999,7 +1001,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                         if (!lessonsContainer) return;
 
                         var seq = ++lessonsRequestSeq;
-                        lessonsContainer.innerHTML = '<em>' + loadingText + '...</em>';
+                        lessonsContainer.innerHTML = '<em>' + loadingText + '</em>';
                         setLessonsLoading(true);
 
                         require(['core/ajax', 'core/notification'], function(ajax, notification) {
@@ -1329,7 +1331,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 if (response.error) {
                                     showTopicFetchError();
                                     notification.addNotification({
-                                        message: escapeHtml('Failed to fetch topics from Skilland: ' + response.error),
+                                        message: escapeHtml(errorFetchTopicsDetailTemplate.replace('{$a}', response.error)),
                                         type: 'error'
                                     });
                                     return;
@@ -1413,7 +1415,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 log('Skilland: AJAX error', error && error.message);
                                 showTopicFetchError();
                                 notification.addNotification({
-                                    message: escapeHtml('Failed to fetch topics from Skilland: ' + (error.message || JSON.stringify(error))),
+                                    message: escapeHtml(errorFetchTopicsDetailTemplate.replace('{$a}', error.message || JSON.stringify(error))),
                                     type: 'error'
                                 });
                             });

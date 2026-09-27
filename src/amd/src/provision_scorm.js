@@ -29,6 +29,15 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
     /** @var {string|null} elapsedTemplate The "Preparing content… {$a}" string, fetched once */
     var elapsedTemplate = null;
 
+    /** @var {string|null} noValidIdText The 'error_no_valid_id_provisioning' string, fetched once at init */
+    var noValidIdText = null;
+
+    /** @var {string|null} networkErrorText The 'error_network' string, fetched once at init */
+    var networkErrorText = null;
+
+    /** @var {string|null} unknownErrorText The 'error_unknown' string, fetched once at init */
+    var unknownErrorText = null;
+
     /**
      * Log a message to console if debug mode is enabled.
      *
@@ -62,16 +71,37 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
 
         log('Skilland provision_scorm: skillandId=' + skillandId + ', cmId=' + cmId);
 
-        // Bind click handler to provision button.
-        $('#skilland-provision-btn').on('click', function(e) {
-            e.preventDefault();
-            log('Skilland provision_scorm: Provision button clicked');
+        var $button = $('#skilland-provision-btn');
 
-            if (skillandId > 0) {
-                provisionTopicContent(skillandId, cmId);
-            } else {
-                showError('No valid ID provided for provisioning');
-            }
+        // The button must stay disabled — and the click handler unbound — until the strings
+        // it (and the AJAX callbacks it triggers) depend on have actually resolved. Otherwise a
+        // fast click or a slow request can only ever show English text on a Spanish site.
+        $button.prop('disabled', true);
+
+        Str.get_strings([
+            {key: 'error_no_valid_id_provisioning', component: 'mod_skilland'},
+            {key: 'error_network', component: 'mod_skilland'},
+            {key: 'error_unknown', component: 'mod_skilland'}
+        ]).done(function(strings) {
+            noValidIdText = strings[0];
+            networkErrorText = strings[1];
+            unknownErrorText = strings[2];
+
+            // Bind click handler to provision button only now that its strings are ready.
+            $button.prop('disabled', false).on('click', function(e) {
+                e.preventDefault();
+                log('Skilland provision_scorm: Provision button clicked');
+
+                if (skillandId > 0) {
+                    provisionTopicContent(skillandId, cmId);
+                } else {
+                    showError(noValidIdText);
+                }
+            });
+        }).fail(function() {
+            // Without these strings the button cannot show a localized error for any outcome,
+            // so leave it disabled rather than fall back to hardcoded English.
+            log('Skilland provision_scorm: failed to load required strings; button stays disabled');
         });
     };
 
@@ -185,7 +215,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
                     }, 1000);
                 } else {
                     // Error from the server.
-                    showError(response.error || 'Unknown error occurred');
+                    showError(response.error || unknownErrorText);
                     $button.prop('disabled', false).removeClass('d-none');
                     $loading.addClass('d-none');
                 }
@@ -193,7 +223,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
             .fail(function(error) {
                 clearProvisionTimers();
                 // AJAX error.
-                var errorMsg = error.message || error.error || 'Network error occurred';
+                var errorMsg = error.message || error.error || networkErrorText;
                 showError(errorMsg);
                 $button.prop('disabled', false).removeClass('d-none');
                 $loading.addClass('d-none');

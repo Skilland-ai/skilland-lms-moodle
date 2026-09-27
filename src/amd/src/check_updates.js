@@ -86,7 +86,8 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
             {key: 'update_confirm_message_students', component: 'mod_skilland', param: studentCount},
             {key: 'updating', component: 'mod_skilland'},
             {key: 'destructive_confirm_action', component: 'mod_skilland'},
-            {key: 'lockafterfirstaccess', component: 'mod_skilland'}
+            {key: 'lockafterfirstaccess', component: 'mod_skilland'},
+            {key: 'update_error', component: 'mod_skilland'}
         ]).done(function(strings) {
             var title = strings[0];
             var desc = strings[1];
@@ -95,6 +96,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
             var updatingText = strings[6];
             var destructiveActionLabel = strings[7];
             var lockLabel = strings[8];
+            var updateErrorText = strings[9];
 
             var hasStudents = studentCount > 0;
             var confirmMessage = hasStudents ? strings[5] : strings[4];
@@ -146,7 +148,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
                                     window.location.reload();
                                 } else {
                                     Notification.addNotification({
-                                        message: response.error || 'Update failed',
+                                        message: response.error || updateErrorText,
                                         type: 'error'
                                     });
                                     btn.prop('disabled', false).text(buttonText);
