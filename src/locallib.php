@@ -1980,18 +1980,63 @@ function skilland_get_user_progress(int $skillandid, int $userid): array {
 }
 
 /**
+ * Why a Moodle account may not be signed in to SkilLand, read fresh from the database.
+ *
+ * The session copy of the user can be stale: the account may have been suspended, deleted,
+ * unconfirmed or switched to the nologin auth method since the user signed in to Moodle.
+ *
+ * @param int $userid The Moodle user id
+ * @return string|null null when the account may sign in, otherwise a short reason for the log
+ */
+function skilland_sso_user_refusal_reason(int $userid): ?string {
+    global $DB;
+
+    if ($userid <= 0) {
+        return 'notloggedin';
+    }
+    $account = $DB->get_record('user', ['id' => $userid], 'id, auth, confirmed, deleted, suspended');
+    if (!$account) {
+        return 'missing';
+    }
+    if (isguestuser($account)) {
+        return 'guest';
+    }
+    if (!empty($account->deleted)) {
+        return 'deleted';
+    }
+    if (!empty($account->suspended)) {
+        return 'suspended';
+    }
+    if (empty($account->confirmed)) {
+        return 'unconfirmed';
+    }
+    if ($account->auth === 'nologin') {
+        return 'nologin';
+    }
+    return null;
+}
+
+/**
  * Generate an SSO token for authenticating a Moodle user to Skilland.
  *
  * This function creates a signed JWT token that allows seamless authentication
- * from Moodle to Skilland without requiring the user to log in again.
+ * from Moodle to Skilland without requiring the user to log in again. SkilLand binds
+ * the login to the token's issuer (this site's wwwroot) and subject (the Moodle user id).
  *
  * @param stdClass $user The Moodle user object
  * @param string $orgid The Skilland organization ID
  * @return string The signed JWT token
- * @throws moodle_exception If SSO secret is not configured or JWT library is not available
+ * @throws moodle_exception If the account may not sign in (guest, deleted, suspended, unconfirmed
+ *         or nologin), the SSO secret is not configured or the JWT library is not available
  */
 function skilland_generate_sso_token($user, $orgid) {
     global $CFG;
+
+    $refusal = skilland_sso_user_refusal_reason((int) $user->id);
+    if ($refusal !== null) {
+        logger::warn('SSO', 'Refused token for user id ' . (int) $user->id . ': ' . $refusal);
+        throw new moodle_exception('error_sso_user_not_allowed', 'mod_skilland');
+    }
 
     // Check if composer autoloader exists
     $autoloadpath = __DIR__ . '/vendor/autoload.php';
@@ -2037,6 +2082,7 @@ function skilland_generate_sso_token($user, $orgid) {
     // Prepare token payload
     $issuedat = time();
     $payload = [
+        'sub' => (string) $user->id,
         'email' => $user->email,
         'name' => fullname($user),
         'orgId' => $orgid,

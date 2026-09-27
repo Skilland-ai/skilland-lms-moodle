@@ -74,7 +74,7 @@ $string['settings_frontend_url_desc'] = 'The URL of the Skilland frontend applic
 
 // SSO settings.
 $string['settings_sso_secret'] = 'SSO Shared Secret';
-$string['settings_sso_secret_desc'] = 'Shared secret for SSO authentication. This must match the MOODLE_SSO_SECRET environment variable in the Skilland backend. Use at least 32 random bytes, e.g. generate one with <code>openssl rand -base64 32</code>.';
+$string['settings_sso_secret_desc'] = 'Your organization\'s Moodle SSO secret. Copy it from SkilLand › Settings › Integrations › Moodle: SkilLand derives a secret for each organization and only accepts sign-in tokens signed with the one that belongs to this site\'s Organization ID. It must be at least 32 bytes long.';
 
 // Development settings.
 $string['settings_devmode'] = 'Verbose debug logging';
@@ -85,8 +85,9 @@ $string['error_config_missing_orgid'] = 'Skilland Organization ID is not configu
 $string['error_config_missing_apikey'] = 'Skilland API Key is not configured. Please set it in plugin settings.';
 $string['error_config_missing_endpoint'] = 'GraphQL endpoint is not configured. Please set it in plugin settings.';
 $string['error_config_invalid_credentials'] = 'Invalid API credentials. Please check your Organization ID and API Key in plugin settings.';
-$string['error_sso_secret_too_short'] = 'The SSO shared secret must be at least 32 bytes long. Generate one with openssl rand -base64 32.';
-$string['error_sso_secret_known_dev'] = 'This SSO shared secret was published as a development default and cannot be used. Generate a new one with openssl rand -base64 32.';
+$string['error_sso_secret_too_short'] = 'The SSO shared secret must be at least 32 bytes long. Copy your organization\'s secret from SkilLand › Settings › Integrations › Moodle.';
+$string['error_sso_secret_known_dev'] = 'This SSO shared secret was published as a development default and cannot be used. Copy your organization\'s secret (at least 32 bytes) from SkilLand › Settings › Integrations › Moodle.';
+$string['error_sso_user_not_allowed'] = 'This Moodle account cannot sign in to SkilLand: guest, suspended, deleted, unconfirmed and no-login accounts are refused. Contact your site administrator if you think this is a mistake.';
 $string['error_url_https_required'] = 'This URL must use https://.';
 $string['error_insecure_url'] = 'The Skilland {$a} URL must use https://.';
 $string['error_http_redirect'] = 'The Skilland server answered with a redirect (HTTP {$a}), which is not followed. Check the configured URL.';
@@ -245,6 +246,7 @@ $string['error_grade_scale_unsupported'] = 'Scales are not supported. Choose a p
 
 // Privacy API (SKL-660).
 $string['privacy:metadata:skilland'] = 'To sign a user in to SkilLand Studio (SSO), to list the SkilLand courses of a teacher, and to create a SkilLand course from Moodle (which creates a SkilLand account for that email address), the plugin sends personal data to the organisation\'s SkilLand platform. Data already sent to SkilLand is handled by the organisation\'s SkilLand administrator.';
+$string['privacy:metadata:skilland:userid'] = 'The user\'s Moodle user ID, sent when signing in to SkilLand Studio so that SkilLand recognises the same Moodle account on every sign-in.';
 $string['privacy:metadata:skilland:email'] = 'The user\'s email address, sent when signing in to SkilLand Studio, listing their SkilLand courses and creating a SkilLand course.';
 $string['privacy:metadata:skilland:fullname'] = 'The user\'s full name, sent when signing in to SkilLand Studio.';
 $string['privacy:metadata:skilland:role'] = 'The SkilLand role the user is given, sent when signing in to SkilLand Studio.';

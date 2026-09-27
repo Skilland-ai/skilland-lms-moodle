@@ -35,16 +35,20 @@ This starts:
    | **Organization ID** | (from backend) | Your organization ID |
    | **GraphQL Endpoint** | `http://localhost:8000/graphql` | Backend API endpoint |
    | **Frontend URL** | `http://localhost:3000` | Frontend URL for SSO redirects |
-   | **SSO Shared Secret** | `<generate with openssl rand -base64 32>` | Must equal `MOODLE_SSO_SECRET` in the monorepo `.env` |
+   | **SSO Shared Secret** | (from SkilLand › Settings › Integrations › Moodle) | Your organization's SSO secret, which SkilLand derives from `MOODLE_SSO_SECRET` |
 
 3. Click **Save changes**
 
    On the monorepo dev stack (`./start.sh --plugin`) you do not type these by hand: the
-   Moodle container reads `MOODLE_SSO_SECRET` (plus the optional `SKILLAND_GRAPHQL_ENDPOINT`
-   and `SKILLAND_FRONTEND_URL`) from the monorepo `.env` and `00_development/config.php`
-   forces them as plugin settings. `http://` URLs are accepted only there, because that
-   config sets `$CFG->mod_skilland_allow_http = true`; everywhere else the endpoint and
-   frontend URL must use `https://`.
+   Moodle container reads `MOODLE_SSO_SECRET` and `SKILLAND_ORG_ID` (plus the optional
+   `SKILLAND_GRAPHQL_ENDPOINT` and `SKILLAND_FRONTEND_URL`) from the monorepo `.env` and
+   `00_development/config.php` forces them as plugin settings. The SSO secret is forced only
+   when `SKILLAND_ORG_ID` is set: config.php then forces that Organization ID and the secret
+   SkilLand derives for it, `hex(HMAC-SHA256(MOODLE_SSO_SECRET, "skilland:moodle-sso:v1:" + orgId))`.
+   With `MOODLE_SSO_SECRET` alone, copy the secret from SkilLand › Settings › Integrations ›
+   Moodle; SkilLand rejects tokens signed with the master secret itself. `http://` URLs are
+   accepted only there, because that config sets `$CFG->mod_skilland_allow_http = true`;
+   everywhere else the endpoint and frontend URL must use `https://`.
 
    Outbound requests keep Moodle's curl security (blocked hosts and ports) on and never
    follow redirects. A local `http://` or Docker endpoint (`localhost`, `host.docker.internal`,
@@ -150,25 +154,32 @@ If you see "Invalid API key or organization":
 
 If SSO login fails with "Invalid SSO token":
 
-1. Verify `MOODLE_SSO_SECRET` in the monorepo `.env` matches the plugin setting
-2. Check that the secret is the same in both places (case-sensitive)
+1. Verify the plugin's SSO secret is the one SkilLand › Settings › Integrations › Moodle shows for
+   the organization in the plugin's Organization ID (or that `SKILLAND_ORG_ID` in the monorepo `.env`
+   names that organization)
+2. A token signed with `MOODLE_SSO_SECRET` itself, or with another organization's secret, is rejected
 3. After changing `.env`, recreate the Moodle and web containers so both read the new value
+
+Guest, suspended, deleted, unconfirmed and `nologin` accounts never get a token: Moodle shows
+"This Moodle account cannot sign in to SkilLand" instead of posting to SkilLand.
 
 ## Environment Configuration
 
 ### SSO shared secret
 
-There is no default secret. It lives only in the monorepo `.env` as `MOODLE_SSO_SECRET`,
-which both compose files read (the web app to verify tokens, the Moodle container to
-sign them). It must be at least 32 bytes long, and SkilLand's `MOODLE_SSO_SECRET` must equal the
-plugin's SSO Shared Secret. `./start.sh --plugin` generates one when it is missing. To set it yourself:
+There is no default secret. SkilLand's master secret lives only in the monorepo `.env` as
+`MOODLE_SSO_SECRET`; SkilLand verifies each token with the organization's own secret derived from it,
+`hex(HMAC-SHA256(MOODLE_SSO_SECRET, "skilland:moodle-sso:v1:" + orgId))` (64 lower-case hex
+characters), and that derived value is what the plugin's SSO Shared Secret holds. `./start.sh --plugin`
+generates the master when it is missing. To have `config.php` force the organization and its secret:
 
 ```bash
 MOODLE_SSO_SECRET=<generate with openssl rand -base64 32>
+SKILLAND_ORG_ID=<your SkilLand organization id>
 ```
 
-Production sites set their own secret in the plugin settings and in the SkilLand
-deployment; never reuse a development value.
+Production sites paste their organization's secret from SkilLand › Settings › Integrations › Moodle
+into the plugin settings; never reuse a development value.
 
 ### Moodle Plugin
 
@@ -254,13 +265,14 @@ Changing a provisioned activity's topic rebuilds its SCORM on save (student prog
 └─────────────┘
 
 SSO Flow:
-1. Moodle generates SSO token with shared secret: exp = iat + 60 s, aud = origin of
-   frontend_url (SkilLand may override the expected value with MOODLE_SSO_AUDIENCE),
-   iss = Moodle wwwroot
+1. Moodle generates SSO token with the organization's SSO secret: sub = Moodle user id,
+   exp = iat + 60 s, aud = origin of frontend_url (SkilLand may override the expected value
+   with MOODLE_SSO_AUDIENCE), iss = Moodle wwwroot. Guest, suspended, deleted, unconfirmed
+   and nologin accounts are refused
 2. sso_redirect.php answers with a self-submitting form that POSTs token and redirect to
    frontend /sso-login (no query string; Cache-Control: no-store, Referrer-Policy: no-referrer)
 3. Frontend calls backend ssoLogin mutation
-4. Backend verifies token, creates user session
+4. Backend verifies token, binds the login to (organization, iss, sub), creates user session
 5. Returns JWT token for subsequent requests
 6. Frontend stores token and redirects to destination
 ```

@@ -66,6 +66,7 @@ test.describe('SSO Integration', () => {
     const payload = decodeJwtPayload(/** @type {string} */ (token))
     expect(payload).toMatchObject({ source: 'moodle', orgId: sso.orgId, role: 'Expert' })
     expect(payload?.email).toBeTruthy()
+    expect(payload?.sub).toMatch(/^[1-9]\d*$/)
     expect(payload?.nonce).toMatch(/^[0-9a-f]{32}$/)
     expect(payload?.exp - payload?.iat).toBe(60)
     expect(payload?.aud).toBe(new URL(sso.frontendUrl).origin)

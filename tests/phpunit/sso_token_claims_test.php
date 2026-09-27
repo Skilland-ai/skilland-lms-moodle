@@ -20,10 +20,15 @@ class sso_token_claims_test extends TestCase {
         $GLOBALS['_test_plugin_config'] = [];
         $GLOBALS['_test_enrolled_courses'] = [];
         \mod_skilland\logger::reset_cache();
+        // SKL-647: the token is only minted for an account the database says may sign in.
+        $GLOBALS['DB']->seed('user', [
+            (object) ['id' => 7, 'auth' => 'manual', 'confirmed' => 1, 'deleted' => 0, 'suspended' => 0],
+        ]);
     }
 
     protected function tearDown(): void {
         unset($GLOBALS['_test_enrolled_courses']);
+        $GLOBALS['DB']->seed('user', []);
         parent::tearDown();
     }
 
@@ -62,10 +67,18 @@ class sso_token_claims_test extends TestCase {
         $this->assertSame($CFG->wwwroot, $claims->iss);
     }
 
+    public function test_subject_is_the_moodle_user_id_as_a_string(): void {
+        $claims = $this->mint(['frontend_url' => 'https://app.example.com/']);
+
+        $this->assertIsString($claims->sub);
+        $this->assertSame('7', $claims->sub);
+    }
+
     public function test_existing_claims_unchanged(): void {
         $GLOBALS['_test_enrolled_courses'] = [];
         $claims = $this->mint(['frontend_url' => 'https://app.example.com/']);
 
+        $this->assertSame('7', $claims->sub);
         $this->assertSame('teacher@school.com', $claims->email);
         $this->assertSame('Jane Doe', $claims->name);
         $this->assertSame('org-9', $claims->orgId);
@@ -74,7 +87,7 @@ class sso_token_claims_test extends TestCase {
         $this->assertSame(32, strlen($claims->nonce));
         $this->assertSame([], $claims->courseAccess);
         $this->assertEqualsCanonicalizing(
-            ['email', 'name', 'orgId', 'role', 'nonce', 'iat', 'exp', 'aud', 'iss', 'source', 'courseAccess'],
+            ['sub', 'email', 'name', 'orgId', 'role', 'nonce', 'iat', 'exp', 'aud', 'iss', 'source', 'courseAccess'],
             array_keys((array) $claims)
         );
     }
@@ -120,6 +133,10 @@ class sso_token_claims_test extends TestCase {
     public function test_token_is_minted_only_by_sso_redirect(): void {
         $callers = [];
         foreach ($this->sourceFiles() as $relative => $source) {
+            if (strpos($relative, 'tests/') === 0) {
+                // The real-Moodle PHPUnit suite (src/tests/, never shipped) calls it to test refusals.
+                continue;
+            }
             $source = preg_replace('/function\s+skilland_generate_sso_token\s*\(/', '', $source);
             if (strpos($source, 'skilland_generate_sso_token(') !== false) {
                 $callers[] = $relative;
