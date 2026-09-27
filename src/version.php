@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026092707;   // YYYYMMDDHH - topic SCORM from the SkilLand REST routes, GraphQL as legacy fallback (SKL-791)
+$plugin->version   = 2026092708;   // YYYYMMDDHH - GPL headers, phpdoc, phpcs/phpdoc/validate CI, repo scaffolding (SKL-691)
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.36-beta';
+$plugin->release   = '0.9.37-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

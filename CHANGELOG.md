@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
-## [0.9.35-beta]
+## [0.9.36-beta]
 
 ### Added
 - GPL headers, `@package`/`@copyright`/`@license` phpdoc and a `moodle-plugin-ci`
