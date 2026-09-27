@@ -1,0 +1,204 @@
+/*
+ * mod_skilland plugin stylesheet. Moodle loads this file on every page of the site, so every
+ * selector below is scoped to an id or class only this plugin renders.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Activity settings form (mod_form.php)
+ * ------------------------------------------------------------------------- */
+
+/* No Skilland Course ID on the course: only the warning is shown. These rules apply without
+ * JavaScript and only to a form holding the warning; amd/src/mod_form.js hides the remaining items. */
+.skilland-missing-courseid {
+    margin: 20px 0;
+    padding: 20px;
+}
+
+form.mform:has(.skilland-missing-courseid) .fheader,
+form.mform:has(.skilland-missing-courseid) .fitem_fheader,
+form.mform:has(.skilland-missing-courseid) [class*="fheader"],
+form.mform:has(.skilland-missing-courseid) [id^="id_"][id$="header"],
+form.mform:has(.skilland-missing-courseid) .collapsible-actions,
+form.mform:has(.skilland-missing-courseid) .collapsed {
+    display: none !important;
+}
+
+/* Kept apart: a browser without complex :not() support drops only this rule, not the one above. */
+form.mform:has(.skilland-missing-courseid) h3:not(.skilland-missing-courseid h3),
+form.mform:has(.skilland-missing-courseid) h4:not(.skilland-missing-courseid h4) {
+    display: none !important;
+}
+
+/* The auto-filled Name/Description section, hidden by the module only when nothing there needs attention. */
+#id_general.skilland-hide-general { display: none; }
+
+/* Skilland Course display */
+#fitem_id_skilland_course_id_display .felement {
+    display: flex;
+    justify-content: space-between;
+    align-items: center !important;
+    width: 100%;
+}
+
+#fitem_id_skilland_course_id_display .skilland-course-name {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+#fitem_id_skilland_course_id_display .skilland-course-edit-link {
+    margin-left: auto;
+    font-size: 14px;
+}
+
+/* Topic selector */
+#id_skilland_topicid {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 8px 12px;
+    min-height: 44px;
+    width: 100%;
+}
+
+#id_skilland_topicid option {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 8px;
+}
+
+/* Edit in Skilland button */
+#skilland-edit-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-weight: 500;
+}
+
+#skilland-edit-link:hover {
+    text-decoration: none;
+}
+
+/* Lessons list */
+#id_lessons_container.skilland-lessons-box {
+    border: 1px solid #dee2e6;
+    padding: 10px;
+    border-radius: 4px;
+    background-color: #fafbfd;
+}
+
+#id_lessons_container.skilland-lessons-box.skilland-lessons-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-lessons-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-lesson-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-lesson-card:hover {
+    border-color: #5c068c;
+    box-shadow: 0 2px 8px rgba(92, 6, 140, 0.15);
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-lesson-checkbox {
+    margin-top: 4px;
+    margin-right: 6px;
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-lesson-content {
+    flex: 1;
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-lesson-title {
+    font-weight: 600;
+    color: #1f2933;
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-lesson-meta {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#id_lessons_container.skilland-lessons-box .skilland-new-content-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #92400e;
+    background-color: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 9999px;
+    white-space: nowrap;
+}
+
+/* Update from Skilland */
+#skilland-update-container {
+    margin-top: 12px;
+    padding: 12px;
+    background-color: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+}
+
+#skilland-update-container.d-none {
+    display: none;
+}
+
+#skilland-update-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #92400e;
+    background-color: #fcd34d;
+    border: 1px solid #f59e0b;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#skilland-update-btn:hover {
+    background-color: #fbbf24;
+}
+
+#skilland-update-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+#skilland-update-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #92400e;
+}
+
+#skilland-update-loading .spinner-border {
+    width: 1rem;
+    height: 1rem;
+}

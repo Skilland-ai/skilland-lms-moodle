@@ -9,25 +9,33 @@ use PHPUnit\Framework\TestCase;
  * selected_lessons from the ticked checkboxes, drops stale lesson responses,
  * and validation() rejects lessons outside the submitted topic.
  *
- * The inline JS has no runner, so its state machine is guarded by source text.
+ * The form's script (amd/src/mod_form.js since SKL-681) has no runner, so its state machine is
+ * guarded by source text; PHP-side checks (validation(), the init config) stay on mod_form.php.
  */
 class form_lesson_selection_test extends TestCase {
 
     private static string $form;
 
+    private static string $js;
+
+    private static string $css;
+
     public static function setUpBeforeClass(): void {
-        $contents = file_get_contents(realpath(__DIR__ . '/../../src') . '/mod_form.php');
-        self::assertNotFalse($contents);
-        self::$form = $contents;
+        $src = realpath(__DIR__ . '/../../src');
+        foreach (['form' => '/mod_form.php', 'js' => '/amd/src/mod_form.js', 'css' => '/styles.css'] as $prop => $file) {
+            $contents = file_get_contents($src . $file);
+            self::assertNotFalse($contents, "Cannot read $file");
+            self::${$prop} = $contents;
+        }
     }
 
     /**
-     * Returns the body of an inline JS function emitted from PHP, up to the
+     * Returns the body of a JS function declaration in the form's AMD module, up to the
      * first line that closes it at the declaration's indentation.
      */
     private function js_function_body(string $name): string {
         $pattern = '/^([ \t]*)function\s+' . preg_quote($name, '/') . '\s*\([^)]*\)\s*\{\n(.*?)^\1\}/ms';
-        $this->assertSame(1, preg_match($pattern, self::$form, $m), "JS function $name not found");
+        $this->assertSame(1, preg_match($pattern, self::$js, $m), "JS function $name not found");
         return $m[2];
     }
 
@@ -36,8 +44,41 @@ class form_lesson_selection_test extends TestCase {
      */
     private function change_handler_body(): string {
         $pattern = "/^([ \\t]*)topicSelect\\.addEventListener\\('change', function\\(\\) \\{\\n(.*?)^\\1\\}\\);/ms";
-        $this->assertSame(1, preg_match($pattern, self::$form, $m), 'Topic change handler not found');
+        $this->assertSame(1, preg_match($pattern, self::$js, $m), 'Topic change handler not found');
         return $m[2];
+    }
+
+    /**
+     * The language string keys the module requests through core/str, with their component.
+     *
+     * @return array<string, string> key => component
+     */
+    private function module_string_keys(): array {
+        $this->assertMatchesRegularExpression("#define\\(\\[[^\\]]*'core/str'#", self::$js);
+        $this->assertStringContainsString('Str.get_strings(', self::$js);
+        preg_match_all("/\\{key: '(\\w+)', component: '(\\w+)'/", self::$js, $m, PREG_SET_ORDER);
+        $keys = [];
+        foreach ($m as $match) {
+            $keys[$match[1]] = $match[2];
+        }
+        return $keys;
+    }
+
+    /**
+     * Asserts a key is requested through core/str by the module and exists in both language packs.
+     */
+    private function assert_module_string(string $key, string $component = 'mod_skilland'): void {
+        $keys = $this->module_string_keys();
+        $this->assertArrayHasKey($key, $keys, "'$key' is not fetched through core/str");
+        $this->assertSame($component, $keys[$key]);
+        if ($component !== 'mod_skilland') {
+            return;
+        }
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include realpath(__DIR__ . '/../../src') . "/lang/$lang/skilland.php";
+            $this->assertArrayHasKey($key, $string, "Missing '$key' in $lang");
+        }
     }
 
     private function method_body(string $method): string {
@@ -115,18 +156,19 @@ class form_lesson_selection_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // Inline JS source guards
+    // Form script (amd/src/mod_form.js) source guards
     // ---------------------------------------------------------------
 
     public function test_state_variables_are_declared(): void {
         foreach (['selectionsByTopic = {}', 'renderedTopicId = null', 'activeTopicId = null', 'lessonsRequestSeq = 0'] as $decl) {
-            $this->assertStringContainsString("var $decl;", self::$form);
+            $this->assertStringContainsString("var $decl;", self::$js);
         }
     }
 
     public function test_change_handler_no_longer_clears_by_saved_topic(): void {
         $handler = $this->change_handler_body();
         $this->assertStringNotContainsString('topicId !== currentTopicId', $handler);
+        $this->assertStringNotContainsString('topicId !== currentTopicId', self::$js);
         $this->assertStringNotContainsString('topicId !== currentTopicId', self::$form);
     }
 
@@ -148,16 +190,16 @@ class form_lesson_selection_test extends TestCase {
     }
 
     public function test_seed_uses_saved_topic_selection(): void {
-        $this->assertStringContainsString('selectionsByTopic[currentTopicId] = seededSelection;', self::$form);
+        $this->assertStringContainsString('selectionsByTopic[currentTopicId] = seededSelection;', self::$js);
         $this->assertMatchesRegularExpression(
             '/String\(savedTopicInput\.value\) === String\(currentTopicId\)\) \{\s*seededSelection = parseSelectedLessons\(selectedLessonsInput\.value\);/',
-            self::$form
+            self::$js
         );
     }
 
     public function test_render_lessons_restores_per_topic_selection_and_derives_the_hidden_value(): void {
         $render = $this->js_function_body('renderLessons');
-        $this->assertMatchesRegularExpression('/^\s*function renderLessons\(lessons, topicId\)/m', self::$form);
+        $this->assertMatchesRegularExpression('/^\s*function renderLessons\(lessons, topicId\)/m', self::$js);
         $this->assertStringContainsString('selectionsByTopic', $render);
         $this->assertStringNotContainsString('JSON.stringify(selectedState)', $render);
         $this->assertDoesNotMatchRegularExpression('/selectedLessonsInput\.value\s*=/', $render);
@@ -169,7 +211,7 @@ class form_lesson_selection_test extends TestCase {
         $this->assertStringContainsString('selectionsByTopic[renderedTopicId] = state;', $update);
         $this->assertStringContainsString("querySelectorAll('#id_lessons_container .skilland-lesson-checkbox')", $update);
         $this->assertStringContainsString('selectedLessonsInput.value = JSON.stringify(state);', $update);
-        $this->assertSame(1, substr_count(self::$form, 'selectionsByTopic[renderedTopicId] ='));
+        $this->assertSame(1, substr_count(self::$js, 'selectionsByTopic[renderedTopicId] ='));
     }
 
     public function test_fetch_lessons_drops_stale_responses_on_both_paths(): void {
@@ -191,7 +233,7 @@ class form_lesson_selection_test extends TestCase {
         $fetch = $this->js_function_body('fetchLessons');
         $lock = strpos($fetch, 'setLessonsLoading(true);');
         $this->assertNotFalse($lock);
-        $this->assertLessThan(strpos($fetch, 'ajax.call('), $lock);
+        $this->assertLessThan(strpos($fetch, 'Ajax.call('), $lock);
         // Rendered, empty, error response, rejected request.
         $this->assertSame(4, substr_count($fetch, 'setLessonsLoading(false);'));
         $this->assertStringContainsString('selectionsByTopic[topicId] = {};', $fetch);
@@ -239,7 +281,9 @@ class form_lesson_selection_test extends TestCase {
 
     public function test_has_scorm_is_emitted_from_the_saved_scormcmid(): void {
         $this->assertStringContainsString('$hasscorm = !empty($skilland->scormcmid);', self::$form);
-        $this->assertStringContainsString('var hasScorm = " . json_encode($hasscorm) . ";', self::$form);
+        // SKL-681: handed to the module in its init config instead of a json_encode() splice.
+        $this->assertStringContainsString("'hasscorm' => \$hasscorm,", self::$form);
+        $this->assertStringContainsString('var hasScorm = !!config.hasscorm;', self::$js);
     }
 
     public function test_confirm_guard_sits_at_the_top_of_the_change_handler(): void {
@@ -268,16 +312,29 @@ class form_lesson_selection_test extends TestCase {
         }
     }
 
-    public function test_confirm_strings_are_hex_escaped_lang_strings(): void {
-        // SKL-697: the message and action label are now composed server-side (student count,
-        // "Lock after first access" hint) into $topicchangeconfirmmessagetext /
-        // $topicchangeconfirmactionlabel before being hex-escaped, so only the title is still a
-        // literal get_string() call at the json_encode() site.
-        $flags = 'JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE';
+    public function test_confirm_strings_come_from_core_str(): void {
+        // SKL-681: the confirmation copy is no longer composed and hex-escaped in PHP; the module
+        // fetches every piece through core/str and composes it from the student count (SKL-697).
+        $this->assertStringNotContainsString('json_encode(get_string(', self::$form);
+        $this->assertStringNotContainsString('$topicchangeconfirmmessagetext', self::$form);
+        foreach (['topic_change_confirm_title', 'topic_change_confirm', 'topic_change_confirm_students',
+                'destructive_confirm_action', 'lockafterfirstaccess', 'lockafterfirstaccess_hint'] as $key) {
+            $this->assert_module_string($key);
+        }
+        $this->assert_module_string('yes', 'core');
+        $this->assert_module_string('no', 'core');
         $this->assertStringContainsString(
-            "json_encode(get_string('topic_change_confirm_title', 'mod_skilland'), $flags)", self::$form);
-        $this->assertStringContainsString("json_encode(\$topicchangeconfirmmessagetext, $flags)", self::$form);
-        $this->assertStringContainsString("json_encode(\$topicchangeconfirmactionlabel, $flags)", self::$form);
+            "{key: 'topic_change_confirm_students', component: 'mod_skilland', param: studentCount}", self::$js);
+        $this->assertStringContainsString("'studentattemptcount' => (int) \$topicstudentattemptcount,", self::$form);
+        $this->assertStringContainsString('var topicChangeConfirmTitle = strings.topic_change_confirm_title;', self::$js);
+        $this->assertMatchesRegularExpression(
+            '/var topicChangeConfirmMessage = \(studentAttemptCount > 0 \?\s*strings\.topic_change_confirm_students : strings\.topic_change_confirm\) \+ \' \' \+ lockAfterFirstAccessHint;/',
+            self::$js
+        );
+        $this->assertStringContainsString(
+            'var topicChangeConfirmActionLabel = studentAttemptCount > 0 ? strings.destructive_confirm_action : strings.yes;',
+            self::$js
+        );
     }
 
     // ---------------------------------------------------------------
@@ -296,6 +353,7 @@ class form_lesson_selection_test extends TestCase {
         $render = $this->js_function_body('renderLessons');
         $this->assertDoesNotMatchRegularExpression('/updatedAt:\s*lesson\.updatedAt/', $render);
         $this->assertDoesNotMatchRegularExpression('/(selectedState|savedSelection|selectionsByTopic)\[[^\]]+\]\s*=/', $render);
+        $this->assertDoesNotMatchRegularExpression('/(?<!\$)currentSelectedLessons\[[^\]]+\]\s*=[^=]/', self::$js);
         $this->assertDoesNotMatchRegularExpression('/(?<!\$)currentSelectedLessons\[[^\]]+\]\s*=[^=]/', self::$form);
     }
 
@@ -343,8 +401,10 @@ class form_lesson_selection_test extends TestCase {
     }
 
     public function test_general_section_hidden_by_toggled_class_not_unconditional_css(): void {
+        // SKL-681: the rule lives in the plugin stylesheet, no longer in an inline <style>.
+        $this->assertStringNotContainsString('#id_general { display: none; }', self::$css);
         $this->assertStringNotContainsString('#id_general { display: none; }', self::$form);
-        $this->assertStringContainsString('#id_general.skilland-hide-general { display: none; }', self::$form);
+        $this->assertStringContainsString('#id_general.skilland-hide-general { display: none; }', self::$css);
     }
 
     public function test_general_section_visibility_skips_hiding_on_a_name_error(): void {
@@ -358,9 +418,9 @@ class form_lesson_selection_test extends TestCase {
     }
 
     public function test_topic_fetch_is_a_named_retryable_function(): void {
-        $this->assertMatchesRegularExpression('/^\s*function fetchTopics\(\)/m', self::$form);
+        $this->assertMatchesRegularExpression('/^\s*function fetchTopics\(\)/m', self::$js);
         // Called once to load the form, and once more from the Retry control's click handler.
-        $this->assertSame(2, substr_count(self::$form, 'fetchTopics();'));
+        $this->assertSame(2, substr_count(self::$js, 'fetchTopics();'));
     }
 
     public function test_fetch_topics_clears_the_retry_control_on_every_call(): void {
@@ -381,8 +441,8 @@ class form_lesson_selection_test extends TestCase {
         $this->assertStringContainsString('fetchTopics();', $retry);
 
         // Both the response.error and the rejected-promise branches keep the form usable.
-        $this->assertMatchesRegularExpression('/if \(response\.error\) \{\s*showTopicFetchError\(\);/', self::$form);
-        $this->assertMatchesRegularExpression('/\}\)\.catch\(function\(error\) \{\s*log\([^\n]*\);\s*showTopicFetchError\(\);/', self::$form);
+        $this->assertMatchesRegularExpression('/if \(response\.error\) \{\s*showTopicFetchError\(\);/', self::$js);
+        $this->assertMatchesRegularExpression('/\}\)\.catch\(function\(error\) \{\s*log\([^\n]*\);\s*showTopicFetchError\(\);/', self::$js);
     }
 
     public function test_stale_saved_topic_is_kept_as_a_disabled_selected_option(): void {
@@ -395,9 +455,9 @@ class form_lesson_selection_test extends TestCase {
         // is still in the fresh list; otherwise it keeps the saved topic id and lessons intact.
         $this->assertMatchesRegularExpression(
             '/if \(topicsMap\[currentTopicId\]\) \{.*?\} else \{\s*addStaleTopicOption\(currentTopicId\);/s',
-            self::$form
+            self::$js
         );
-        $this->assertStringContainsString("type: 'warning'", self::$form);
+        $this->assertStringContainsString("type: 'warning'", self::$js);
     }
 
     public function test_stale_topic_lessons_are_not_wiped(): void {
@@ -447,5 +507,107 @@ class form_lesson_selection_test extends TestCase {
         $plugin = new \stdClass();
         include realpath(__DIR__ . '/../../src') . '/version.php';
         $this->assertGreaterThan(2026092621, $plugin->version);
+    }
+
+    // ---------------------------------------------------------------
+    // SKL-681: the form's JS and CSS live in amd/src/mod_form.js and styles.css
+    // ---------------------------------------------------------------
+
+    public function test_form_emits_no_inline_script_or_style(): void {
+        foreach (['<script', '<style', 'style="', "'style' =>", '$js = "', 'json_encode(get_string('] as $needle) {
+            $this->assertStringNotContainsString($needle, self::$form, "mod_form.php still contains $needle");
+        }
+        // Loaded as an AMD module, both for the full form and for the missing Skilland Course ID notice.
+        $this->assertSame(2, substr_count(self::$form, "\$PAGE->requires->js_call_amd('mod_skilland/mod_form', 'init', [["));
+        $this->assertStringContainsString("[['missingcourseid' => true]]", self::$form);
+    }
+
+    public function test_init_config_carries_every_php_value_the_script_reads(): void {
+        foreach (['debug', 'skillandcourseid', 'moodlecourseid', 'currenttopicid', 'currentlessonsid', 'hasscorm',
+                'studentattemptcount', 'skillandinstanceid', 'cmid', 'ssourl', 'editlinkhtml'] as $key) {
+            $this->assertMatchesRegularExpression("/'$key' => /", self::$form, "'$key' missing from the init config");
+            $this->assertStringContainsString("config.$key", self::$js, "the module never reads config.$key");
+        }
+        $this->assertStringContainsString("'debug' => (bool) get_config('mod_skilland', 'devmode'),", self::$form);
+        $this->assertStringContainsString("'ssourl' => (new moodle_url('/mod/skilland/sso_redirect.php'))->out(false),",
+            self::$form);
+        // The saved lessons can exceed js_call_amd's argument budget: they travel as a data attribute.
+        $this->assertStringContainsString("'data-lessons' => json_encode(\$currentSelectedLessons),", self::$form);
+        $this->assertStringContainsString("holder.getAttribute('data-lessons')", self::$js);
+    }
+
+    public function test_every_script_string_comes_from_core_str_and_exists_in_both_languages(): void {
+        // Each of these was a json_encode(get_string(...)) literal in mod_form.php before SKL-681.
+        foreach (['loading', 'error_fetch_topics', 'error_fetch_topics_detail', 'select_topic', 'no_topics_available',
+                'no_lessons_found', 'current_topic_unavailable', 'topic_no_longer_available',
+                'topic_no_longer_available_warning', 'retry', 'missing_lessons_warning', 'remove_from_activity',
+                'new_content_available', 'updated_on', 'update_confirm_title', 'update_confirm_message',
+                'update_confirm_message_students', 'update_success', 'update_error'] as $key) {
+            $this->assert_module_string($key);
+        }
+        $this->assertStringNotContainsString('get_new_content_string', self::$form);
+    }
+
+    public function test_placeholder_strings_are_filled_through_core_str_not_a_literal_replace(): void {
+        // SKL-696 passed '{$a}' through literally and replaced it in JS; SKL-681 hands core/str a
+        // placeholder as the parameter and swaps it with a literal split/join (no "$&" patterns).
+        $this->assertStringNotContainsString("replace('{\$a}'", self::$js);
+        $this->assertStringNotContainsString("replace('{\\\$a}'", self::$js);
+        foreach (['updated_on' => 'datePlaceholder', 'error_fetch_topics_detail' => 'errorPlaceholder',
+                'lockafterfirstaccess_hint' => 'settingPlaceholder'] as $key => $placeholder) {
+            $this->assertStringContainsString("{key: '$key', component: 'mod_skilland', param: $placeholder}", self::$js);
+        }
+        $fill = $this->js_function_body('fillIn');
+        $this->assertStringContainsString('.split(placeholder).join(String(value))', $fill);
+        $this->assertStringContainsString('fillIn(strings.updated_on, datePlaceholder, date.toLocaleString())', self::$js);
+        $this->assertSame(2, substr_count(self::$js, 'escapeHtml(fillIn(strings.error_fetch_topics_detail, errorPlaceholder,'));
+        // The count-dependent variants take the student count straight through core/str.
+        $this->assertStringContainsString(
+            "{key: 'update_confirm_message_students', component: 'mod_skilland', param: studentCount}", self::$js);
+    }
+
+    public function test_handlers_are_bound_only_after_the_strings_resolve(): void {
+        $init = substr(self::$js, strpos(self::$js, 'var init = function(config) {'));
+        $disable = strpos($init, 'topicSelect.disabled = true;');
+        $fetch = strpos($init, 'Str.get_strings(requests)');
+        $this->assertNotFalse($disable);
+        $this->assertNotFalse($fetch);
+        $this->assertLessThan($fetch, $disable, 'The topic select must be disabled before the strings are requested');
+        $this->assertStringContainsString('updateBtn.disabled = true;', $init);
+        // The form proper only starts from the strings promise, on success or failure.
+        $this->assertSame(1, substr_count(self::$js, 'initActivityForm(config, strings);'));
+        $this->assertMatchesRegularExpression(
+            '/Str\.get_strings\(requests\)\.done\(start\)\.fail\(function\(error\) \{[^}]*Notification\.exception\(error\);\s*start\(null\);/s',
+            $init
+        );
+    }
+
+    public function test_stylesheet_is_scoped_to_the_plugin(): void {
+        // styles.css is loaded on every Moodle page: every rule must target something only this plugin renders.
+        $css = preg_replace('#/\*.*?\*/#s', '', self::$css);
+        $this->assertGreaterThan(0, preg_match_all('/([^{}]+)\{[^{}]*\}/', $css, $m));
+        foreach ($m[1] as $selectorlist) {
+            foreach (explode(',', $selectorlist) as $selector) {
+                $this->assertStringContainsString('skilland', $selector, 'Unscoped selector: ' . trim($selector));
+            }
+        }
+        // The "no Skilland Course ID" rules only match a form that holds the warning PHP renders.
+        $this->assertStringContainsString("'alert alert-warning skilland-missing-courseid'", self::$form);
+        $this->assertStringContainsString('form.mform:has(.skilland-missing-courseid) .fheader,', self::$css);
+        $this->assertStringNotContainsString("\nform.mform .fheader", self::$css);
+    }
+
+    public function test_hidden_containers_are_toggled_by_class(): void {
+        // The inline display:none moved to d-none, so the module toggles the class, not style.display.
+        $this->assertStringContainsString('id="skilland-edit-button-container" class="form-group row fitem d-none"', self::$form);
+        $this->assertStringContainsString('id="skilland-select-actions" class="mb-2 d-none"', self::$form);
+        $edit = $this->js_function_body('updateEditButton');
+        $this->assertStringContainsString("editButtonContainer.classList.remove('d-none');", $edit);
+        $this->assertStringContainsString("editButtonContainer.classList.add('d-none');", $edit);
+        $this->assertStringContainsString("selectActions.classList.remove('d-none');", $this->js_function_body('renderLessons'));
+    }
+
+    public function test_built_module_is_committed(): void {
+        $this->assertFileExists(realpath(__DIR__ . '/../../src') . '/amd/build/mod_form.min.js');
     }
 }
