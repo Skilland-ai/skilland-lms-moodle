@@ -177,6 +177,8 @@ Data export and deletion requests cover that local table. Data already sent to S
 
 For instructions on how to set up the development environment, build the plugin, and contribute, please refer to [DEVELOPMENT.md](DEVELOPMENT.md).
 
+Tests: a fast stub PHPUnit suite (`npm run test:unit`) plus real Moodle PHPUnit and Behat tests in `src/tests`, run by moodle-plugin-ci; see [DEVELOPMENT.md › Tests](DEVELOPMENT.md#tests).
+
 ---
 
 ## 💬 Support

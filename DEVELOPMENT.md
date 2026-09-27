@@ -272,6 +272,37 @@ For issues or questions:
 2. Review this guide and the main README
 3. Contact the development team
 
+## Tests
+
+The plugin has two PHPUnit layers. Use the stub suite for fast feedback and the real Moodle suite for anything that touches the database, capabilities, events or the Moodle APIs themselves.
+
+### Stub suite (`tests/phpunit`)
+
+A fast smoke layer that needs no Moodle install: `npm run test:unit` (Composer and `php:8.2-cli` in Docker, config in the root `phpunit.xml`, bootstrap `tests/phpunit/bootstrap.php`). Moodle is replaced by hand-written stubs in `tests/phpunit/stubs`, so a passing run proves the plugin's own logic, not its integration with Moodle. In particular `FakeDatabase` answers raw SQL (`get_record_sql`, `get_records_sql`) with nothing unless a test installs a canned handler, and `get_records_select` with the whole unfiltered table, so SQL paths are only exercised on their empty path. It runs in the pre-commit hook and in the `test` job of `ci.yml`.
+
+### Real Moodle suite (`src/tests`)
+
+`advanced_testcase` tests against a real `$DB`, the data generator (`src/tests/generator`) and Behat features (`src/tests/behat`). CI runs them with moodle-plugin-ci in `.github/workflows/moodle-plugin-ci.yml`. Locally, put the plugin into a Moodle 4.5 checkout (`src/` as `<moodle>/mod/skilland`) and use Moodle's own runners:
+
+```bash
+php admin/tool/phpunit/cli/init.php
+vendor/bin/phpunit --testsuite mod_skilland_testsuite
+php admin/tool/behat/cli/init.php
+vendor/bin/behat --config <behat_dataroot>/behatrun/behat/behat.yml --tags=@mod_skilland
+```
+
+### Seams instead of test hooks
+
+Production code never carries `$GLOBALS` test hooks. Everything a test needs to replace is a service resolved from Moodle's DI container (`\core\di`, Moodle 4.4+):
+
+| Seam | Default | Used by |
+|------|---------|---------|
+| `\mod_skilland\local\api_client` | `http_api_client`, bound in `mod_skilland\hooks::di_configuration()` (registered in `db/hooks.php`); on a Behat site `local\testing\fixture_api_client` | `mod_skilland_graphql()`, `mod_skilland_download_package()` - every call to SkilLand |
+| `\mod_skilland\local\topic_scorm_updater` | itself (wraps `skilland_update_topic_scorm()`) | `skilland_update_instance()`, the `sync_content` task, the `update_topic_scorm` web service |
+| `\mod_skilland\local\retry_sleeper` | itself (`usleep`) | `mod_skilland_retry_sleep()` between GraphQL retries |
+
+A test replaces one with `\core\di::set(api_client::class, $fake)`; Moodle's `advanced_testcase` resets the container between tests. The stub suite ships a `\core\di` stub with the same `get` / `set` / `reset_container` API plus doubles in `tests/phpunit/stubs/test_doubles.php`: `fake_api_client` (canned responses keyed by GraphQL operation name, falling back to the curl stub; `fake_api_client::topic_snapshot($hash)` for `TopicScormHash`), `fake_topic_scorm_updater` (a fixed cmid or a closure) and `recording_retry_sleeper` (the suite default, so no stub test ever sleeps). A stub test that binds a double calls `\core\di::reset_container()` in `setUp()` and `tearDown()`.
+
 ## E2E tests
 
 The Playwright suite in `tests/e2e` needs **only a running Moodle** with the plugin installed: no SkilLand backend, frontend or database. It is local only (no CI job).
@@ -302,7 +333,7 @@ Only `mod_skilland_fetch_courses_ajax` has a default answer, because every cours
 
 **Tests fail loudly.** A test fails when the page calls a `mod_skilland_*` method it did not mock, logs a `console.error`, or throws an uncaught error. Allow an expected one with `expectConsoleError(/pattern/)` (or `skillandMock.expectConsoleError`); `skillandMock.abort()` allows the `net::ERR_FAILED` it causes. Use `test.skip` only for a real environment toggle, never to hide a missing precondition, and wait on `expect(...)`, `waitForURL` or `expect.poll` rather than `waitForTimeout`.
 
-Behaviour that runs server-side against SkilLand's GraphQL API (saving an activity, SCORM provisioning and updates, the `sync_content` task) cannot be reached from the browser mock and is covered by PHPUnit in `tests/phpunit`.
+Behaviour that runs server-side against SkilLand's GraphQL API (saving an activity, SCORM provisioning and updates, the `sync_content` task) cannot be reached from the browser mock and is covered by PHPUnit (see [Tests](#tests)).
 
 Every spec creates its own Moodle course through the `moodleCourse` fixture, so a spec passes alone (`npx playwright test --config=tests/e2e/playwright.config.js --grep "<title>"`) and in parallel (`--workers=4`); the default stays `workers: 1`.
 
