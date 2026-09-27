@@ -39,6 +39,10 @@ class http_api_client implements api_client {
 
     /**
      * {@inheritDoc}
+     *
+     * @param string $query The GraphQL document.
+     * @param array $variables Query variables; an empty array is sent as an empty JSON object.
+     * @return array The decoded `data` member of the response (an empty array when absent).
      */
     public function graphql(string $query, array $variables = []): array {
         return mod_skilland_graphql_http($query, $variables);
@@ -46,6 +50,10 @@ class http_api_client implements api_client {
 
     /**
      * {@inheritDoc}
+     *
+     * @param string $packageurl HTTPS URL on an allowed package host.
+     * @param int $expectedsize Size in bytes the API announced for the package; 0 skips the check.
+     * @return string Path of the downloaded zip; the caller deletes it.
      */
     public function rest_get(string $path): array {
         return mod_skilland_rest_get_http($path);

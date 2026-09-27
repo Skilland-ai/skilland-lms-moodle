@@ -29,6 +29,9 @@ use mod_skilland\logger;
 
 /**
  * Returns the information on whether the module supports a feature.
+ *
+ * @param string $feature FEATURE_xx constant for requested feature
+ * @return mixed True if module supports feature, false if not, null if doesn't know
  */
 function skilland_supports($feature) {
     switch ($feature) {
