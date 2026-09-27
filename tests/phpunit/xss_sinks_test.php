@@ -253,8 +253,16 @@ class xss_sinks_test extends TestCase {
      */
     public function test_modules_take_their_strings_from_core_str(string $file): void {
         $source = $this->source($file);
-        $this->assertMatchesRegularExpression("#define\(\[[^\]]*'core/str'#", $source);
-        $this->assertStringContainsString('get_strings(', $source);
+        // course_mapping.js takes its strings through the shared mod_skilland/local/string_loader
+        // helper (SKL-773) instead of calling core/str directly; mod_form.js still calls it inline.
+        if (str_contains($source, "'mod_skilland/local/string_loader'")) {
+            $loader = file_get_contents(__DIR__ . '/../../src/amd/src/local/string_loader.js');
+            $this->assertMatchesRegularExpression("#define\(\[[^\]]*'core/str'#", $loader);
+            $this->assertStringContainsString('get_strings(', $loader);
+        } else {
+            $this->assertMatchesRegularExpression("#define\(\[[^\]]*'core/str'#", $source);
+            $this->assertStringContainsString('get_strings(', $source);
+        }
         // A string that cannot be loaded is reported, never replaced by hardcoded text.
         $this->assertStringContainsString('Notification.exception', $source);
     }

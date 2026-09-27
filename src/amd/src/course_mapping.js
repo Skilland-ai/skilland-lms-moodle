@@ -10,7 +10,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notification, Str) {
+define(['core/ajax', 'core/notification', 'mod_skilland/local/string_loader'], function(Ajax, Notification, StringLoader) {
 
     /** @var {boolean} debug Whether devmode console logging is enabled */
     var debug = false;
@@ -65,28 +65,6 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
-    }
-
-    /**
-     * Fetch every string in STRINGS.
-     *
-     * @return {Promise} Resolved with an object of strings keyed by their STRINGS name.
-     */
-    function loadStrings() {
-        var requests = STRINGS.map(function(entry) {
-            var request = {key: entry.key, component: 'mod_skilland'};
-            if (entry.param !== undefined) {
-                request.param = entry.param;
-            }
-            return request;
-        });
-        return Str.get_strings(requests).then(function(values) {
-            var strings = {};
-            STRINGS.forEach(function(entry, index) {
-                strings[entry.name] = values[index];
-            });
-            return strings;
-        });
     }
 
     /**
@@ -321,7 +299,7 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
 
         // Nothing is built or bound before the strings resolve; if they never do, the plain
         // text input stays in place and still submits the value.
-        loadStrings().then(function(strings) {
+        StringLoader.loadStrings(STRINGS).then(function(strings) {
             insertGoToSkillandButton(fieldInput, config.ssourl, strings.goToSkilland);
             buildMappingField(fieldInput, config, strings);
             return strings;
