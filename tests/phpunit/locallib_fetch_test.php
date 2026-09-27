@@ -496,7 +496,7 @@ class locallib_fetch_test extends TestCase {
     public function test_rest_never_logs_the_api_key(): void {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object) [
             'orgid' => 'org1',
-            'apikey' => 'sk_live_supersecret',
+            'apikey' => 'unit-test-api-key-0123456789',
             'graphql_endpoint' => '',
             'frontend_url' => 'https://app.skilland.test',
             'devmode' => 1,
@@ -514,7 +514,9 @@ class locallib_fetch_test extends TestCase {
 
         $log = $this->logText();
         $this->assertStringContainsString('[REST]', $log);
-        $this->assertStringNotContainsString('sk_live_supersecret', $log);
+        $this->assertStringNotContainsString('unit-test-api-key-0123456789', $log);
+        // The key was really sent, so its absence from the log is not an accident.
+        $this->assertContains('Authorization: Bearer unit-test-api-key-0123456789', $GLOBALS['_test_curl_last']['headers']);
         $this->assertStringNotContainsString('X-Amz-Signature', $log);
     }
 
