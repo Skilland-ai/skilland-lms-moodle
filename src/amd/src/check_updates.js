@@ -11,7 +11,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Ajax, Notification, Str) {
+define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'mod_skilland/local/string_loader'],
+        function($, Ajax, Notification, Str, StringLoader) {
 
     /**
      * Initialize the update checker.
@@ -77,35 +78,35 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str'], function($, Aja
      * @param {number} studentCount Students with progress on this topic that an update would delete.
      */
     var showUpdateBanner = function(skillandId, cmId, newHash, studentCount) {
-        Str.get_strings([
-            {key: 'update_available', component: 'mod_skilland'},
-            {key: 'update_available_desc', component: 'mod_skilland'},
-            {key: 'update_from_skilland', component: 'mod_skilland'},
-            {key: 'update_confirm_title', component: 'mod_skilland'},
-            {key: 'update_confirm_message', component: 'mod_skilland'},
-            {key: 'update_confirm_message_students', component: 'mod_skilland', param: studentCount},
-            {key: 'updating', component: 'mod_skilland'},
-            {key: 'destructive_confirm_action', component: 'mod_skilland'},
-            {key: 'lockafterfirstaccess', component: 'mod_skilland'},
-            {key: 'update_error', component: 'mod_skilland'}
-        ]).done(function(strings) {
-            var title = strings[0];
-            var desc = strings[1];
-            var buttonText = strings[2];
-            var confirmTitle = strings[3];
-            var updatingText = strings[6];
-            var destructiveActionLabel = strings[7];
-            var lockLabel = strings[8];
-            var updateErrorText = strings[9];
+        StringLoader.loadStrings([
+            {name: 'title', key: 'update_available'},
+            {name: 'desc', key: 'update_available_desc'},
+            {name: 'buttonText', key: 'update_from_skilland'},
+            {name: 'confirmTitle', key: 'update_confirm_title'},
+            {name: 'confirmMessage', key: 'update_confirm_message'},
+            {name: 'confirmMessageStudents', key: 'update_confirm_message_students', param: studentCount},
+            {name: 'updatingText', key: 'updating'},
+            {name: 'destructiveActionLabel', key: 'destructive_confirm_action'},
+            {name: 'lockLabel', key: 'lockafterfirstaccess'},
+            {name: 'updateErrorText', key: 'update_error'}
+        ]).then(function(strings) {
+            var title = strings.title;
+            var desc = strings.desc;
+            var buttonText = strings.buttonText;
+            var confirmTitle = strings.confirmTitle;
+            var updatingText = strings.updatingText;
+            var destructiveActionLabel = strings.destructiveActionLabel;
+            var lockLabel = strings.lockLabel;
+            var updateErrorText = strings.updateErrorText;
 
             var hasStudents = studentCount > 0;
-            var confirmMessage = hasStudents ? strings[5] : strings[4];
+            var confirmMessage = hasStudents ? strings.confirmMessageStudents : strings.confirmMessage;
             var confirmActionLabel = hasStudents ? destructiveActionLabel : buttonText;
 
-            Str.get_string('lockafterfirstaccess_hint', 'mod_skilland', lockLabel).done(function(lockHint) {
+            Str.get_string('lockafterfirstaccess_hint', 'mod_skilland', lockLabel).then(function(lockHint) {
                 confirmMessage = confirmMessage + ' ' + lockHint;
                 renderBanner(confirmMessage);
-            }).fail(function() {
+            }).catch(function() {
                 renderBanner(confirmMessage);
             });
 

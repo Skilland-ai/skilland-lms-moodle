@@ -141,7 +141,7 @@ class course_mapping_field_test extends TestCase {
         $source = self::module_source();
         $start = $this->js_function_body($source, 'start');
         $this->assertMatchesRegularExpression(
-            '/loadStrings\(\)\.then\(function\(strings\)\s*\{[^}]*buildMappingField\(fieldInput, config, strings\);/s',
+            '/StringLoader\.loadStrings\(STRINGS\)\.then\(function\(strings\)\s*\{[^}]*buildMappingField\(fieldInput, config, strings\);/s',
             $start
         );
         $this->assertStringContainsString('.catch(Notification.exception);', $start);
@@ -198,7 +198,9 @@ class course_mapping_field_test extends TestCase {
     public function test_new_strings_reach_js_through_core_str(): void {
         $source = self::module_source();
         $hooks = self::hooks_source();
-        $this->assertStringContainsString('Str.get_strings(', $source);
+        $loader = file_get_contents(__DIR__ . '/../../src/amd/src/local/string_loader.js');
+        $this->assertStringContainsString('mod_skilland/local/string_loader', $source);
+        $this->assertStringContainsString('Str.get_strings(', $loader);
         foreach (['create_course_confirm_title', 'create_course_confirm_body', 'create_course_confirm_replace',
                 'create_course_confirm_yes', 'course_unknown', 'course_unknown_warning'] as $key) {
             $this->assertMatchesRegularExpression("/key:\s*'$key'/", $source, "$key is not fetched through core/str");
