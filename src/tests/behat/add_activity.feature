@@ -24,6 +24,8 @@ Feature: Teachers add a SkilLand activity to a course
     And I should see "L1.2 - Lesson two"
     And the field "lesson_lesson-1" matches value "1"
     And the field "lesson_lesson-2" matches value "1"
+    # The lang string's {$a} placeholder is filled in by the form's JS with the lesson's date.
+    And "//div[contains(@class, 'skilland-lesson-meta')][starts-with(normalize-space(.), 'Updated ')][not(contains(., '{$a}'))]" "xpath_element" should exist
     And I set the field "lesson_lesson-2" to "0"
     And I press "Save and display"
     And I should see "Content Not Yet Available"

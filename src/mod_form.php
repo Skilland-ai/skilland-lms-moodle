@@ -838,7 +838,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                         if (isNaN(date.getTime())) {
                             return '';
                         }
-                        return updatedOnTemplate.replace('{$a}', date.toLocaleString());
+                        return updatedOnTemplate.replace('{\$a}', date.toLocaleString());
                     }
 
                     function parseTimestamp(value) {
@@ -1331,7 +1331,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 if (response.error) {
                                     showTopicFetchError();
                                     notification.addNotification({
-                                        message: escapeHtml(errorFetchTopicsDetailTemplate.replace('{$a}', response.error)),
+                                        message: escapeHtml(errorFetchTopicsDetailTemplate.replace('{\$a}', response.error)),
                                         type: 'error'
                                     });
                                     return;
@@ -1415,7 +1415,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                                 log('Skilland: AJAX error', error && error.message);
                                 showTopicFetchError();
                                 notification.addNotification({
-                                    message: escapeHtml(errorFetchTopicsDetailTemplate.replace('{$a}', error.message || JSON.stringify(error))),
+                                    message: escapeHtml(errorFetchTopicsDetailTemplate.replace('{\$a}', error.message || JSON.stringify(error))),
                                     type: 'error'
                                 });
                             });
