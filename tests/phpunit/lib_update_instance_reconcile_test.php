@@ -17,8 +17,8 @@ class lib_update_instance_reconcile_test extends TestCase {
         '_test_lock_available', '_test_lock_calls', '_test_create_module_calls', '_test_create_module_throw',
         '_test_scorm_scoes', '_test_events', '_test_deleted_cmids', '_test_course_delete_throw',
         '_test_set_visible_calls', '_test_stored_files', '_test_cm_from_db', '_test_get_coursemodule_from_id',
-        '_test_get_coursemodule_from_instance', '_test_update_topic_scorm', '_test_notifications',
-        '_test_customfield_value', '_test_dispatch_observers', '_test_topic_snapshot',
+        '_test_get_coursemodule_from_instance', '_test_notifications', '_test_customfield_value',
+        '_test_dispatch_observers',
     ];
 
     protected function setUp(): void {
@@ -26,15 +26,16 @@ class lib_update_instance_reconcile_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         $this->db = new \FakeDatabase();
         $GLOBALS['DB'] = $this->db;
         $GLOBALS['USER'] = (object) ['id' => 2];
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_cm_from_db'] = true;
         $GLOBALS['_test_customfield_value'] = [3 => 'skill-a'];
-        // SKL-649: default to "no hash" via the test hook so provisioning's content-hash fetch
+        // SKL-649: default to "no hash" via the fake api_client so provisioning's content-hash fetch
         // never consumes the curl queue set up for the package download below.
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object) ['id' => 90, 'instance' => 7, 'course' => 3,
             'section' => 11];
         $GLOBALS['_test_scorm_scoes'] = [
@@ -77,6 +78,7 @@ class lib_update_instance_reconcile_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         $GLOBALS['_test_plugin_config'] = [];
         parent::tearDown();
     }
@@ -201,7 +203,7 @@ class lib_update_instance_reconcile_test extends TestCase {
         $this->queue_reprovision();
         // SKL-649: reprovisioning for the new topic fetches and stores its own content hash,
         // regardless of the reset snapshotid the topic change wrote for the old topic.
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'topic2hash', 'generatedAt' => '2026-02-01T00:00:00Z'];
+        \fake_api_client::topic_snapshot(['contentHash' => 'topic2hash', 'generatedAt' => '2026-02-01T00:00:00Z']);
 
         $this->assertTrue(skilland_update_instance($this->formdata('topic2', ['M1', 'M2'])));
 

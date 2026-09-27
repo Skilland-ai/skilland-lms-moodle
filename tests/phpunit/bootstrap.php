@@ -12,6 +12,7 @@ require_once __DIR__ . '/stubs/moodle_stubs.php';
 require_once __DIR__ . '/stubs/fake_database.php';
 require_once __DIR__ . '/stubs/ziparchive.php';
 require_once __DIR__ . '/stubs/core_external.php';
+require_once __DIR__ . '/stubs/di_stub.php';
 
 // Global $DB — lightweight in-memory mock.
 $GLOBALS['DB'] = new FakeDatabase();
@@ -27,8 +28,6 @@ $GLOBALS['CFG'] = $CFG;
 // Track calls to debugging() for assertions.
 $GLOBALS['_test_debug_messages'] = [];
 $GLOBALS['_test_plugin_config'] = [];
-// GraphQL retry delays are recorded here instead of slept (mod_skilland_retry_sleep()).
-$GLOBALS['_test_skilland_sleeps'] = [];
 
 if (!function_exists('debugging')) {
     function debugging(string $message, int $level = DEBUG_NORMAL): void {
@@ -72,3 +71,8 @@ require_once __DIR__ . '/../../src/lib.php';
 
 // Load view.php function definitions (extracted to avoid script-level code).
 require_once __DIR__ . '/stubs/view_functions.php';
+
+// Doubles for the plugin's \core\di seams. GraphQL retry delays are recorded instead of slept
+// in every test; a test that asserts them binds its own recording_retry_sleeper.
+require_once __DIR__ . '/stubs/test_doubles.php';
+\core\di::set_suite_default(\mod_skilland\local\retry_sleeper::class, fn() => new recording_retry_sleeper());

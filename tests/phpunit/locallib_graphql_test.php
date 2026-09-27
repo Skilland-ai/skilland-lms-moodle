@@ -6,8 +6,14 @@ use PHPUnit\Framework\TestCase;
 
 class locallib_graphql_test extends TestCase {
 
+    /** @var \recording_retry_sleeper Records the GraphQL retry delays instead of sleeping. */
+    private $sleeper;
+
     protected function setUp(): void {
         parent::setUp();
+        \core\di::reset_container();
+        $this->sleeper = new \recording_retry_sleeper();
+        \core\di::set(\mod_skilland\local\retry_sleeper::class, $this->sleeper);
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
         unset($GLOBALS['_test_curl_response']);
@@ -16,7 +22,7 @@ class locallib_graphql_test extends TestCase {
 
     protected function tearDown(): void {
         unset($GLOBALS['_test_curl_response'], $GLOBALS['_test_curl_responses'], $GLOBALS['_test_curl_requests']);
-        $GLOBALS['_test_skilland_sleeps'] = [];
+        \core\di::reset_container();
         parent::tearDown();
     }
 
@@ -674,7 +680,7 @@ class locallib_graphql_test extends TestCase {
         unset($GLOBALS['_test_curl_response']);
         $GLOBALS['_test_curl_responses'] = $responses;
         $GLOBALS['_test_curl_requests'] = [];
-        $GLOBALS['_test_skilland_sleeps'] = [];
+        $this->sleeper->sleeps = [];
     }
 
     private static function resp(int $code, string $body = '', int $errno = 0, array $headers = []): array {
@@ -777,9 +783,9 @@ class locallib_graphql_test extends TestCase {
 
         $this->assertSame('1', $data['courses'][0]['id']);
         $this->assertSame(2, $this->requests());
-        $this->assertCount(1, $GLOBALS['_test_skilland_sleeps']);
-        $this->assertGreaterThanOrEqual(250, $GLOBALS['_test_skilland_sleeps'][0]);
-        $this->assertLessThanOrEqual(500, $GLOBALS['_test_skilland_sleeps'][0]);
+        $this->assertCount(1, $this->sleeper->sleeps);
+        $this->assertGreaterThanOrEqual(250, $this->sleeper->sleeps[0]);
+        $this->assertLessThanOrEqual(500, $this->sleeper->sleeps[0]);
     }
 
     public function test_retry_is_logged_as_a_warning_without_the_endpoint(): void {
@@ -803,9 +809,9 @@ class locallib_graphql_test extends TestCase {
         $this->assertSame('error_graphql_http', $e->errorcode);
         $this->assertSame('HTTP 504', $e->a);
         $this->assertSame(3, $this->requests());
-        $this->assertCount(2, $GLOBALS['_test_skilland_sleeps']);
-        $this->assertGreaterThanOrEqual(500, $GLOBALS['_test_skilland_sleeps'][1]);
-        $this->assertLessThanOrEqual(750, $GLOBALS['_test_skilland_sleeps'][1]);
+        $this->assertCount(2, $this->sleeper->sleeps);
+        $this->assertGreaterThanOrEqual(500, $this->sleeper->sleeps[1]);
+        $this->assertLessThanOrEqual(750, $this->sleeper->sleeps[1]);
     }
 
     public function test_connection_refused_then_200_succeeds(): void {
@@ -832,9 +838,9 @@ class locallib_graphql_test extends TestCase {
 
         mod_skilland_graphql('query MoodleListCourses { courses { id } }');
 
-        $this->assertCount(1, $GLOBALS['_test_skilland_sleeps']);
-        $this->assertGreaterThanOrEqual($min, $GLOBALS['_test_skilland_sleeps'][0]);
-        $this->assertLessThanOrEqual($max, $GLOBALS['_test_skilland_sleeps'][0]);
+        $this->assertCount(1, $this->sleeper->sleeps);
+        $this->assertGreaterThanOrEqual($min, $this->sleeper->sleeps[0]);
+        $this->assertLessThanOrEqual($max, $this->sleeper->sleeps[0]);
     }
 
     public static function retry_after_cases(): array {
@@ -856,7 +862,7 @@ class locallib_graphql_test extends TestCase {
         $this->assertInstanceOf(\mod_skilland\graphql_exception::class, $e);
         $this->assertSame('SKILLAND_ORG_NOT_FOUND', $e->graphqlcode);
         $this->assertSame(1, $this->requests());
-        $this->assertSame([], $GLOBALS['_test_skilland_sleeps']);
+        $this->assertSame([], $this->sleeper->sleeps);
     }
 
     public function test_500_without_graphql_errors_is_retried(): void {
@@ -899,7 +905,7 @@ class locallib_graphql_test extends TestCase {
             $this->assertSame('error_graphql_http', $e->errorcode);
         }
         $this->assertSame(1, $this->requests());
-        $this->assertSame([], $GLOBALS['_test_skilland_sleeps']);
+        $this->assertSame([], $this->sleeper->sleeps);
     }
 
     public function test_commented_mutation_is_not_retried(): void {

@@ -20,7 +20,7 @@ class external_throwable_test extends TestCase {
         '_test_capability_course_ids', '_test_curl_response', '_test_curl_responses', '_test_curl_requests',
         '_test_curl_last', '_test_customfield_value', '_test_get_coursemodule_from_id',
         '_test_get_coursemodule_from_instance', '_test_deleted_cmids', '_test_create_module_calls',
-        '_test_lock_calls', '_test_events', '_test_cm_from_db', '_test_update_topic_scorm', '_test_topic_snapshot',
+        '_test_lock_calls', '_test_events', '_test_cm_from_db',
     ];
 
     protected function setUp(): void {
@@ -28,6 +28,7 @@ class external_throwable_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         $this->useDatabase(new \FakeDatabase());
         $GLOBALS['USER'] = (object) ['id' => 2, 'email' => 'teacher@example.com', 'firstname' => 'T', 'lastname' => 'Eacher'];
         $GLOBALS['_test_debug_messages'] = [];
@@ -51,6 +52,7 @@ class external_throwable_test extends TestCase {
         foreach (self::GLOBALS_TO_RESET as $name) {
             unset($GLOBALS[$name]);
         }
+        \core\di::reset_container();
         parent::tearDown();
     }
 
@@ -110,9 +112,9 @@ class external_throwable_test extends TestCase {
                 $this->forceErrorFromDatabase();
                 break;
             case 'update_hook':
-                $GLOBALS['_test_update_topic_scorm'] = function () {
+                \fake_topic_scorm_updater::install(function () {
                     throw new \Error('forced error');
-                };
+                });
                 break;
             default:
                 $this->fail('Unknown force mode ' . $force);

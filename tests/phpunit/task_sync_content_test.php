@@ -18,9 +18,8 @@ class task_sync_content_test extends TestCase {
         $GLOBALS['DB'] = $this->db;
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
-        // Reset configurable stubs.
-        unset($GLOBALS['_test_topic_snapshot']);
-        unset($GLOBALS['_test_update_topic_scorm']);
+        // Reset configurable stubs and the \core\di seams (api_client, topic_scorm_updater).
+        \core\di::reset_container();
         unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
         unset($GLOBALS['_test_get_coursemodule_from_id']);
         unset($GLOBALS['_test_get_coursemodule_from_instance']);
@@ -31,6 +30,11 @@ class task_sync_content_test extends TestCase {
         $this->db->seed('modules', [
             (object)['id' => 1, 'name' => 'skilland', 'visible' => 1],
         ]);
+    }
+
+    protected function tearDown(): void {
+        \core\di::reset_container();
+        parent::tearDown();
     }
 
     private function makeTask(): sync_content {
@@ -139,7 +143,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'abc123',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
 
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
@@ -158,7 +162,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'abc123',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
 
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
@@ -210,7 +214,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'abc123',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'abc123', 'generatedAt' => '2024-01-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
 
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
@@ -233,7 +237,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'abc123',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
 
         $task = $this->makeTask();
         $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
@@ -260,8 +264,8 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => null,
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
-        $GLOBALS['_test_update_topic_scorm'] = 200;
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
+        \fake_topic_scorm_updater::install(200);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
         $task = $this->makeTask();
@@ -288,8 +292,8 @@ class task_sync_content_test extends TestCase {
         ];
 
         // Remote also returns empty contentHash.
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => '', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
-        $GLOBALS['_test_update_topic_scorm'] = 200;
+        \fake_api_client::topic_snapshot(['contentHash' => '', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
+        \fake_topic_scorm_updater::install(200);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
         $task = $this->makeTask();
@@ -308,8 +312,8 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'oldhash',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
-        $GLOBALS['_test_update_topic_scorm'] = 200;
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
+        \fake_topic_scorm_updater::install(200);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
         $task = $this->makeTask();
@@ -334,7 +338,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'oldhash',
         ];
 
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
         $GLOBALS['_test_lock_available'] = false;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
@@ -366,7 +370,7 @@ class task_sync_content_test extends TestCase {
             'snapshotid' => 'oldhash',
         ];
         $this->db->seed('skilland', [clone $activity]);
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
         $ok = fn(array $data) => ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
         $GLOBALS['_test_curl_responses'] = [
@@ -403,7 +407,7 @@ class task_sync_content_test extends TestCase {
             (object)['id' => 1, 'autoupdate' => 1, 'scormcmid' => 100, 'skilland_topicid' => 'topic1',
                 'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
         ]);
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
         $GLOBALS['_test_lock_available'] = false;
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
 
@@ -556,7 +560,7 @@ class task_sync_content_test extends TestCase {
             2 => (object)['id' => 2, 'userid' => 51, 'attempt' => 1, 'scoid' => 11,
                 'element' => 'cmi.core.lesson_status', 'value' => 'incomplete'],
         ]);
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
 
         $this->makeTask()->execute();
 
@@ -581,7 +585,7 @@ class task_sync_content_test extends TestCase {
                 'element' => 'cmi.core.lesson_status', 'value' => 'completed'];
         }
         $this->db->set_records_sql_handler(fn() => $tracks);
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
 
         $this->makeTask()->execute();
 
@@ -608,7 +612,7 @@ class task_sync_content_test extends TestCase {
             1 => (object)['id' => 1, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
                 'element' => 'cmi.core.lesson_status', 'value' => 'completed'],
         ]);
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
 
         $this->makeTask()->execute();
 
@@ -631,8 +635,8 @@ class task_sync_content_test extends TestCase {
 
     public function test_reprovision_path_does_not_recompute(): void {
         $this->seedTrackedActivity();
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
-        $GLOBALS['_test_update_topic_scorm'] = 200;
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
+        \fake_topic_scorm_updater::install(200);
 
         $this->makeTask()->execute();
 
@@ -649,7 +653,7 @@ class task_sync_content_test extends TestCase {
         $this->db->set_records_sql_handler(function () {
             throw new \RuntimeException('boom');
         });
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
 
         $this->makeTask()->execute();
 
@@ -675,16 +679,16 @@ class task_sync_content_test extends TestCase {
             (object)['id' => 3, 'autoupdate' => 1, 'scormcmid' => 300, 'skilland_topicid' => 'topic3',
                 'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
         ]);
-        $GLOBALS['_test_topic_snapshot'] = ['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false];
+        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
         $processed = [];
-        $GLOBALS['_test_update_topic_scorm'] = function ($skilland) use (&$processed) {
+        \fake_topic_scorm_updater::install(function ($skilland) use (&$processed) {
             if ((int) $skilland->id === 2) {
                 throw new \TypeError('Cannot access offset of type array');
             }
             $processed[] = (int) $skilland->id;
             return 500 + (int) $skilland->id;
-        };
+        });
 
         $this->makeTask()->execute();
 
@@ -715,7 +719,7 @@ class task_sync_content_test extends TestCase {
             1 => (object)['id' => 1, 'userid' => 50, 'attempt' => 1, 'scoid' => 11,
                 'element' => 'cmi.core.lesson_status', 'value' => 'completed'],
         ]);
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
 
         $this->makeTask()->execute();
 
@@ -738,7 +742,7 @@ class task_sync_content_test extends TestCase {
         $db->seed('modules', [(object)['id' => 1, 'name' => 'skilland', 'visible' => 1]]);
         $db->seed('skilland', $this->db->get_records('skilland'));
         $GLOBALS['DB'] = $db;
-        $GLOBALS['_test_topic_snapshot'] = null;
+        \fake_api_client::topic_snapshot(null);
 
         $this->makeTask()->execute();
 

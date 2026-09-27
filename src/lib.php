@@ -262,7 +262,7 @@ function skilland_reconcile_scorm_after_update(int $skillandid, bool $topicchang
             $cm = get_coursemodule_from_instance('skilland', $skillandid, $current->course, false, MUST_EXIST);
             $course = get_course($cm->course);
             $sectionnum = (int) $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
-            skilland_update_topic_scorm($current, $course, $sectionnum);
+            \core\di::get(\mod_skilland\local\topic_scorm_updater::class)->update($current, $course, $sectionnum);
         } catch (\Throwable $e) {
             logger::error('SCORM', 'Re-provisioning after a topic change failed for skilland id ' . $skillandid .
                 ' - resetting to the unprovisioned state: ' . $e->getMessage());

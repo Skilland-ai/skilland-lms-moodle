@@ -95,7 +95,7 @@ class update_topic_scorm extends base {
             $sectionnum = $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
 
             // Call the update function.
-            $scormcmid = skilland_update_topic_scorm($skilland, $course, $sectionnum);
+            $scormcmid = \core\di::get(\mod_skilland\local\topic_scorm_updater::class)->update($skilland, $course, $sectionnum);
 
             logger::debug('AJAX', 'Successfully updated topic SCORM, cmid = ' . $scormcmid);
 

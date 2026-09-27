@@ -1,0 +1,67 @@
+{
+    "MoodleListCourses": {
+        "organization": {
+            "id": "org-fixture",
+            "name": "Fixture organization",
+            "courses": [
+                {"id": "skill-1", "name": "Fixture skill", "code": "FIX1", "status": "published"},
+                {"id": "skill-2", "name": "Other fixture skill", "code": "FIX2", "status": "published"}
+            ]
+        }
+    },
+    "MoodleUserCourses": {
+        "moodleUserCourses": [
+            {"id": "skill-1", "name": "Fixture skill", "code": "FIX1", "status": "published"}
+        ]
+    },
+    "MoodleCreateCourse": {
+        "createSkillFromMoodle": {
+            "id": "skill-new",
+            "name": "Created fixture skill",
+            "status": "draft",
+            "creationStep": "microcredential-upload"
+        }
+    },
+    "MoodleListTopics": {
+        "course": {
+            "id": "skill-1",
+            "name": "Fixture skill",
+            "topics": [
+                {"id": "topic-1", "name": "Fixture topic one", "code": "T1", "description": "<p>First fixture topic</p>"},
+                {"id": "topic-2", "name": "Fixture topic two", "code": "T2", "description": "<p>Second fixture topic</p>"}
+            ]
+        }
+    },
+    "GetTopicLessons": {
+        "topic": {
+            "id": "topic-1",
+            "name": "Fixture topic one",
+            "lessons": [
+                {"id": "lesson-1", "name": "Lesson one", "updatedAt": "2026-01-01T10:00:00Z"},
+                {"id": "lesson-2", "name": "Lesson two", "updatedAt": "2026-01-02T10:00:00Z"}
+            ]
+        }
+    },
+    "GetTopicScorm": {
+        "topicScorm": {
+            "packageUrl": "https://packages.skilland.test/topic-1.zip",
+            "packageSize": 0,
+            "packageHash": "",
+            "generatedAt": "2026-01-02T12:00:00Z",
+            "expiresAt": "2099-01-01T00:00:00Z",
+            "mappings": [
+                {"lessonId": "lesson-1", "scoId": "sco-lesson-1"},
+                {"lessonId": "lesson-2", "scoId": "sco-lesson-2"}
+            ]
+        }
+    },
+    "TopicScormHash": {
+        "topicScormHash": {
+            "contentHash": "hash-v1",
+            "packageHash": "",
+            "generatedAt": "2026-01-02T12:00:00Z",
+            "hasPackage": true,
+            "isStale": false
+        }
+    }
+}

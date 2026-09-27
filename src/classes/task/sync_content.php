@@ -246,7 +246,8 @@ class sync_content extends \core\task\scheduled_task {
 
         try {
             // Thread the hash already fetched above through to provisioning, so it isn't queried twice.
-            $newcmid = skilland_update_topic_scorm($skilland, $course, $sectionnum, $remoteHash);
+            $newcmid = \core\di::get(\mod_skilland\local\topic_scorm_updater::class)->update($skilland, $course, $sectionnum,
+                $remoteHash);
         } catch (\moodle_exception $e) {
             if ($e->errorcode === 'error_provision_in_progress') {
                 logger::info('SyncContent', 'Activity ' . $skilland->id . ' is being provisioned elsewhere — skipping');

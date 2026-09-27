@@ -33,16 +33,33 @@ class data_controller {
         return $this->value;
     }
 
+    // A course mapping is a text field: core stores it in charvalue (value keeps a copy).
+    public function datafield(): string {
+        return 'charvalue';
+    }
+
     // set() + save() write the value back to $GLOBALS['_test_customfield_value'] for the course.
+    // Like core, a record without an id (no data yet for this course) cannot be saved without a
+    // contextid, and only the datafield() column is what the field reads back.
     private $pending = [];
+
+    public function get(string $name) {
+        if ($name === 'id') {
+            return $this->pending['id'] ?? ($this->value === null ? 0 : 1);
+        }
+        return $this->pending[$name] ?? ($name === $this->datafield() || $name === 'value' ? $this->value : null);
+    }
 
     public function set(string $name, $value) {
         $this->pending[$name] = $value;
     }
 
     public function save() {
-        if (array_key_exists('value', $this->pending)) {
-            $this->value = $this->pending['value'];
+        if (!$this->get('id') && empty($this->pending['contextid'])) {
+            throw new \coding_exception('customfield_data: contextid is required for a new record');
+        }
+        if (array_key_exists($this->datafield(), $this->pending)) {
+            $this->value = $this->pending[$this->datafield()];
             $GLOBALS['_test_customfield_saved'][] = $this->value;
         }
     }
