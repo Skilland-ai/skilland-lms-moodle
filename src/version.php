@@ -8,5 +8,5 @@ $plugin->supported = [405, 405];
 
 $plugin->version   = 2026092702;   // YYYYMMDDHH - move hardcoded plugin strings to language files (SKL-671)
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.30-beta';
+$plugin->release   = '0.9.31-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
