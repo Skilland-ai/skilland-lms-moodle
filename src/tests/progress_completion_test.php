@@ -79,6 +79,31 @@ final class progress_completion_test extends skilland_testcase {
         $this->take_debugging();
     }
 
+    /**
+     * Record a SCORM track that the mod_skilland observer never sees.
+     *
+     * Whether the external observer runs during a test depends on the database: PHPUnit wraps each
+     * test in a rollback transaction on PostgreSQL only, and external observers wait for its commit,
+     * while on MySQL/MariaDB they run at once. Catching the events keeps the observer out on every
+     * database, so the explicit refresh or backfill under test is what writes the progress.
+     *
+     * @param int $userid
+     * @param int $scormid
+     * @param \stdClass $lesson Lesson row with its scoid.
+     * @param string $element
+     * @param string $value
+     * @param int $attempt
+     */
+    private function track_unobserved(int $userid, int $scormid, \stdClass $lesson, string $element, string $value,
+            int $attempt = 1): void {
+        $sink = $this->redirectEvents();
+        try {
+            $this->track($userid, $scormid, $lesson, $element, $value, $attempt);
+        } finally {
+            $sink->close();
+        }
+    }
+
     public function test_scorm_tracks_reach_the_progress_store_through_the_observer(): void {
         // The mod_scorm event observers are external: they only run outside the test transaction.
         $this->preventResetByRollback();
@@ -99,13 +124,13 @@ final class progress_completion_test extends skilland_testcase {
         [, $student, $skilland, $scormid, $lessons] = $this->provisioned();
         $lesson = $lessons['lesson-1'];
 
-        $this->track($student->id, $scormid, $lesson, 'cmi.core.lesson_status', 'completed');
-        $this->track($student->id, $scormid, $lesson, 'cmi.core.score.raw', '90');
+        $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.core.lesson_status', 'completed');
+        $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.core.score.raw', '90');
         $this->assertTrue(skilland_refresh_progress($skilland, (int) $student->id));
 
         // A newer, worse attempt never lowers the stored status or score.
-        $this->track($student->id, $scormid, $lesson, 'cmi.core.lesson_status', 'incomplete', 2);
-        $this->track($student->id, $scormid, $lesson, 'cmi.core.score.raw', '40', 2);
+        $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.core.lesson_status', 'incomplete', 2);
+        $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.core.score.raw', '40', 2);
         $this->assertFalse(skilland_refresh_progress($skilland, (int) $student->id));
 
         $this->assertSame([(int) $lesson->id => ['status' => 'completed', 'score' => '90']],
@@ -116,7 +141,7 @@ final class progress_completion_test extends skilland_testcase {
         global $DB;
 
         [, $student, $skilland, $scormid, $lessons] = $this->provisioned();
-        $this->track($student->id, $scormid, $lessons['lesson-2'], 'cmi.core.lesson_status', 'completed');
+        $this->track_unobserved($student->id, $scormid, $lessons['lesson-2'], 'cmi.core.lesson_status', 'completed');
         $this->assertFalse($DB->record_exists('skilland_progress', ['skillandid' => $skilland->id]));
 
         (new sync_content())->execute();
