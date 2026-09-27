@@ -34,5 +34,5 @@ Feature: Learners see the lessons of a SkilLand activity
       | activity | name             | course | idnumber |
       | skilland | Fixture activity | C1     | skl1     |
     When I am on the "skl1" "Activity" page logged in as "student1"
-    Then I should see "This lesson content is being prepared. Please check back later."
+    Then I should see "This lesson or topic content is being prepared. Please check back later."
     And I should not see "Lesson one"

@@ -27,7 +27,7 @@ Feature: Teachers add a SkilLand activity to a course
     And I set the field "lesson_lesson-2" to "0"
     And I press "Save and display"
     And I should see "Content Not Yet Available"
-    And I press "Provision Topic Content"
+    And I press "Prepare Topic Content"
     And I wait until "L1.1" "text" exists
     And I should see "Lesson one"
     And I should not see "Lesson two"
