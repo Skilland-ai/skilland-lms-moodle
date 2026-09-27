@@ -650,9 +650,33 @@ function createFakes (options) {
     }
   }
 
+  const StringLoader = {
+    loadStrings (entries) {
+      const requests = entries.map(entry => {
+        const request = { key: entry.key, component: entry.component || 'mod_skilland' }
+        if (entry.param !== undefined) {
+          request.param = entry.param
+        }
+        return request
+      })
+      return Str.get_strings(requests).then(values => {
+        const strings = {}
+        entries.forEach((entry, index) => {
+          strings[entry.name] = values[index]
+        })
+        return strings
+      })
+    }
+  }
+
   return {
     calls,
-    modules: { 'core/str': Str, 'core/ajax': Ajax, 'core/notification': Notification },
+    modules: {
+      'core/str': Str,
+      'core/ajax': Ajax,
+      'core/notification': Notification,
+      'mod_skilland/local/string_loader': StringLoader
+    },
     resolveStrings () {
       pendingStrings.splice(0).forEach(settle => settle(true))
     },
