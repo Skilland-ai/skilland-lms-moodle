@@ -99,6 +99,11 @@ class locallib_provision_scorm_test extends TestCase {
         return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 
+    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    private function rest_response(array $body): array {
+        return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+    }
+
     /** Queue the topicScorm GraphQL answer and the package download. */
     private function queue_package(array $mappings = ['L1' => 'sco_1', 'L2' => 'sco_2'], string $hash = '',
             ?int $size = null): void {
@@ -106,14 +111,14 @@ class locallib_provision_scorm_test extends TestCase {
         foreach ($mappings as $lessonid => $scoid) {
             $list[] = ['lessonId' => $lessonid, 'scoId' => $scoid];
         }
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topicScorm' => [
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response([
             'packageUrl' => 'https://cdn.skilland.ai/topic1.zip',
             'packageSize' => $size ?? strlen($this->zipbytes()),
             'packageHash' => $hash,
             'generatedAt' => '2026-01-02T00:00:00Z',
             'expiresAt' => '',
             'mappings' => $list,
-        ]]);
+        ]);
         $GLOBALS['_test_curl_responses'][] = ['body' => $this->zipbytes(), 'http_code' => 200, 'errno' => 0,
             'error' => ''];
     }
@@ -656,8 +661,8 @@ class locallib_provision_scorm_test extends TestCase {
     }
 
     public function test_missing_package_url_fails_before_downloading(): void {
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topicScorm' => ['packageUrl' => '',
-            'mappings' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['packageUrl' => '',
+            'mappings' => []]);
 
         $this->expect_code(fn() => skilland_provision_topic_scorm($this->skilland(), $this->course(), 0),
             'error_scorm_not_available');

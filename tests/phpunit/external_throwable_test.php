@@ -108,6 +108,10 @@ class external_throwable_test extends TestCase {
                 // fetch_lessons checks the topic belongs to the course (one API call) before its try.
                 $this->forceTypeErrorFromApi(1);
                 break;
+            case 'rest':
+                // The REST transport is type-safe, so the \Error comes from the bound api_client.
+                \fake_api_client::install()->respond_rest('scorm-hash', new \Error('forced error'));
+                break;
             case 'db':
                 $this->forceErrorFromDatabase();
                 break;
@@ -135,7 +139,7 @@ class external_throwable_test extends TestCase {
                 [self::SKILLAND_ID, self::CM_ID], 'db'],
             'update_topic_scorm' => ['update_topic_scorm', 'mod/skilland:provision',
                 [self::SKILLAND_ID, self::CM_ID], 'update_hook'],
-            'check_topic_snapshot' => ['check_topic_snapshot', 'mod/skilland:provision', [self::SKILLAND_ID], 'api'],
+            'check_topic_snapshot' => ['check_topic_snapshot', 'mod/skilland:provision', [self::SKILLAND_ID], 'rest'],
         ];
     }
 

@@ -27,7 +27,7 @@ namespace mod_skilland\local;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * The real {@see api_client}: Moodle's curl against the configured GraphQL endpoint.
+ * The real {@see api_client}: Moodle's curl against the configured SkilLand URLs.
  */
 class http_api_client implements api_client {
     /**
@@ -42,6 +42,13 @@ class http_api_client implements api_client {
      */
     public function graphql(string $query, array $variables = []): array {
         return mod_skilland_graphql_http($query, $variables);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function rest_get(string $path): array {
+        return mod_skilland_rest_get_http($path);
     }
 
     /**

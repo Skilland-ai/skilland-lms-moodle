@@ -84,11 +84,12 @@ Go to **Site administration → Plugins → Activity modules → Skilland conten
 
 - **API Key**: Your private key from the Skilland platform.
 - **Organization ID**: Your institution's ID.
-- **GraphQL Endpoint**: The URL of the Skilland GraphQL API (default: `https://api.skilland.ai/graphql`).
+- **GraphQL Endpoint**: The URL of the legacy Skilland GraphQL API (default: `https://api.skilland.ai/graphql`). Topic SCORM lookups fall back to it only when the REST API answers 401/403/404 or cannot be reached; clear it to turn the fallback off.
   - For local development: `http://localhost:8000/graphql`
 - **Frontend URL**: The URL of the Skilland frontend application (default: `https://app.skilland.ai`).
   - For local development: `http://localhost:3000`
   - This is where the SSO handoff is posted when teachers click "Edit Lessons in Skilland"
+  - It is also the base of the SkilLand REST API (`{Frontend URL}/api/moodle/...`, authenticated with the API key as a Bearer token), which serves topic SCORM packages and their content hashes
 - **SSO Shared Secret**: Your organization's Moodle SSO secret, copied from SkilLand › Settings › Integrations › Moodle. SkilLand derives a secret for each organization, so it only works together with this site's **Organization ID**. It must be at least 32 bytes long.
 
 #### SSO handoff
@@ -101,7 +102,7 @@ Opening SkilLand Studio signs an HS256 JWT with the SSO shared secret and hands 
 - `sub`: the Moodle user id, as a string. SkilLand binds the SkilLand account to the organization, `iss` and `sub`, not to the email address.
 
 Tokens are only issued to accounts that may sign in, read from the user table at click time: guest, suspended, deleted, unconfirmed and `nologin` accounts get an error page instead.
-- **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only.
+- **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the Frontend URL and GraphQL endpoint hosts (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only; the default `*.amazonaws.com` covers the presigned S3 URLs the REST API hands out.
 - **Maximum SCORM package size (MB)**: Downloads larger than this are aborted (default: `200`).
 
 ### 2. Course Setup (Teacher/Admin)

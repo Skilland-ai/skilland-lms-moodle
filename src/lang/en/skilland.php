@@ -64,13 +64,13 @@ $string['edit_course_settings'] = 'Edit in course settings';
 
 // GraphQL settings.
 $string['settings_graphql_endpoint'] = 'GraphQL Endpoint';
-$string['settings_graphql_endpoint_desc'] = 'The URL of the Skilland GraphQL API endpoint.';
+$string['settings_graphql_endpoint_desc'] = 'The URL of the legacy Skilland GraphQL API endpoint. Topic SCORM packages now come from the REST API under the Frontend URL; this endpoint is only tried as a fallback when that API answers 401, 403 or 404 or cannot be reached. Leave it empty to turn the fallback off.';
 $string['settings_package_hosts'] = 'SCORM package hosts';
-$string['settings_package_hosts_desc'] = 'Comma-separated hosts SCORM packages may be downloaded from, besides the GraphQL endpoint host. "*.example.com" matches subdomains of example.com only.';
+$string['settings_package_hosts_desc'] = 'Comma-separated hosts SCORM packages may be downloaded from, besides the Frontend URL and GraphQL endpoint hosts. "*.example.com" matches subdomains of example.com only.';
 $string['settings_package_max_mb'] = 'Maximum SCORM package size (MB)';
 $string['settings_package_max_mb_desc'] = 'Downloads larger than this are aborted.';
 $string['settings_frontend_url'] = 'Frontend URL';
-$string['settings_frontend_url_desc'] = 'The URL of the Skilland frontend application (for SSO redirects). If not set, will use the GraphQL endpoint URL.';
+$string['settings_frontend_url_desc'] = 'The URL of the Skilland frontend application. It is used for SSO redirects and as the base of the SkilLand REST API (topic SCORM packages), authenticated with the API key. If not set, the GraphQL endpoint URL without /graphql is used.';
 
 // SSO settings.
 $string['settings_sso_secret'] = 'SSO Shared Secret';

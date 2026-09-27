@@ -375,7 +375,8 @@ class task_sync_content_test extends TestCase {
         $ok = fn(array $data) => ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
         $GLOBALS['_test_curl_responses'] = [
             $ok(['topic' => ['id' => 'topic1', 'name' => 'T', 'lessons' => []]]),
-            $ok(['topicScorm' => ['packageUrl' => '', 'mappings' => []]]),
+            ['body' => json_encode(['packageUrl' => '', 'mappings' => []]), 'http_code' => 200, 'errno' => 0,
+                'error' => ''],
         ];
 
         $task = $this->makeTask();

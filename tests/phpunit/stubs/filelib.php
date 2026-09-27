@@ -47,6 +47,14 @@ if (!class_exists('curl')) {
             return '';
         }
 
+        public function get(string $url, $params = [], $options = []): string {
+            $this->record($url);
+            if (isset($GLOBALS['_test_curl_response'])) {
+                return $GLOBALS['_test_curl_response']['body'] ?? '';
+            }
+            return '';
+        }
+
         public function download_one($url, $params, $options = []) {
             $this->record($url);
             $response = $GLOBALS['_test_curl_response'] ?? null;

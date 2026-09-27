@@ -87,6 +87,11 @@ class lib_update_instance_reconcile_test extends TestCase {
         return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 
+    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    private function rest_response(array $body): array {
+        return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+    }
+
     private function zipbytes(): string {
         return base64_decode('UEsDBBQAAAAAAGC1OV3tN8mLCwAAAAsAAAAPAAAAaW1zbWFuaWZlc3QueG1sPG1hbmlmZXN0Lz5QSwECFAMUAAAAAABgtTld7TfJiwsAAAALAAAADwAAAAAAAAAAAAAAgAEAAAAAaW1zbWFuaWZlc3QueG1sUEsFBgAAAAABAAEAPQAAADgAAAAAAA==');
     }
@@ -106,14 +111,14 @@ class lib_update_instance_reconcile_test extends TestCase {
                 ['id' => 'M1', 'name' => 'M one', 'updatedAt' => '2026-01-03T00:00:00Z'],
                 ['id' => 'M2', 'name' => 'M two', 'updatedAt' => '2026-01-03T00:00:00Z'],
             ]]]);
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topicScorm' => [
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response([
             'packageUrl' => 'https://cdn.skilland.ai/topic2.zip',
             'packageSize' => strlen($this->zipbytes()),
             'packageHash' => '',
             'generatedAt' => '2026-01-02T00:00:00Z',
             'expiresAt' => '',
             'mappings' => [['lessonId' => 'M1', 'scoId' => 'sco_m1'], ['lessonId' => 'M2', 'scoId' => 'sco_m2']],
-        ]]);
+        ]);
         $GLOBALS['_test_curl_responses'][] = ['body' => $this->zipbytes(), 'http_code' => 200, 'errno' => 0,
             'error' => ''];
     }
