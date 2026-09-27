@@ -172,6 +172,28 @@ final class external_functions_test extends skilland_testcase {
         $this->assertSame(['name' => 'Algebra 101', 'userEmail' => $teacher->email], $this->client->calls[0]['variables']);
         $this->assertSame('/skills-studio/create/microcredential-upload/skill-new',
             mod_skilland_peek_pending_studio_path((int) $course->id));
+        // The mapping is persisted in the text field's own column and reads back.
+        $this->assertSame('skill-new', $this->course_mapping_row((int) $course->id)->charvalue);
+        $this->assertSame('skill-new', skilland_get_course_customfield_value((int) $course->id));
+        $this->assertSame('skill-new', skilland_get_mapped_courseid((int) $course->id));
+    }
+
+    public function test_create_course_persists_the_mapping_on_a_course_without_field_data(): void {
+        $course = $this->getDataGenerator()->create_course(['fullname' => 'Geometry 101']);
+        $this->assertNotNull(skilland_ensure_course_customfield());
+        $this->assertNull($this->course_mapping_row((int) $course->id));
+        $teacher = $this->enrol($course, 'editingteacher');
+        $this->setUser($teacher);
+
+        $result = external_api::clean_returnvalue(create_course::execute_returns(), create_course::execute($course->id));
+
+        $this->assertNull($result['error']);
+        $this->assertSame('skill-new', $result['skillid']);
+        $row = $this->course_mapping_row((int) $course->id);
+        $this->assertNotNull($row);
+        $this->assertSame('skill-new', $row->charvalue);
+        $this->assertEquals(\context_course::instance($course->id)->id, $row->contextid);
+        $this->assertSame('skill-new', skilland_get_course_customfield_value((int) $course->id));
     }
 
     public function test_fetch_topics_returns_the_topics_of_the_mapped_skill(): void {

@@ -1446,8 +1446,7 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
         foreach ($data as $datarecord) {
             $field = $datarecord->get_field();
             if ($field && $field->get('shortname') === 'skilland_course_id') {
-                $datarecord->set('value', $skillandcourseid);
-                $datarecord->save();
+                skilland_save_course_customfield_data($datarecord, $courseid, $skillandcourseid);
                 return true;
             }
         }
@@ -1460,8 +1459,7 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
             foreach ($data as $datarecord) {
                 $field = $datarecord->get_field();
                 if ($field && $field->get('shortname') === 'skilland_course_id') {
-                    $datarecord->set('value', $skillandcourseid);
-                    $datarecord->save();
+                    skilland_save_course_customfield_data($datarecord, $courseid, $skillandcourseid);
                     return true;
                 }
             }
@@ -1471,6 +1469,26 @@ function skilland_set_course_customfield_value(int $courseid, string $skillandco
     } catch (Exception $e) {
         return false;
     }
+}
+
+/**
+ * Write a course custom field value the way core_customfield's form save does.
+ *
+ * The value goes to the field type's own column (datafield(): charvalue for text, intvalue for
+ * select, ...) as well as to value, and a record that does not exist yet gets the course context,
+ * without which it cannot be saved.
+ *
+ * @param \core_customfield\data_controller $data Data controller for the course and field.
+ * @param int $courseid Moodle course id the data belongs to.
+ * @param string $value Value to store.
+ */
+function skilland_save_course_customfield_data(\core_customfield\data_controller $data, int $courseid, string $value): void {
+    if (!$data->get('id')) {
+        $data->set('contextid', \context_course::instance($courseid)->id);
+    }
+    $data->set($data->datafield(), $value);
+    $data->set('value', $value);
+    $data->save();
 }
 
 /**

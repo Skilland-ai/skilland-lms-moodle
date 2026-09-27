@@ -341,10 +341,12 @@ if (!class_exists('required_capability_exception')) {
 // Context stubs — instance() returns a lightweight object carrying the id.
 if (!class_exists('context_course')) {
     class context_course {
+        public $id;
         public $instanceid;
 
         public static function instance($courseid) {
             $ctx = new self();
+            $ctx->id = 1000 + (int)$courseid;
             $ctx->instanceid = (int)$courseid;
             return $ctx;
         }

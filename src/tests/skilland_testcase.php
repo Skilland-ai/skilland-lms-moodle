@@ -153,6 +153,24 @@ abstract class skilland_testcase extends \advanced_testcase {
     }
 
     /**
+     * The course's skilland_course_id custom field row, read straight from customfield_data.
+     *
+     * @param int $courseid
+     * @return \stdClass|null The customfield_data row, null when the course has none.
+     */
+    protected function course_mapping_row(int $courseid): ?\stdClass {
+        global $DB;
+
+        $row = $DB->get_record_sql(
+            "SELECT d.*
+               FROM {customfield_data} d
+               JOIN {customfield_field} f ON f.id = d.fieldid
+              WHERE f.shortname = :shortname AND d.instanceid = :courseid",
+            ['shortname' => 'skilland_course_id', 'courseid' => $courseid]);
+        return $row ?: null;
+    }
+
+    /**
      * Return and clear the debugging() messages the plugin's logger emitted.
      *
      * @return string[]
