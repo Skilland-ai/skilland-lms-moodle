@@ -691,3 +691,10 @@ if (!function_exists('sesskey')) {
 if (!isset($GLOBALS['SESSION'])) {
     $GLOBALS['SESSION'] = new \stdClass();
 }
+
+// Output API (renderable, templatable, plugin_renderer_base) rendering the plugin's real templates,
+// and a $PAGE that hands out the plugin renderer and records js_call_amd() calls.
+require_once __DIR__ . '/output_stub.php';
+if (!isset($GLOBALS['PAGE'])) {
+    $GLOBALS['PAGE'] = new \test_moodle_page();
+}

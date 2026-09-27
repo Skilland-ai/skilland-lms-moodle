@@ -10,6 +10,7 @@ class view_navigation_test extends TestCase {
         parent::setUp();
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
+        $GLOBALS['PAGE'] = new \test_moodle_page();
         \mod_skilland\logger::reset_cache();
     }
 

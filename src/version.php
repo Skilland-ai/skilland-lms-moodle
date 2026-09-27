@@ -6,7 +6,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026092703;   // YYYYMMDDHH - API client seam and real Moodle tests (SKL-696)
+$plugin->version   = 2026092704;   // YYYYMMDDHH - view.php renders through Mustache templates (SKL-681)
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.32-beta';
+$plugin->release   = '0.9.33-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

@@ -1,0 +1,64 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_skilland/lesson_card
+
+    The inside of one lesson card of mod_skilland/lesson_list, shared by the playable
+    (link) and the not playable (div) card.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * showlabel - Whether the lesson code badge is shown.
+    * label - The lesson code, like L1.2.
+    * title - The lesson title, already formatted by format_string().
+    * meta - The updated date and score line, empty when there is neither.
+    * scomissing - Whether to warn a teacher that the lesson is missing from the package.
+    * icon - The Font Awesome icon of the progress status.
+    * statustext - The progress status.
+
+    Example context (json):
+    {
+        "showlabel": true,
+        "label": "L1.1",
+        "title": "What is testing?",
+        "meta": "Updated: 27/09/26 · Score: 80%",
+        "scomissing": false,
+        "icon": "fa-check-circle",
+        "statustext": "Completed"
+    }
+}}
+{{#showlabel}}
+<div class="skilland-lesson-number">{{label}}</div>
+{{/showlabel}}
+<div class="skilland-lesson-content">
+    <span class="skilland-lesson-title">{{{title}}}</span>
+    {{#meta}}
+    <div class="skilland-lesson-meta">{{meta}}</div>
+    {{/meta}}
+    {{#scomissing}}
+    <div class="alert alert-warning skilland-lesson-sco-missing small py-1 px-2 mt-1 mb-0">{{#str}}lesson_sco_missing, mod_skilland{{/str}}</div>
+    {{/scomissing}}
+</div>
+<div class="skilland-lesson-status">
+    <i class="fa {{icon}} skilland-status-icon" aria-hidden="true"></i>
+    <span class="skilland-status-text">{{statustext}}</span>
+</div>

@@ -1,0 +1,74 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_skilland/player
+
+    The fullscreen SCORM player of one lesson: a header with the way back and the lesson
+    title, the SCORM player iframe and the previous / next lesson bar. When the lesson
+    cannot be played, a notice and a way back to the lesson list instead.
+
+    Classes required for JS:
+    * skilland-fullscreen-iframe - The iframe mod_skilland/fullscreen_player focuses.
+
+    Data attributes required for JS:
+    * data-fullscreen - Set on the wrapper while the player is fullscreen.
+
+    Context variables required for this template:
+    * notready - Whether the lesson cannot be played (the rest is then not set).
+    * backurl - The lesson list.
+    * lessontitle - The lesson code and title, already formatted by format_string().
+    * iframetitle - The lesson title, already formatted by format_string().
+    * playerurl - The mod_scorm player of the lesson's SCO.
+    * navigation - The mod_skilland/fullscreen_navigation context, false without one.
+
+    Example context (json):
+    {
+        "notready": false,
+        "backurl": "https://moodle.example/mod/skilland/view.php?id=2",
+        "lessontitle": "L1.1 - What is testing?",
+        "iframetitle": "What is testing?",
+        "playerurl": "https://moodle.example/mod/scorm/player.php?scoid=5&cm=3&mode=normal&newattempt=off&display=popup",
+        "navigation": {
+            "prev": false,
+            "next": {
+                "url": "https://moodle.example/mod/skilland/view.php?id=2&play=11",
+                "text": "L1.2 - Writing a first test",
+                "arialabel": "Next lesson: L1.2 - Writing a first test"
+            }
+        }
+    }
+}}
+{{#notready}}
+<div class="alert alert-warning">{{#str}}scorm_not_ready, mod_skilland{{/str}}</div>
+<div class="mt-3"><a href="{{backurl}}" class="btn btn-secondary">{{#str}}back_to_lessons, mod_skilland{{/str}}</a></div>
+{{/notready}}
+{{^notready}}
+<div class="skilland-fullscreen-wrapper" id="skilland-fullscreen-wrapper" data-fullscreen="true">
+    <div class="skilland-fullscreen-header">
+        <a href="{{backurl}}" class="skilland-fullscreen-back">← {{#str}}back_to_lessons, mod_skilland{{/str}}</a>
+        {{! A heading, so the title takes its place in the page outline, focusable so it can take focus when the overlay opens. }}
+        <h2 class="skilland-fullscreen-title" id="skilland-fullscreen-title" tabindex="-1">{{{lessontitle}}}</h2>
+        <a href="{{backurl}}" class="skilland-fullscreen-close" title="{{#cleanstr}}back_to_lessons, mod_skilland{{/cleanstr}}" aria-label="{{#cleanstr}}back_to_lessons, mod_skilland{{/cleanstr}}">×</a>
+    </div>
+    <div class="skilland-fullscreen-content">
+        <iframe src="{{playerurl}}" class="skilland-fullscreen-iframe" allowfullscreen="true" allow="fullscreen" title="{{iframetitle}}"></iframe>
+    </div>
+    {{#navigation}}
+    {{> mod_skilland/fullscreen_navigation}}
+    {{/navigation}}
+</div>
+{{/notready}}

@@ -1,0 +1,94 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_skilland/lesson_list
+
+    The lessons of a SkilLand activity, each with the viewer's progress.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * haslessons - Whether the activity has any visible lesson.
+    * lessons - The lessons, in order:
+      * playable - Whether the lesson opens in the SCORM player.
+      * url - The player link of a playable lesson.
+      * showlabel - Whether the lesson code badge is shown.
+      * label - The lesson code, like L1.2.
+      * title - The lesson title, already formatted by format_string().
+      * meta - The updated date and score line, empty when there is neither.
+      * scomissing - Whether to warn a teacher that the lesson is missing from the package.
+      * completionclass - The card's progress class.
+      * icon - The Font Awesome icon of the progress status.
+      * statustext - The progress status.
+
+    Example context (json):
+    {
+        "haslessons": true,
+        "lessons": [
+            {
+                "playable": true,
+                "url": "https://moodle.example/mod/skilland/view.php?id=2&play=10",
+                "showlabel": true,
+                "label": "L1.1",
+                "title": "What is testing?",
+                "meta": "Updated: 27/09/26 · Score: 80%",
+                "scomissing": false,
+                "completionclass": "skilland-lesson-completed",
+                "icon": "fa-check-circle",
+                "statustext": "Completed"
+            },
+            {
+                "playable": false,
+                "url": "",
+                "showlabel": true,
+                "label": "L1.2",
+                "title": "Writing a first test",
+                "meta": "",
+                "scomissing": true,
+                "completionclass": "skilland-lesson-pending",
+                "icon": "fa-circle-o",
+                "statustext": "Not started"
+            }
+        ]
+    }
+}}
+{{^haslessons}}
+<div class="alert alert-info">{{#str}}no_lessons_configured, mod_skilland{{/str}}</div>
+{{/haslessons}}
+{{#haslessons}}
+<div class="skilland-lessons-container">
+    <h3 class="skilland-lessons-header">{{#str}}lessons, mod_skilland{{/str}}</h3>
+    <div class="skilland-lessons-list">
+        {{#lessons}}
+        {{#playable}}
+        <a href="{{url}}" class="skilland-lesson-card {{completionclass}}">
+            {{> mod_skilland/lesson_card}}
+        </a>
+        {{/playable}}
+        {{^playable}}
+        <div class="skilland-lesson-card skilland-lesson-disabled {{completionclass}}">
+            {{> mod_skilland/lesson_card}}
+        </div>
+        {{/playable}}
+        {{/lessons}}
+    </div>
+</div>
+{{/haslessons}}

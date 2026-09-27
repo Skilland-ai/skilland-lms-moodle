@@ -18,7 +18,7 @@ class view_missing_scorm_test extends TestCase {
         $GLOBALS['DB'] = $this->db;
         $GLOBALS['USER'] = (object) ['id' => 1];
         $GLOBALS['OUTPUT'] = new \stdClass();
-        $GLOBALS['PAGE'] = new \stdClass();
+        $GLOBALS['PAGE'] = new \test_moodle_page();
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
         $GLOBALS['_test_cm_from_db'] = true;

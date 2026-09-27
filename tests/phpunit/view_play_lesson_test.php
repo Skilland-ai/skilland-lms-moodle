@@ -14,7 +14,7 @@ class view_play_lesson_test extends TestCase {
         $GLOBALS['DB'] = new \FakeDatabase();
         $GLOBALS['USER'] = (object) ['id' => 1];
         $GLOBALS['OUTPUT'] = new \stdClass();
-        $GLOBALS['PAGE'] = new \stdClass();
+        $GLOBALS['PAGE'] = new \test_moodle_page();
         $GLOBALS['_test_debug_messages'] = [];
         $GLOBALS['_test_plugin_config'] = [];
         unset($GLOBALS['_test_get_coursemodule_from_id']);
