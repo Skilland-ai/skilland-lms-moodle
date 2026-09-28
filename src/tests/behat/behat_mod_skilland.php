@@ -51,11 +51,15 @@ class behat_mod_skilland extends behat_base {
      * @param string $role The SkilLand role the token must carry
      */
     public function the_skilland_sso_handoff_for_course_should_sign_me_in_as(string $course, string $role): void {
-        $html = $this->fetch_sso_redirect(['courseid' => $this->course_id($course)]);
+        $response = $this->fetch_sso_redirect(['courseid' => $this->course_id($course)]);
+        $html = $response['body'];
 
         $hasform = strpos($html, 'id="skilland-sso"') !== false;
         if (!$hasform || !preg_match('/<input type="hidden" name="token" value="([^"]+)">/', $html, $matches)) {
-            throw new ExpectationException('sso_redirect.php did not answer with the SkilLand handoff form', $this->getSession());
+            throw new ExpectationException(
+                'sso_redirect.php did not answer with the SkilLand handoff form: ' . $this->describe_response($response),
+                $this->getSession()
+            );
         }
         $parts = explode('.', html_entity_decode($matches[1], ENT_QUOTES, 'UTF-8'));
         $claims = count($parts) === 3 ? json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true) : null;
@@ -93,14 +97,47 @@ class behat_mod_skilland extends behat_base {
      * Fetch sso_redirect.php with the browser's session and a valid sesskey.
      *
      * @param array $params Query parameters besides the sesskey
-     * @return string The response body
+     * @return array{status: int, url: string, body: string} The response status, final URL and body
      */
-    private function fetch_sso_redirect(array $params): string {
+    private function fetch_sso_redirect(array $params): array {
         $params['sesskey'] = $this->get_sesskey();
         $query = json_encode(http_build_query($params, '', '&'));
         $script = 'return fetch(M.cfg.wwwroot + "/mod/skilland/sso_redirect.php?" + ' . $query .
-            ', {credentials: "same-origin"}).then(function(response) { return response.text(); });';
-        return (string) $this->evaluate_script($script);
+            ', {credentials: "same-origin"}).then(function(response) { return response.text().then(function(body) {' .
+            ' return JSON.stringify({status: response.status, url: response.url, body: body}); }); });';
+        $response = json_decode((string) $this->evaluate_script($script), true);
+        return [
+            'status' => (int) ($response['status'] ?? 0),
+            'url' => (string) ($response['url'] ?? ''),
+            'body' => (string) ($response['body'] ?? ''),
+        ];
+    }
+
+    /**
+     * A short, secret-free description of a response, for failure messages.
+     *
+     * The status, the path it ended on, the page title and the start of the error box (or of the
+     * page text), with the SSO secret, any JWT and the sesskey redacted.
+     *
+     * @param array $response The response from fetch_sso_redirect()
+     * @return string
+     */
+    private function describe_response(array $response): string {
+        $html = $response['body'];
+        $title = preg_match('#<title>(.*?)</title>#si', $html, $m) ? trim($m[1]) : '';
+        $start = strpos($html, 'data-rel="fatalerror"');
+        $fragment = $start === false ? $html : substr($html, $start);
+        $fragment = preg_replace('#<(script|style)\b.*?</\1>#si', ' ', $fragment);
+        $text = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags('<' . $fragment), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+        $path = (string) parse_url($response['url'], PHP_URL_PATH);
+        $summary = 'HTTP ' . $response['status'] . ' at ' . $path . ', title "' . $title . '", ' . substr($text, 0, 400);
+
+        $secret = (string) get_config('mod_skilland', 'sso_secret');
+        if ($secret !== '') {
+            $summary = str_replace($secret, '[secret]', $summary);
+        }
+        $summary = preg_replace('/eyJ[\w-]+\.[\w-]+\.[\w-]*/', '[jwt]', $summary);
+        return preg_replace('/sesskey=\w+/', 'sesskey=[redacted]', $summary);
     }
 
     /**
@@ -110,14 +147,18 @@ class behat_mod_skilland extends behat_base {
      * @param string $message Text the error page must contain
      */
     private function assert_sso_redirect_refused(array $params, string $message): void {
-        $html = $this->fetch_sso_redirect($params);
+        $response = $this->fetch_sso_redirect($params);
+        $html = $response['body'];
 
         if (strpos($html, 'id="skilland-sso"') !== false) {
             throw new ExpectationException('sso_redirect.php answered with the SkilLand handoff form', $this->getSession());
         }
         $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         if (strpos($text, $message) === false) {
-            throw new ExpectationException('sso_redirect.php did not answer with "' . $message . '"', $this->getSession());
+            throw new ExpectationException(
+                'sso_redirect.php did not answer with "' . $message . '": ' . $this->describe_response($response),
+                $this->getSession()
+            );
         }
     }
 
