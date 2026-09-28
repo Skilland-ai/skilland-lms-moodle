@@ -260,7 +260,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         if (!empty($skillandcourseid)) {
                     // Get current topic ID and selected lessons if editing.
             $currenttopicid = '';
-            $currentSelectedLessons = [];
+            $currentselectedlessons = [];
             $hasscorm = false;
             $topicstudentattemptcount = 0;
 
@@ -281,7 +281,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                     );
 
                     foreach ($records as $record) {
-                        $currentSelectedLessons[$record->skilland_lessonid] = [
+                        $currentselectedlessons[$record->skilland_lessonid] = [
                             'updatedAt' => $record->updatedat,
                             'name' => $record->title,
                         ];
@@ -293,7 +293,7 @@ class mod_skilland_mod_form extends moodleform_mod {
             // the module as a JSON data attribute; everything else is in the init config.
             $mform->addElement('html', html_writer::div('', 'd-none', [
                 'id' => 'skilland-current-lessons',
-                'data-lessons' => json_encode($currentSelectedLessons),
+                'data-lessons' => json_encode($currentselectedlessons),
             ]));
 
             $PAGE->requires->js_call_amd('mod_skilland/mod_form', 'init', [[
@@ -343,7 +343,9 @@ class mod_skilland_mod_form extends moodleform_mod {
             // 'required' rule on skilland_topicid was removed (SKL-688) so an unrelated setting can
             // still be saved while the topic select couldn't load; this is the real, server-side guard
             // against an empty topic id ever reaching save.
-            $topicid = !empty($data['skilland_topicid_saved']) ? $data['skilland_topicid_saved'] : ($data['skilland_topicid'] ?? '');
+            $topicid = !empty($data['skilland_topicid_saved'])
+                ? $data['skilland_topicid_saved']
+                : ($data['skilland_topicid'] ?? '');
             if ($topicid === '') {
                 $errors['skilland_topicid'] = get_string('error_topicid_required', 'mod_skilland');
             } else {

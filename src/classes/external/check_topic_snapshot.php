@@ -97,13 +97,13 @@ class check_topic_snapshot extends base {
                 ];
             }
 
-            $currentHash = $skilland->snapshotid ?? '';
-            $remoteHash = $hashinfo['contentHash'] ?? '';
-            $isstale = !empty($remoteHash) && $currentHash !== $remoteHash;
+            $currenthash = $skilland->snapshotid ?? '';
+            $remotehash = $hashinfo['contentHash'] ?? '';
+            $isstale = !empty($remotehash) && $currenthash !== $remotehash;
 
             return [
                 'isstale' => $isstale,
-                'contenthash' => $remoteHash,
+                'contenthash' => $remotehash,
                 'studentattemptcount' => $studentattemptcount,
                 'error' => null,
             ];

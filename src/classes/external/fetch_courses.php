@@ -81,20 +81,20 @@ class fetch_courses extends base {
             if (!$isadmin) {
                 // Get list of Skilland course IDs from Moodle courses
                 // where user has editing capability.
-                $allowedSkillandIds = self::get_user_allowed_skilland_courses($USER->id);
-                logger::debug('AJAX', 'User has access to ' . count($allowedSkillandIds) . ' Moodle-mapped Skilland courses');
+                $allowedskillandids = self::get_user_allowed_skilland_courses($USER->id);
+                logger::debug('AJAX', 'User has access to ' . count($allowedskillandids) . ' Moodle-mapped Skilland courses');
 
                 // Also get courses where user has edit permissions in Skilland
                 // (owner or collaborator).
-                $userCourses = mod_skilland_fetch_user_courses($USER->email);
-                foreach ($userCourses as $course) {
-                    $allowedSkillandIds[$course['id']] = true;
+                $usercourses = mod_skilland_fetch_user_courses($USER->email);
+                foreach ($usercourses as $course) {
+                    $allowedskillandids[$course['id']] = true;
                 }
-                logger::debug('AJAX', 'After adding Skilland-editable courses: ' . count($allowedSkillandIds) . ' total allowed');
+                logger::debug('AJAX', 'After adding Skilland-editable courses: ' . count($allowedskillandids) . ' total allowed');
 
                 // Filter API response to only return matching courses.
-                $courses = array_filter($courses, function ($course) use ($allowedSkillandIds) {
-                    return isset($allowedSkillandIds[$course['id']]);
+                $courses = array_filter($courses, function ($course) use ($allowedskillandids) {
+                    return isset($allowedskillandids[$course['id']]);
                 });
 
                 // Re-index array after filtering.
@@ -133,7 +133,7 @@ class fetch_courses extends base {
      * @return array Associative array with Skilland course IDs as keys
      */
     private static function get_user_allowed_skilland_courses(int $userid): array {
-        $allowedSkillandIds = [];
+        $allowedskillandids = [];
 
         // Get user's enrolled courses.
         $enrolledcourses = enrol_get_users_courses($userid, true);
@@ -143,14 +143,14 @@ class fetch_courses extends base {
             $ctx = \context_course::instance($course->id);
             if (has_capability('mod/skilland:accessstudio', $ctx, $userid)) {
                 // Get the Skilland course ID from the custom field.
-                $skillandId = skilland_get_course_customfield_value($course->id);
-                if ($skillandId) {
-                    $allowedSkillandIds[$skillandId] = true;
+                $skillandid = skilland_get_course_customfield_value($course->id);
+                if ($skillandid) {
+                    $allowedskillandids[$skillandid] = true;
                 }
             }
         }
 
-        return $allowedSkillandIds;
+        return $allowedskillandids;
     }
 
     /**

@@ -181,8 +181,8 @@ class sync_content extends \core\task\scheduled_task {
 
         // Check lockafterfirstaccess: if enabled and students have accessed, skip.
         if (!empty($skilland->lockafterfirstaccess) && !empty($skilland->scormcmid)) {
-            $hasStudentAccess = $this->has_student_access($skilland);
-            if ($hasStudentAccess) {
+            $hasstudentaccess = $this->has_student_access($skilland);
+            if ($hasstudentaccess) {
                 logger::info('SyncContent', 'Activity ' . $skilland->id . ' locked (students have accessed) — skipping');
                 return 'skipped';
             }
@@ -210,17 +210,17 @@ class sync_content extends \core\task\scheduled_task {
         }
 
         // Compare with stored snapshot.
-        $currentHash = $skilland->snapshotid ?? '';
-        $remoteHash = $hashinfo['contentHash'] ?? '';
+        $currenthash = $skilland->snapshotid ?? '';
+        $remotehash = $hashinfo['contentHash'] ?? '';
 
         // Migration for activities provisioned before snapshotid was stored (SKL-649): an empty
         // stored hash on an already-provisioned activity means "unknown", not "changed". Record
         // the current remote hash once, without re-provisioning, so the next run compares
         // correctly instead of destroying student progress on a false positive.
-        if (empty($currentHash) && !empty($skilland->scormcmid)) {
+        if (empty($currenthash) && !empty($skilland->scormcmid)) {
             $DB->update_record('skilland', (object) [
                 'id' => $skilland->id,
-                'snapshotid' => $remoteHash,
+                'snapshotid' => $remotehash,
                 'snapshotcreatedat' => !empty($hashinfo['generatedAt']) ? strtotime($hashinfo['generatedAt']) : time(),
                 'lastsynced' => time(),
             ]);
@@ -230,31 +230,31 @@ class sync_content extends \core\task\scheduled_task {
         }
 
         // An activity without a SCORM is never "current", whatever hash it still carries.
-        if (!empty($skilland->scormcmid) && !empty($currentHash) && $currentHash === $remoteHash) {
+        if (!empty($skilland->scormcmid) && !empty($currenthash) && $currenthash === $remotehash) {
             // Content hasn't changed — update lastsynced and move on.
             $DB->set_field('skilland', 'lastsynced', time(), ['id' => $skilland->id]);
-            logger::debug('SyncContent', 'Activity ' . $skilland->id . ' is current (hash: ' . $currentHash . ')');
+            logger::debug('SyncContent', 'Activity ' . $skilland->id . ' is current (hash: ' . $currenthash . ')');
             return 'current';
         }
 
         // Content has changed: never import from cron (SKL-650). Record the update once per
         // content hash and tell the teachers, who apply it from the activity page.
-        if (($skilland->updateavailable ?? '') === $remoteHash) {
+        if (($skilland->updateavailable ?? '') === $remotehash) {
             $DB->set_field('skilland', 'lastsynced', time(), ['id' => $skilland->id]);
-            logger::debug('SyncContent', 'Activity ' . $skilland->id . ' already has update ' . $remoteHash .
+            logger::debug('SyncContent', 'Activity ' . $skilland->id . ' already has update ' . $remotehash .
                 ' waiting for a teacher');
             return 'pending';
         }
 
         logger::info('SyncContent', 'Content changed for activity ' . $skilland->id .
-            ' (old: ' . $currentHash . ', new: ' . $remoteHash . ') — notifying teachers');
+            ' (old: ' . $currenthash . ', new: ' . $remotehash . ') — notifying teachers');
 
         $cm = get_coursemodule_from_instance('skilland', $skilland->id, 0, false, MUST_EXIST);
         $course = get_course($cm->course);
 
         $DB->update_record('skilland', (object) [
             'id' => $skilland->id,
-            'updateavailable' => $remoteHash,
+            'updateavailable' => $remotehash,
             'lastsynced' => time(),
         ]);
         $sent = \core\di::get(\mod_skilland\local\update_notifier::class)->notify($skilland, $cm, $course);

@@ -58,8 +58,8 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
 
         // Handle Skilland Course Mapping.
         if (!empty($data->skilland_courseid)) {
-            $existing_map = $DB->get_record('skilland_course', ['course' => $data->course]);
-            if (!$existing_map) {
+            $existingmap = $DB->get_record('skilland_course', ['course' => $data->course]);
+            if (!$existingmap) {
                 // Create new course mapping.
                 $map = new stdClass();
                 $map->course = $data->course;
@@ -72,11 +72,11 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
                 } catch (Exception $e) {
                     debugging('Failed to create Skilland course mapping: ' . $e->getMessage(), DEBUG_DEVELOPER);
                 }
-            } else if ($existing_map->skilland_courseid != $data->skilland_courseid) {
+            } else if ($existingmap->skilland_courseid != $data->skilland_courseid) {
                 // Warn if course is already mapped to a different Skilland course.
                 debugging(
                     'Course already mapped to different Skilland course (existing: ' .
-                         $existing_map->skilland_courseid . ', backup: ' . $data->skilland_courseid . ')',
+                         $existingmap->skilland_courseid . ', backup: ' . $data->skilland_courseid . ')',
                     DEBUG_DEVELOPER
                 );
             }

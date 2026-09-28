@@ -234,9 +234,9 @@ function skilland_ensure_course_customfield() {
                         $category->save();
                     }
                 }
-            } catch (Exception $catException) {
+            } catch (Exception $catexception) {
                 // Critical failure only if we absolutely cannot get a category AND we need to create one.
-                throw new Exception('Cannot create mandatory Skilland category: ' . $catException->getMessage());
+                throw new Exception('Cannot create mandatory Skilland category: ' . $catexception->getMessage());
             }
         }
 
@@ -1157,16 +1157,16 @@ function mod_skilland_normalise_topic_scorm(array $scorm): array {
         foreach ($scorm['mappings'] as $mapping) {
             // Handle both object and array formats.
             if (is_array($mapping)) {
-                $lessonId = $mapping['lessonId'] ?? null;
-                $scoId = $mapping['scoId'] ?? null;
+                $lessonid = $mapping['lessonId'] ?? null;
+                $scoid = $mapping['scoId'] ?? null;
             } else if (is_object($mapping)) {
-                $lessonId = $mapping->lessonId ?? null;
-                $scoId = $mapping->scoId ?? null;
+                $lessonid = $mapping->lessonId ?? null;
+                $scoid = $mapping->scoId ?? null;
             } else {
                 continue;
             }
-            if ($lessonId && $scoId && (is_string($lessonId) || is_int($lessonId))) {
-                $mappings[$lessonId] = $scoId;
+            if ($lessonid && $scoid && (is_string($lessonid) || is_int($lessonid))) {
+                $mappings[$lessonid] = $scoid;
             }
         }
     }
@@ -1861,8 +1861,8 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?strin
         // Step 5: updatedat = version of the lesson in the installed package; only a successful
         // build advances it.
         foreach ($lessons as $lesson) {
-            $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
-            $DB->set_field('skilland_lesson', 'updatedat', $updatedAt, [
+            $updatedat = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
+            $DB->set_field('skilland_lesson', 'updatedat', $updatedat, [
                 'skillandid' => $current->id,
                 'skilland_lessonid' => $lesson['id'],
             ]);
@@ -2395,17 +2395,17 @@ function skilland_generate_sso_token($user, $orgid) {
     }
 
     // Get ALL courses user is enrolled in.
-    $enrolled_courses = enrol_get_users_courses($user->id, true);
+    $enrolledcourses = enrol_get_users_courses($user->id, true);
 
-    $course_access = [];
-    foreach ($enrolled_courses as $course) {
+    $courseaccess = [];
+    foreach ($enrolledcourses as $course) {
         // Get Skilland skill ID from course custom field.
-        $skilland_skill_id = skilland_get_course_customfield_value($course->id);
+        $skillandskillid = skilland_get_course_customfield_value($course->id);
 
-        if ($skilland_skill_id) {
-            $course_access[] = [
+        if ($skillandskillid) {
+            $courseaccess[] = [
                 'moodleCourseId' => (int)$course->id,
-                'skillandSkillId' => $skilland_skill_id,
+                'skillandSkillId' => $skillandskillid,
             ];
         }
     }
@@ -2427,7 +2427,7 @@ function skilland_generate_sso_token($user, $orgid) {
         'aud' => skilland_get_sso_audience(),
         'iss' => $CFG->wwwroot,
         'source' => 'moodle',
-        'courseAccess' => $course_access,
+        'courseAccess' => $courseaccess,
     ];
 
     // Sign and return the token.
@@ -3035,29 +3035,29 @@ function mod_skilland_map_graphql_error(array $error): never {
             throw new graphql_exception('error_config_missing_apikey', $errorcode);
 
         case 'SKILLAND_INVALID_ORG_ID_FORMAT':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_invalid_orgid_format', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_invalid_orgid_format', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_ORG_NOT_FOUND':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_org_not_found', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_org_not_found', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_API_KEY_NOT_FOUND':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_apikey_not_found', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_apikey_not_found', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_API_KEY_INACTIVE':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_apikey_inactive', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_apikey_inactive', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_INVALID_API_KEY':
         case 'SKILLAND_ORG_MISMATCH':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_invalid_apikey', 'mod_skilland');
-            throw new graphql_exception('error_config_invalid_credentials', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_invalid_apikey', 'mod_skilland');
+            throw new graphql_exception('error_config_invalid_credentials', $errorcode, $detailedmsg);
 
         default:
-            $finalMessage = $errordetails ?: $errormessage;
-            throw new graphql_exception('error_graphql', $errorcode, $finalMessage);
+            $finalmessage = $errordetails ?: $errormessage;
+            throw new graphql_exception('error_graphql', $errorcode, $finalmessage);
     }
 }
 
