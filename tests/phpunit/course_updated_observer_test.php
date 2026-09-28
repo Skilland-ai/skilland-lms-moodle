@@ -76,7 +76,7 @@ class course_updated_observer_test extends TestCase {
         $source = file_get_contents(__DIR__ . '/../../src/sso_redirect.php');
         $this->assertStringContainsString("optional_param('pending', false, PARAM_BOOL)", $source);
         $this->assertMatchesRegularExpression(
-            '/if \(!empty\(\$courseid\) && \$pending\) \{\s*\$pendingpath = mod_skilland_take_pending_studio_path\(\$courseid\);/',
+            '/if \(\$pending\) \{\s*\$pendingpath = mod_skilland_take_pending_studio_path\(\$courseid\);/',
             $source
         );
         // The capability check runs before the pending path is read.

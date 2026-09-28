@@ -54,8 +54,8 @@ class mod_skilland_mod_form extends moodleform_mod {
                 'target' => '_blank',
             ]);
 
-            // Add a "Go to Skilland" button (SSO without a specific course).
-            $ssourl = new moodle_url('/mod/skilland/sso_redirect.php', ['sesskey' => sesskey()]);
+            // Add a "Go to Skilland" button (SSO from this course, which has no Skilland course yet).
+            $ssourl = new moodle_url('/mod/skilland/sso_redirect.php', ['courseid' => $courseid, 'sesskey' => sesskey()]);
             $golink = html_writer::link($ssourl, get_string('go_to_skilland', 'mod_skilland'), [
                 'class' => 'btn btn-secondary ml-2',
                 'target' => '_blank',

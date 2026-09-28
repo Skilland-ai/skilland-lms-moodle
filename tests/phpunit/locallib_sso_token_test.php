@@ -60,7 +60,7 @@ class locallib_sso_token_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => ''];
 
         try {
-            skilland_generate_sso_token($this->makeUser(), 'org1');
+            skilland_generate_sso_token($this->makeUser(), 'org1', 'Expert');
             $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
             $this->assertStringContainsString('SSO Shared Secret', $e->debuginfo);
@@ -92,7 +92,7 @@ class locallib_sso_token_test extends TestCase {
         $this->seedAccounts([$this->account(1, $overrides)]);
 
         try {
-            skilland_generate_sso_token($this->makeUser(), 'org1');
+            skilland_generate_sso_token($this->makeUser(), 'org1', 'Expert');
             $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
             $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
@@ -111,7 +111,7 @@ class locallib_sso_token_test extends TestCase {
         $this->seedAccounts([$this->account(2, ['username' => 'guest'])]);
 
         try {
-            skilland_generate_sso_token($this->makeUser(['id' => 2, 'email' => 'root@localhost']), 'org1');
+            skilland_generate_sso_token($this->makeUser(['id' => 2, 'email' => 'root@localhost']), 'org1', 'Expert');
             $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
             $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
@@ -122,7 +122,7 @@ class locallib_sso_token_test extends TestCase {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
 
         try {
-            skilland_generate_sso_token($this->makeUser(['id' => 99]), 'org1');
+            skilland_generate_sso_token($this->makeUser(['id' => 99]), 'org1', 'Expert');
             $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
             $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
@@ -134,7 +134,7 @@ class locallib_sso_token_test extends TestCase {
         $this->seedAccounts([$this->account(0)]);
 
         try {
-            skilland_generate_sso_token($this->makeUser(['id' => 0]), 'org1');
+            skilland_generate_sso_token($this->makeUser(['id' => 0]), 'org1', 'Expert');
             $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
             $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
@@ -148,7 +148,7 @@ class locallib_sso_token_test extends TestCase {
         $this->seedAccounts([$this->account(1, ['suspended' => 1])]);
 
         try {
-            skilland_generate_sso_token($sessionuser, 'org1');
+            skilland_generate_sso_token($sessionuser, 'org1', 'Expert');
             $this->fail('Expected exception');
         } catch (\moodle_exception $e) {
             $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
@@ -163,7 +163,7 @@ class locallib_sso_token_test extends TestCase {
     public function test_generate_token_ignores_stale_session_flags_of_an_active_account(): void {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
         // A session copy flagged suspended does not refuse an account the database says is active.
-        $token = skilland_generate_sso_token($this->makeUser(['suspended' => 1]), 'org1');
+        $token = skilland_generate_sso_token($this->makeUser(['suspended' => 1]), 'org1', 'Expert');
 
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertSame('1', $decoded->sub);
@@ -187,7 +187,7 @@ class locallib_sso_token_test extends TestCase {
             'sso_secret' => $this->ssoSecret,
         ];
 
-        $token = skilland_generate_sso_token($this->makeUser(['id' => 42]), 'org1');
+        $token = skilland_generate_sso_token($this->makeUser(['id' => 42]), 'org1', 'Expert');
 
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertSame('42', $decoded->sub);
@@ -201,7 +201,7 @@ class locallib_sso_token_test extends TestCase {
             'sso_secret' => $this->ssoSecret,
         ];
 
-        $token = skilland_generate_sso_token($this->makeUser(), 'org1');
+        $token = skilland_generate_sso_token($this->makeUser(), 'org1', 'Expert');
 
         $this->assertIsString($token);
         $this->assertNotEmpty($token);
@@ -221,7 +221,7 @@ class locallib_sso_token_test extends TestCase {
         ];
 
         $before = time();
-        $token = skilland_generate_sso_token($this->makeUser(), 'org1');
+        $token = skilland_generate_sso_token($this->makeUser(), 'org1', 'Expert');
 
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertGreaterThanOrEqual($before, $decoded->iat);
@@ -235,8 +235,8 @@ class locallib_sso_token_test extends TestCase {
         ];
 
         $user = $this->makeUser();
-        $token1 = skilland_generate_sso_token($user, 'org1');
-        $token2 = skilland_generate_sso_token($user, 'org1');
+        $token1 = skilland_generate_sso_token($user, 'org1', 'Expert');
+        $token2 = skilland_generate_sso_token($user, 'org1', 'Expert');
 
         $decoded1 = JWT::decode($token1, new Key($this->ssoSecret, 'HS256'));
         $decoded2 = JWT::decode($token2, new Key($this->ssoSecret, 'HS256'));
@@ -254,7 +254,7 @@ class locallib_sso_token_test extends TestCase {
         ];
         $GLOBALS['_test_enrolled_courses'] = [];
 
-        $token = skilland_generate_sso_token($this->makeUser(), 'org1');
+        $token = skilland_generate_sso_token($this->makeUser(), 'org1', 'Expert');
 
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertEmpty($decoded->courseAccess);
@@ -265,7 +265,7 @@ class locallib_sso_token_test extends TestCase {
             'sso_secret' => $this->ssoSecret,
         ];
 
-        $token = skilland_generate_sso_token($this->makeUser(), 'my-org-42');
+        $token = skilland_generate_sso_token($this->makeUser(), 'my-org-42', 'Expert');
 
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertEquals('my-org-42', $decoded->orgId);
@@ -277,7 +277,7 @@ class locallib_sso_token_test extends TestCase {
         ];
 
         $user = $this->makeUser(['firstname' => 'María', 'lastname' => 'García']);
-        $token = skilland_generate_sso_token($user, 'org1');
+        $token = skilland_generate_sso_token($user, 'org1', 'Expert');
 
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertEquals('María García', $decoded->name);
@@ -289,7 +289,7 @@ class locallib_sso_token_test extends TestCase {
             'devmode' => true,
         ];
 
-        skilland_generate_sso_token($this->makeUser(['id' => 42]), 'org1');
+        skilland_generate_sso_token($this->makeUser(['id' => 42]), 'org1', 'Expert');
 
         $messages = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
         $this->assertStringContainsString('Generated token for user id 42', $messages);
@@ -310,7 +310,7 @@ class locallib_sso_token_test extends TestCase {
             'devmode' => true,
         ];
 
-        skilland_generate_sso_token($this->makeUser(), 'org1');
+        skilland_generate_sso_token($this->makeUser(), 'org1', 'Expert');
 
         $messages = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
         $this->assertStringNotContainsString($this->ssoSecret, $messages);

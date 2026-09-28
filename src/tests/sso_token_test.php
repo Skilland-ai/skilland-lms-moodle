@@ -52,7 +52,7 @@ final class sso_token_test extends \advanced_testcase {
      */
     private function assert_refused(\stdClass $user, string $reason): void {
         try {
-            skilland_generate_sso_token($user, 'org-fixture');
+            skilland_generate_sso_token($user, 'org-fixture', 'Expert');
             $this->fail('Expected the SSO token to be refused');
         } catch (\moodle_exception $e) {
             $this->assertSame('error_sso_user_not_allowed', $e->errorcode);

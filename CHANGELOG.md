@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.40-beta]
+
+### Security
+- `sso_redirect.php` now requires a `courseid`, refuses guests and checks
+  `mod/skilland:accessstudio` in that course before minting an SSO token, so a
+  student or guest can no longer reach the handoff by leaving the course out
+  (SKL-645).
+- The token's `role` claim is no longer hard-coded to `Expert`: it is `Expert`
+  only for a user holding `mod/skilland:addinstance` in the course, otherwise
+  `Learner`, and `skilland_generate_sso_token()` refuses any other role
+  (SKL-645).
+
+### Changed
+- The "Go to Skilland" button on the activity form of an unlinked course
+  passes the course id to the SSO handoff (SKL-645).
+
 ## [0.9.38-beta]
 
 ### Added

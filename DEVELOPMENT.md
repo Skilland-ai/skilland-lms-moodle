@@ -272,7 +272,9 @@ SSO Flow:
 1. Moodle generates SSO token with the organization's SSO secret: sub = Moodle user id,
    exp = iat + 60 s, aud = origin of frontend_url (SkilLand may override the expected value
    with MOODLE_SSO_AUDIENCE), iss = Moodle wwwroot. Guest, suspended, deleted, unconfirmed
-   and nologin accounts are refused
+   and nologin accounts are refused. sso_redirect.php requires `courseid` and
+   `mod/skilland:accessstudio` in that course; role = Expert with `mod/skilland:addinstance`
+   there, otherwise Learner
 2. sso_redirect.php answers with a self-submitting form that POSTs token and redirect to
    frontend /sso-login (no query string; Cache-Control: no-store, Referrer-Policy: no-referrer)
 3. Frontend calls backend ssoLogin mutation
