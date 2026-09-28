@@ -16,8 +16,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Hook callbacks for mod_skilland.
  *

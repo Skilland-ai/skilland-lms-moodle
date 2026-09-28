@@ -28,8 +28,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Logger class for mod_skilland.
  *

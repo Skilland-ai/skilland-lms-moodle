@@ -18,8 +18,6 @@ namespace mod_skilland\completion;
 
 use core_completion\activity_custom_completion;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Custom completion rules of mod_skilland (SKL-668).
  *

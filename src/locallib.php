@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-defined('MOODLE_INTERNAL') || die();
-
 use mod_skilland\graphql_exception;
 use mod_skilland\local\package_signature;
 use mod_skilland\logger;
@@ -80,18 +78,18 @@ function skilland_course_has_mapping($courseid) {
 function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null) {
     global $DB, $CFG;
 
-    // Use global org ID if not provided
+    // Use global org ID if not provided.
     if (empty($orgid)) {
         $orgid = get_config('mod_skilland', 'orgid');
     }
 
-    // Check if mapping already exists
+    // Check if mapping already exists.
     $existing = $DB->get_record('skilland_course', ['course' => $courseid]);
 
     $now = time();
 
     if ($existing) {
-        // Update existing mapping
+        // Update existing mapping.
         $existing->skilland_courseid = $skillandcourseid;
         $existing->skilland_orgid = $orgid;
         $existing->timemodified = $now;
@@ -101,7 +99,7 @@ function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null
         }
         return false;
     } else {
-        // Create new mapping
+        // Create new mapping.
         $mapping = new stdClass();
         $mapping->course = $courseid;
         $mapping->skilland_courseid = $skillandcourseid;
@@ -478,7 +476,7 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
     // Ensure variables is always an object (associative array in PHP), not an array.
     // If variables is an empty array, convert to empty object for JSON encoding.
     if (empty($variables)) {
-        $variables = new \stdClass(); // Empty object
+        $variables = new \stdClass(); // Empty object.
     }
     $payload = [
         'query' => $query,
@@ -952,7 +950,7 @@ GRAPHQL;
         $data = mod_skilland_graphql($query, ['courseId' => $courseid]);
 
         if (!isset($data['course']) || empty($data['course'])) {
-            // Return a proper structure with empty topics array
+            // Return a proper structure with empty topics array.
             return [
                 'id' => $courseid,
                 'name' => '',
@@ -2359,7 +2357,7 @@ function skilland_generate_sso_token($user, $orgid) {
         throw new moodle_exception('error_sso_user_not_allowed', 'mod_skilland');
     }
 
-    // Check if composer autoloader exists
+    // Check if composer autoloader exists.
     $autoloadpath = __DIR__ . '/vendor/autoload.php';
     if (!file_exists($autoloadpath)) {
         throw new moodle_exception(
@@ -2373,7 +2371,7 @@ function skilland_generate_sso_token($user, $orgid) {
 
     require_once($autoloadpath);
 
-    // Check if JWT class is available
+    // Check if JWT class is available.
     if (!class_exists('\Firebase\JWT\JWT')) {
         throw new moodle_exception(
             'error',
@@ -2384,7 +2382,7 @@ function skilland_generate_sso_token($user, $orgid) {
         );
     }
 
-    // Get SSO secret from config
+    // Get SSO secret from config.
     $ssosecret = get_config('mod_skilland', 'sso_secret');
     if (empty($ssosecret)) {
         throw new moodle_exception(
@@ -2396,12 +2394,12 @@ function skilland_generate_sso_token($user, $orgid) {
         );
     }
 
-    // Get ALL courses user is enrolled in
+    // Get ALL courses user is enrolled in.
     $enrolled_courses = enrol_get_users_courses($user->id, true);
 
     $course_access = [];
     foreach ($enrolled_courses as $course) {
-        // Get Skilland skill ID from course custom field
+        // Get Skilland skill ID from course custom field.
         $skilland_skill_id = skilland_get_course_customfield_value($course->id);
 
         if ($skilland_skill_id) {
@@ -2412,17 +2410,17 @@ function skilland_generate_sso_token($user, $orgid) {
         }
     }
 
-    // Generate a unique nonce for this token
+    // Generate a unique nonce for this token.
     $nonce = bin2hex(random_bytes(16));
 
-    // Prepare token payload
+    // Prepare token payload.
     $issuedat = time();
     $payload = [
         'sub' => (string) $user->id,
         'email' => $user->email,
         'name' => fullname($user),
         'orgId' => $orgid,
-        'role' => 'Expert', // Default role for SSO users
+        'role' => 'Expert', // Default role for SSO users.
         'nonce' => $nonce,
         'iat' => $issuedat,
         'exp' => $issuedat + 60, // The token only has to survive the auto-submitted form.
@@ -2432,7 +2430,7 @@ function skilland_generate_sso_token($user, $orgid) {
         'courseAccess' => $course_access,
     ];
 
-    // Sign and return the token
+    // Sign and return the token.
     try {
         $token = \Firebase\JWT\JWT::encode($payload, $ssosecret, 'HS256');
         logger::debug('SSO', 'Generated token for user id ' . $user->id);

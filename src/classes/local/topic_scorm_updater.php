@@ -24,8 +24,6 @@
 
 namespace mod_skilland\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Rebuilds a topic's SCORM package. Callers resolve it with \core\di::get() so tests can
  * replace the rebuild with \core\di::set(topic_scorm_updater::class, $fake).

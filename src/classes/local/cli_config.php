@@ -24,8 +24,6 @@
 
 namespace mod_skilland\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Pure logic behind cli/configure_api.php: validates the options and returns the
  * config writes, so nothing is written when any option is invalid.

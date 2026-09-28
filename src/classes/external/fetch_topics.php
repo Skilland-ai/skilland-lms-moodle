@@ -96,7 +96,7 @@ class fetch_topics extends base {
             $courseDetails = [
                 'id' => $courseData['id'],
                 'name' => $courseData['name'] ?? '',
-                'code' => $courseData['code'] ?? $courseData['id'], // Fallback to ID if code is missing
+                'code' => $courseData['code'] ?? $courseData['id'], // Fallback to ID if code is missing.
             ];
 
             return [

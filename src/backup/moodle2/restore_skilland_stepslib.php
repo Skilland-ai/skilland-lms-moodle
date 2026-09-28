@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Structure step to restore one skilland activity
  *
@@ -41,7 +39,7 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         $data = (object)$data;
         $data->course = $this->get_courseid();
 
-        // Apply date offsets to all timestamp fields
+        // Apply date offsets to all timestamp fields.
         $data->timecreated = $this->apply_date_offset($data->timecreated);
         $data->timemodified = $this->apply_date_offset($data->timemodified);
         if (!empty($data->lastsynced)) {
@@ -54,15 +52,15 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
             $data->snapshotcreatedat = $this->apply_date_offset($data->snapshotcreatedat);
         }
 
-        // scormcmid keeps the backup's (old) course module id here. The SCORM activity may be
+        // Scormcmid keeps the backup's (old) course module id here. The SCORM activity may be
         // restored after this one, so its mapping is resolved in
         // restore_skilland_activity_task::after_restore(), once every activity has been restored.
 
-        // Handle Skilland Course Mapping
+        // Handle Skilland Course Mapping.
         if (!empty($data->skilland_courseid)) {
             $existing_map = $DB->get_record('skilland_course', ['course' => $data->course]);
             if (!$existing_map) {
-                // Create new course mapping
+                // Create new course mapping.
                 $map = new stdClass();
                 $map->course = $data->course;
                 $map->skilland_courseid = $data->skilland_courseid;
@@ -75,7 +73,7 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
                     debugging('Failed to create Skilland course mapping: ' . $e->getMessage(), DEBUG_DEVELOPER);
                 }
             } else if ($existing_map->skilland_courseid != $data->skilland_courseid) {
-                // Warn if course is already mapped to a different Skilland course
+                // Warn if course is already mapped to a different Skilland course.
                 debugging(
                     'Course already mapped to different Skilland course (existing: ' .
                          $existing_map->skilland_courseid . ', backup: ' . $data->skilland_courseid . ')',
@@ -84,7 +82,7 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
             }
         }
 
-        // Remove fields that don't belong to the skilland table
+        // Remove fields that don't belong to the skilland table.
         unset($data->skilland_courseid);
         unset($data->skilland_orgid);
 
@@ -101,10 +99,10 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         // Backups taken before SKL-661 still carry the dropped lesson-level scormcmid.
         unset($data->scormcmid);
 
-        // scoid keeps the backup's (old) SCO id here; restore_skilland_activity_task::after_restore()
+        // Scoid keeps the backup's (old) SCO id here; restore_skilland_activity_task::after_restore()
         // maps it, together with scormcmid, once the SCORM activity has been restored.
 
-        // Apply date offsets to timestamp fields
+        // Apply date offsets to timestamp fields.
         if (!empty($data->updatedat)) {
             $data->updatedat = $this->apply_date_offset($data->updatedat);
         }
@@ -119,7 +117,7 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
      * Process file areas after the structure has been restored
      */
     protected function after_execute() {
-        // Restore files for intro field
+        // Restore files for intro field.
         $this->add_related_files('mod_skilland', 'intro', null);
     }
 }

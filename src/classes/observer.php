@@ -16,8 +16,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Event observers for mod_skilland.
  *

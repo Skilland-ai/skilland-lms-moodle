@@ -24,8 +24,6 @@
 
 namespace mod_skilland\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Sleeps between retries. Tests replace it with \core\di::set(retry_sleeper::class, $recorder)
  * to record the delays instead of waiting.

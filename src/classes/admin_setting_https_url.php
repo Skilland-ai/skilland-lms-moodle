@@ -24,8 +24,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Text setting (PARAM_URL) that requires the https:// scheme.
  *

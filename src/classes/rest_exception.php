@@ -24,8 +24,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * A moodle_exception that also carries the HTTP status of the failed request.
  *

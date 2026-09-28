@@ -25,8 +25,6 @@ use mod_skilland\local\api_client;
 use mod_skilland\local\testing\fixture_api_client;
 use mod_skilland\privacy\provider;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * The privacy provider: metadata, and finding, exporting and deleting learners' lesson progress.
  *

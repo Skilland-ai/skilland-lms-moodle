@@ -31,7 +31,7 @@ use mod_skilland\logger;
 // $courseid is the Moodle course ID; the Skilland skill ID is resolved from it server-side.
 $topicid  = optional_param('topicid', '', PARAM_TEXT);
 $courseid = optional_param('courseid', 0, PARAM_INT);
-// pending=1 comes from the post-save notification (observer::course_updated, SKL-664): open the
+// Pending=1 comes from the post-save notification (observer::course_updated, SKL-664): open the
 // Studio path stored when the course was created from Moodle, once.
 $pending  = optional_param('pending', false, PARAM_BOOL);
 
@@ -58,16 +58,16 @@ if (!empty($courseid)) {
 }
 
 try {
-    // Get organization ID from plugin settings
+    // Get organization ID from plugin settings.
     $orgid = get_config('mod_skilland', 'orgid');
     if (empty($orgid)) {
         throw new moodle_exception('error_config_missing_orgid', 'mod_skilland');
     }
 
-    // Generate SSO token
+    // Generate SSO token.
     $token = skilland_generate_sso_token($USER, $orgid);
 
-    // Construct redirect URL: /skills-studio/:skillId/topics/:topicId
+    // Construct redirect URL: /skills-studio/:skillId/topics/:topicId.
     $redirect = '/skills-studio';
     if (!empty($skillandcourseid)) {
         $redirect .= '/' . urlencode($skillandcourseid);
@@ -98,6 +98,6 @@ try {
 } catch (Exception $e) {
     logger::error('SSO', $e->getMessage());
 
-    // Show error to user using Moodle's exception handling
+    // Show error to user using Moodle's exception handling.
     throw new moodle_exception('error', 'mod_skilland', '', null, $e->getMessage());
 }

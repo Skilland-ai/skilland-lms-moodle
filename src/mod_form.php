@@ -65,7 +65,7 @@ class mod_skilland_mod_form extends moodleform_mod {
             $message = html_writer::div(
                 html_writer::tag('p', get_string('skilland_course_id_required_message', 'mod_skilland')) .
                 html_writer::tag('p', $link . $golink),
-                // skilland-missing-courseid: styles.css hides the rest of the form around it (without JS too).
+                // Skilland-missing-courseid: styles.css hides the rest of the form around it (without JS too).
                 'alert alert-warning skilland-missing-courseid'
             );
 
@@ -134,7 +134,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         $mform->addElement('hidden', 'topic_orderindex', 1);
         $mform->setType('topic_orderindex', PARAM_INT);
 
-        // Edit in Skilland button (only shown when topic is selected)
+        // Edit in Skilland button (only shown when topic is selected).
         $skillandbuttonhtml = '<div id="skilland-edit-button-container" class="form-group row fitem d-none">
             <div class="col-md-3 col-form-label d-flex pb-0 pr-md-0">
                 <label class="d-inline word-break">' . get_string('edit_in_skilland', 'mod_skilland') . '</label>
@@ -150,7 +150,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         </div>';
         $mform->addElement('html', $skillandbuttonhtml);
 
-        // Lessons Selection Container
+        // Lessons Selection Container.
         $mform->addElement('html', '<div id="fitem_id_lessons_container" class="form-group row fitem">
             <div class="col-md-3 col-form-label d-flex pb-0 pr-md-0">
                 <label class="d-inline word-break">' . get_string('lessons', 'mod_skilland') . '</label>
@@ -180,7 +180,7 @@ class mod_skilland_mod_form extends moodleform_mod {
             </div>
         </div>');
 
-        // Hidden field to store selected lessons (JSON)
+        // Hidden field to store selected lessons (JSON).
         $mform->addElement('hidden', 'selected_lessons', '{}');
         $mform->setType('selected_lessons', PARAM_RAW);
         $mform->setDefault('selected_lessons', '{}');
@@ -272,7 +272,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                     $hasscorm = !empty($skilland->scormcmid);
                     $topicstudentattemptcount = skilland_count_topic_student_attempts($skilland);
                     $mform->setDefault('skilland_topicid', $currenttopicid);
-                    // Fetch existing selected lessons (visible=1)
+                    // Fetch existing selected lessons (visible=1).
                     $records = $DB->get_records(
                         'skilland_lesson',
                         ['skillandid' => $this->_instance, 'visible' => 1],

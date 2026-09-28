@@ -24,8 +24,6 @@
 
 namespace mod_skilland\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * The real {@see api_client}: Moodle's curl against the configured SkilLand URLs.
  */

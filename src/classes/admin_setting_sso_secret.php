@@ -24,8 +24,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Password setting that rejects short secrets and secrets that were ever shipped as dev defaults.
  */

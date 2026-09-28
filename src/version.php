@@ -24,7 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->requires  = 2024100700;   // Moodle 4.5+ (core_external)
+$plugin->requires  = 2024100700;   // Moodle 4.5+ (core_external).
 $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
