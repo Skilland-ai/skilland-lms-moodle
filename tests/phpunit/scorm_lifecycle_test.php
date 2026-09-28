@@ -8,7 +8,6 @@ require_once __DIR__ . '/stubs/event_stub.php';
 require_once __DIR__ . '/stubs/lock_stub.php';
 require_once __DIR__ . '/../../src/locallib.php';
 require_once __DIR__ . '/../../src/lib.php';
-require_once __DIR__ . '/stubs/view_functions.php';
 
 use PHPUnit\Framework\TestCase;
 

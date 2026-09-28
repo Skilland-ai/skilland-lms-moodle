@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/course/moodleform_mod.php');
@@ -8,6 +23,10 @@ use mod_skilland\logger;
 
 /**
  * Module instance settings form for mod_skilland.
+ *
+ * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mod_skilland_mod_form extends moodleform_mod {
 
@@ -24,25 +43,25 @@ class mod_skilland_mod_form extends moodleform_mod {
         $skillandcourseid = skilland_get_course_customfield_value($courseid);
 
         // Get link to course settings for editing.
-        $courseediturl = new moodle_url('/course/edit.php', array('id' => $courseid));
+        $courseediturl = new moodle_url('/course/edit.php', ['id' => $courseid]);
         $courseediturl->set_anchor('id_course_customfields');
 
         // If Skilland Course ID is not set, show only a message and prevent form submission.
         if (empty($skillandcourseid)) {
             // Show a prominent message that Skilland Course ID must be set first.
             $linktext = get_string('set_skilland_course_id', 'mod_skilland');
-            $link = html_writer::link($courseediturl, $linktext, array(
+            $link = html_writer::link($courseediturl, $linktext, [
                 'class' => 'btn btn-primary',
                 'target' => '_blank'
-            ));
+            ]);
 
             // Add a "Go to Skilland" button (SSO without a specific course).
             $ssourl = new moodle_url('/mod/skilland/sso_redirect.php', ['sesskey' => sesskey()]);
-            $golink = html_writer::link($ssourl, get_string('go_to_skilland', 'mod_skilland'), array(
+            $golink = html_writer::link($ssourl, get_string('go_to_skilland', 'mod_skilland'), [
                 'class' => 'btn btn-secondary ml-2',
                 'target' => '_blank',
                 'rel' => 'noopener'
-            ));
+            ]);
 
             $message = html_writer::div(
                 html_writer::tag('p', get_string('skilland_course_id_required_message', 'mod_skilland')) .
@@ -83,7 +102,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         // Display Skilland Course ID as read-only with link to course settings.
         $displayvalue = format_string($skillandcourseid);
         $editlinktext = get_string('edit_course_settings', 'mod_skilland');
-        $editlink = html_writer::link($courseediturl, $editlinktext, array('target' => '_blank'));
+        $editlink = html_writer::link($courseediturl, $editlinktext, ['target' => '_blank']);
         $displaytext = $displayvalue . ' (' . $editlink . ')';
 
         $mform->addElement('static', 'skilland_course_id_display',
@@ -95,7 +114,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         // This will be populated via AJAX based on Skilland course.
         $mform->addElement('select', 'skilland_topicid',
             get_string('topicid', 'mod_skilland'),
-            array('' => get_string('loading', 'mod_skilland')));
+            ['' => get_string('loading', 'mod_skilland')]);
         $mform->setType('skilland_topicid', PARAM_ALPHANUMEXT);
         // No client-side 'required' rule: the topic select is populated by AJAX and stays
         // usable (loading, then a saved/stale option) while the SkilLand API is unreachable,
@@ -170,7 +189,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         // the field - and any validation error on it - is never invisible to the teacher.
 
         // Adding the standard "name" field.
-        $mform->addElement('text', 'name', get_string('modulename', 'mod_skilland'), array('size' => '64'));
+        $mform->addElement('text', 'name', get_string('modulename', 'mod_skilland'), ['size' => '64']);
         if (!empty($CFG->formatstringstriptags)) {
             $mform->setType('name', PARAM_TEXT);
         } else {
@@ -229,7 +248,7 @@ class mod_skilland_mod_form extends moodleform_mod {
 
             if (!empty($this->_instance)) {
                 global $DB;
-                $skilland = $DB->get_record('skilland', array('id' => $this->_instance));
+                $skilland = $DB->get_record('skilland', ['id' => $this->_instance]);
                 if ($skilland) {
                     $currenttopicid = $skilland->skilland_topicid;
                     $hasscorm = !empty($skilland->scormcmid);
@@ -237,7 +256,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                     $mform->setDefault('skilland_topicid', $currenttopicid);
                     // Fetch existing selected lessons (visible=1)
                     $records = $DB->get_records('skilland_lesson',
-                        array('skillandid' => $this->_instance, 'visible' => 1),
+                        ['skillandid' => $this->_instance, 'visible' => 1],
                         '',
                         'skilland_lessonid, updatedat, title');
 
@@ -294,7 +313,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         $courseid = $this->get_course()->id;
         $skillandcourseid = skilland_get_course_customfield_value($courseid);
         if (empty($skillandcourseid)) {
-            $courseediturl = new moodle_url('/course/edit.php', array('id' => $courseid));
+            $courseediturl = new moodle_url('/course/edit.php', ['id' => $courseid]);
             $courseediturl->set_anchor('id_course_customfields');
             $linktext = get_string('set_skilland_course_id', 'mod_skilland');
             $link = html_writer::link($courseediturl, $linktext);

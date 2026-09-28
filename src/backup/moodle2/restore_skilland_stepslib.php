@@ -1,14 +1,33 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 defined('MOODLE_INTERNAL') || die();
 
 /**
  * Structure step to restore one skilland activity
+ *
+ * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_skilland_activity_structure_step extends restore_activity_structure_step {
 
     protected function define_structure() {
 
-        $paths = array();
+        $paths = [];
         $userinfo = $this->get_setting_value('userinfo');
 
         $paths[] = new restore_path_element('skilland', '/activity/skilland');
@@ -22,7 +41,7 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
 
         $data = (object)$data;
         $data->course = $this->get_courseid();
-        
+
         // Apply date offsets to all timestamp fields
         $data->timecreated = $this->apply_date_offset($data->timecreated);
         $data->timemodified = $this->apply_date_offset($data->timemodified);
@@ -42,7 +61,7 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
 
         // Handle Skilland Course Mapping
         if (!empty($data->skilland_courseid)) {
-            $existing_map = $DB->get_record('skilland_course', array('course' => $data->course));
+            $existing_map = $DB->get_record('skilland_course', ['course' => $data->course]);
             if (!$existing_map) {
                 // Create new course mapping
                 $map = new stdClass();
@@ -58,8 +77,8 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
                 }
             } else if ($existing_map->skilland_courseid != $data->skilland_courseid) {
                 // Warn if course is already mapped to a different Skilland course
-                debugging('Course already mapped to different Skilland course (existing: ' . 
-                         $existing_map->skilland_courseid . ', backup: ' . $data->skilland_courseid . ')', 
+                debugging('Course already mapped to different Skilland course (existing: ' .
+                         $existing_map->skilland_courseid . ', backup: ' . $data->skilland_courseid . ')',
                          DEBUG_DEVELOPER);
             }
         }
@@ -94,7 +113,7 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
 
         $DB->insert_record('skilland_lesson', $data);
     }
-    
+
     /**
      * Process file areas after the structure has been restored
      */

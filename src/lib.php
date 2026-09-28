@@ -1,4 +1,27 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Library functions for mod_skilland.
+ *
+ * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 defined('MOODLE_INTERNAL') || die();
 
 use core\output\action_link;
@@ -6,6 +29,9 @@ use mod_skilland\logger;
 
 /**
  * Returns the information on whether the module supports a feature.
+ *
+ * @param string $feature FEATURE_xx constant for requested feature
+ * @return mixed True if module supports feature, false if not, null if doesn't know
  */
 function skilland_supports($feature) {
     switch ($feature) {
@@ -348,12 +374,12 @@ function skilland_delete_instance($id) {
     }
 
     // Delete associated lesson records.
-    $DB->delete_records('skilland_lesson', array('skillandid' => $id));
+    $DB->delete_records('skilland_lesson', ['skillandid' => $id]);
 
     // Delete the activity instance.
     // Note: We intentionally do NOT delete the Skilland course mapping,
     // as it may be used by other activities in the same Moodle course.
-    return $DB->delete_records('skilland', array('id' => $id));
+    return $DB->delete_records('skilland', ['id' => $id]);
 }
 
 /**
@@ -598,7 +624,7 @@ function skilland_process_selected_lessons($skillandid, $json) {
     }
 
     // Get existing lessons for this activity.
-    $existing = $DB->get_records('skilland_lesson', array('skillandid' => $skillandid), '', 'skilland_lessonid, id, visible, orderindex');
+    $existing = $DB->get_records('skilland_lesson', ['skillandid' => $skillandid], '', 'skilland_lessonid, id, visible, orderindex');
 
     $processed_ids = [];
     $orderindex = 1; // Start lesson numbering at 1.

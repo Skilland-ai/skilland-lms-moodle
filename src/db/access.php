@@ -18,7 +18,7 @@
  * Capability definitions for the skilland module.
  *
  * @package    mod_skilland
- * @copyright  2025
+ * @copyright  2025 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

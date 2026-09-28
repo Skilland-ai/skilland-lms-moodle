@@ -18,7 +18,7 @@
  * Admin setting for a URL that must use HTTPS.
  *
  * @package    mod_skilland
- * @copyright  2026
+ * @copyright  2026 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

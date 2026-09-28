@@ -89,9 +89,12 @@ class view_templates_test extends TestCase {
     }
 
     public function test_view_functions_render_through_the_plugin_renderer(): void {
-        $source = file_get_contents(__DIR__ . '/../../src/view.php');
-        $this->assertStringNotContainsString('html_writer::start_div', $source);
-        $this->assertStringContainsString("\$PAGE->get_renderer('mod_skilland')", $source);
+        $viewsource = file_get_contents(__DIR__ . '/../../src/view.php');
+        $this->assertStringNotContainsString('html_writer::start_div', $viewsource);
+
+        // The render helpers view.php calls live in locallib.php (SKL-691).
+        $locallibsource = file_get_contents(__DIR__ . '/../../src/locallib.php');
+        $this->assertStringContainsString("\$PAGE->get_renderer('mod_skilland')", $locallibsource);
         $this->assertInstanceOf(\mod_skilland\output\renderer::class, skilland_view_renderer());
     }
 

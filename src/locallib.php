@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 defined('MOODLE_INTERNAL') || die();
 
 use mod_skilland\graphql_exception;
@@ -10,6 +25,10 @@ use mod_skilland\rest_exception;
  *
  * This file contains helper functions for managing Moodle course-to-Skilland course mappings
  * and other internal operations.
+ *
+ * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 /**
@@ -35,7 +54,7 @@ function skilland_is_enabled(): bool {
  */
 function skilland_get_course_mapping($courseid) {
     global $DB;
-    return $DB->get_record('skilland_course', array('course' => $courseid));
+    return $DB->get_record('skilland_course', ['course' => $courseid]);
 }
 
 /**
@@ -46,7 +65,7 @@ function skilland_get_course_mapping($courseid) {
  */
 function skilland_course_has_mapping($courseid) {
     global $DB;
-    return $DB->record_exists('skilland_course', array('course' => $courseid));
+    return $DB->record_exists('skilland_course', ['course' => $courseid]);
 }
 
 /**
@@ -66,7 +85,7 @@ function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null
     }
 
     // Check if mapping already exists
-    $existing = $DB->get_record('skilland_course', array('course' => $courseid));
+    $existing = $DB->get_record('skilland_course', ['course' => $courseid]);
 
     $now = time();
 
@@ -103,7 +122,7 @@ function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null
 function skilland_update_course_sync($courseid) {
     global $DB;
 
-    $mapping = $DB->get_record('skilland_course', array('course' => $courseid));
+    $mapping = $DB->get_record('skilland_course', ['course' => $courseid]);
     if (!$mapping) {
         return false;
     }
@@ -134,7 +153,7 @@ function skilland_get_skilland_courseid($courseid) {
  */
 function skilland_delete_course_mapping($courseid) {
     global $DB;
-    return $DB->delete_records('skilland_course', array('course' => $courseid));
+    return $DB->delete_records('skilland_course', ['course' => $courseid]);
 }
 
 /**
@@ -365,7 +384,7 @@ function skilland_topic_belongs_to_course(string $topicid, string $skillandcours
  * The activity form posts `selected_lessons` as a JSON object keyed by lesson ID.
  * IDs are compared as strings, so numeric and string IDs match. A non-empty JSON
  * list is not a lesson map: its indexes are returned, as strings, as foreign IDs.
- * Anything else that is not a non-empty JSON object ('', '{}', '[]', 'array()',
+ * Anything else that is not a non-empty JSON object ('', '{}', '[]', '[]',
  * invalid JSON, a scalar) yields no foreign IDs.
  *
  * @param string $json Submitted selected_lessons value
@@ -3092,4 +3111,187 @@ function mod_skilland_take_pending_studio_path(int $courseid): ?string {
         unset($SESSION->mod_skilland_pending_studio[$courseid]);
     }
     return $path;
+}
+
+/**
+ * Find a playable lesson among the visible lessons of this activity.
+ *
+ * @param array $lessons Visible lessons of this activity, keyed by lesson id.
+ * @param int $lessonid The requested lesson id.
+ * @return stdClass|null The lesson, or null when it is hidden, belongs to another activity or does not exist.
+ */
+function skilland_find_visible_lesson(array $lessons, int $lessonid): ?stdClass {
+    return $lessons[$lessonid] ?? null;
+}
+
+/**
+ * Detect a linked SCORM that was deleted (or is being deleted) and treat the activity as
+ * unprovisioned for this request by clearing scormcmid in memory only.
+ *
+ * @param stdClass $skilland The skilland activity record; scormcmid is nulled when missing.
+ * @return bool True when scormcmid was set but the SCORM module is gone.
+ */
+function skilland_detect_missing_scorm(stdClass $skilland): bool {
+    if (empty($skilland->scormcmid)) {
+        return false;
+    }
+    if (skilland_get_linked_scorm_cm($skilland)) {
+        return false;
+    }
+    $skilland->scormcmid = null;
+    return true;
+}
+
+/**
+ * The mod_skilland renderer of the view page.
+ *
+ * @return \mod_skilland\output\renderer
+ */
+function skilland_view_renderer(): \mod_skilland\output\renderer {
+    global $PAGE;
+    return $PAGE->get_renderer('mod_skilland');
+}
+
+/**
+ * Render the lesson list view with progress indicators.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param array $lessons Array of lesson records.
+ * @param stdClass $cm The course module record.
+ * @param int $topicorderindex The topic order index (T1, T2, etc.).
+ * @return string HTML output.
+ */
+function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex = 1) {
+    global $USER;
+
+    $progress = [];
+    $canprovision = false;
+    if (!empty($lessons)) {
+        // Merge the learner's SCORM tracks into the progress store, then read it (SKL-668).
+        if (skilland_refresh_progress($skilland, (int) $USER->id)) {
+            skilland_recompute_user($skilland, (int) $USER->id);
+        }
+        $progress = skilland_get_user_progress((int) $skilland->id, (int) $USER->id);
+
+        logger::debug('Progress', 'Progress for user ' . $USER->id . ', skilland ' . $skilland->id . ': ' . json_encode($progress));
+
+        // Teachers see which visible lessons are missing from the installed package (SKL-655).
+        $canprovision = !empty($skilland->scormcmid) &&
+            has_capability('mod/skilland:provision', context_module::instance($cm->id));
+    }
+
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_list(
+        $skilland, $lessons, $cm, (int) $topicorderindex, $progress, $canprovision));
+}
+
+/**
+ * Render the SCORM player view with embedded iframe in fullscreen mode.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param stdClass $lesson The lesson record to play.
+ * @param stdClass $cm The course module record.
+ * @param array $alllessons All lessons for navigation.
+ * @param int $topicorderindex The topic order index (T1, T2, etc.).
+ * @return string HTML output.
+ */
+function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topicorderindex = 1) {
+    global $USER, $DB, $PAGE, $CFG;
+
+    $renderer = skilland_view_renderer();
+
+    // Check the lesson is visible here, has a valid SCO mapping and the SCORM module still exists.
+    $found = \mod_skilland\output\lesson_navigation::position_of($lesson, $alllessons) !== null;
+    $scormcm = null;
+    if ($found && !empty($lesson->scoid) && !empty($skilland->scormcmid)) {
+        $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
+    }
+    if (!$scormcm) {
+        return $renderer->render(new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons,
+            (int) $topicorderindex, null));
+    }
+
+    // Build the SCORM player URL.
+    $scorm = $DB->get_record('scorm', ['id' => $scormcm->instance], '*', MUST_EXIST);
+
+    // Get or create a SCORM attempt for this user.
+    require_once($CFG->dirroot . '/mod/scorm/locallib.php');
+    $attempt = scorm_get_last_attempt($scorm->id, $USER->id);
+    if (empty($attempt)) {
+        $attempt = 1;
+    }
+
+    // Build the player URL with the specific SCO.
+    $scormplayerurl = new moodle_url('/mod/scorm/player.php', [
+        'scoid' => $lesson->scoid,
+        'cm' => $skilland->scormcmid,
+        'mode' => 'normal',
+        'newattempt' => 'off',
+        'display' => 'popup'
+    ]);
+
+    $player = new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons, (int) $topicorderindex,
+        $scormplayerurl);
+    $html = $renderer->render($player);
+
+    // Load the fullscreen JavaScript module.
+    $devmode = get_config('mod_skilland', 'devmode');
+    $PAGE->requires->js_call_amd('mod_skilland/fullscreen_player', 'init', [[
+        'debug' => (bool)$devmode,
+        'backurl' => $player->get_back_url()->out(false)
+    ]]);
+
+    return $html;
+}
+
+/**
+ * Render prev/next navigation for the player view.
+ *
+ * @param stdClass $currentlesson The current lesson record.
+ * @param array $alllessons All lessons for this activity.
+ * @param stdClass $cm The course module record.
+ * @param int $topicorderindex The topic order index (T1, T2, etc.).
+ * @param stdClass $skilland The skilland activity record.
+ * @return string HTML output.
+ */
+function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
+        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_PLAYER));
+}
+
+/**
+ * Render the bottom navigation bar for fullscreen player view.
+ *
+ * @param stdClass $currentlesson The current lesson record.
+ * @param array $alllessons All lessons for this activity.
+ * @param stdClass $cm The course module record.
+ * @param int $topicorderindex The topic order index (T1, T2, etc.).
+ * @param stdClass $skilland The skilland activity record.
+ * @return string HTML output.
+ */
+function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
+        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN));
+}
+
+/**
+ * Render the provision view for teachers when SCORM is not yet created.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param stdClass $cm The course module record.
+ * @return string HTML output.
+ */
+function skilland_render_provision_view($skilland, $cm) {
+    global $PAGE;
+
+    $html = skilland_view_renderer()->render(new \mod_skilland\output\provision($skilland, $cm));
+
+    // Load the JavaScript module for provisioning.
+    $devmode = get_config('mod_skilland', 'devmode');
+    $PAGE->requires->js_call_amd('mod_skilland/provision_scorm', 'init', [[
+        'skillandid' => (int)$skilland->id,
+        'cmid' => (int)$cm->id,
+        'debug' => (bool)$devmode
+    ]]);
+
+    return $html;
 }

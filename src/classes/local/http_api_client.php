@@ -18,7 +18,7 @@
  * Production transport to the SkilLand API over HTTPS.
  *
  * @package    mod_skilland
- * @copyright  2024
+ * @copyright  2024 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -39,6 +39,10 @@ class http_api_client implements api_client {
 
     /**
      * {@inheritDoc}
+     *
+     * @param string $query The GraphQL document.
+     * @param array $variables Query variables; an empty array is sent as an empty JSON object.
+     * @return array The decoded `data` member of the response (an empty array when absent).
      */
     public function graphql(string $query, array $variables = []): array {
         return mod_skilland_graphql_http($query, $variables);
@@ -46,6 +50,9 @@ class http_api_client implements api_client {
 
     /**
      * {@inheritDoc}
+     *
+     * @param string $path Route path, e.g. /api/moodle/topics/{id}/scorm-hash.
+     * @return array The decoded JSON body.
      */
     public function rest_get(string $path): array {
         return mod_skilland_rest_get_http($path);
@@ -53,6 +60,10 @@ class http_api_client implements api_client {
 
     /**
      * {@inheritDoc}
+     *
+     * @param string $packageurl HTTPS URL on an allowed package host.
+     * @param int $expectedsize Size in bytes the API announced for the package; 0 skips the check.
+     * @return string Path of the downloaded zip; the caller deletes it.
      */
     public function download_package(string $packageurl, int $expectedsize): string {
         return mod_skilland_download_package_http($packageurl, $expectedsize);

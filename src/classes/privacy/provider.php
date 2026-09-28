@@ -35,7 +35,7 @@ defined('MOODLE_INTERNAL') || die();
  * tests/phpunit/privacy_provider_test.php enforces it.
  *
  * @package    mod_skilland
- * @copyright  2024
+ * @copyright  2024 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class provider implements
