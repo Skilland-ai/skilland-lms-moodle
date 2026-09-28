@@ -532,7 +532,7 @@ class form_lesson_selection_test extends TestCase {
         $this->assertStringContainsString("'ssourl' => (new moodle_url('/mod/skilland/sso_redirect.php'))->out(false),",
             self::$form);
         // The saved lessons can exceed js_call_amd's argument budget: they travel as a data attribute.
-        $this->assertStringContainsString("'data-lessons' => json_encode(\$currentSelectedLessons),", self::$form);
+        $this->assertStringContainsString("'data-lessons' => json_encode(\$currentselectedlessons),", self::$form);
         $this->assertStringContainsString("holder.getAttribute('data-lessons')", self::$js);
     }
 
