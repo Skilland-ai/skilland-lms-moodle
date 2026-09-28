@@ -268,6 +268,22 @@ describe('mod_form.js', () => {
     assert.equal(env.document.querySelectorAll('two').length, 0)
   })
 
+  test('the Edit in SkilLand link carries the Moodle course id (SKL-645)', async () => {
+    const env = await startForm({ ajax: topicsAjax() })
+    const container = env.document.getElementById('skilland-edit-button-container')
+    assert.equal(container.classList.contains('d-none'), true)
+
+    change(select(env), 'topic-2')
+    await env.flush()
+
+    assert.equal(container.classList.contains('d-none'), false)
+    const href = new URL(env.document.getElementById('skilland-edit-link').getAttribute('href'))
+    assert.equal(href.origin + href.pathname, 'https://moodle.test/mod/skilland/sso_redirect.php')
+    assert.equal(href.searchParams.get('courseid'), '3')
+    assert.equal(href.searchParams.get('topicid'), 'topic-2')
+    assert.ok(href.searchParams.get('sesskey'), 'the link carries a sesskey')
+  })
+
   test('a new topic ticks every lesson and the hidden value follows the checkboxes', async () => {
     const env = await startForm({ ajax: topicsAjax() })
 
