@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026092800;   // YYYYMMDDHH - signed SCORM packages, update notices instead of cron imports (SKL-650)
+$plugin->version   = 2026092900;   // YYYYMMDDHH - green phpcs gate, docblocks, coding standard fixes (SKL-808).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.38-beta';
+$plugin->release   = '0.9.39-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
