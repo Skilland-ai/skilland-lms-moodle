@@ -155,13 +155,8 @@ jobs:
           DB: pgsql
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
 
-      # Informational only for now: the full Moodle coding standard surfaces ~500 pre-existing
-      # violations across most of src/ (mostly missing @param/@return docblocks and legacy
-      # array() syntax) that predate this job. Blocking on --max-warnings 0 today would fail
-      # every future PR on debt it didn't introduce. Tracked for full remediation in SKL-808.
       - name: PHP Codesniffer
         if: ${{ !cancelled() }}
-        continue-on-error: true
         run: moodle-plugin-ci phpcs --max-warnings 0
 
       - name: Moodle PHPDoc Checker
