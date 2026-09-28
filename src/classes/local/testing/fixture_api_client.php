@@ -148,16 +148,26 @@ class fixture_api_client implements api_client {
      * @param string $contenthash contentHash used when the answer has none.
      * @return array The answer with packageHash, contentHash, keyId and signature.
      */
-    public static function sign_scorm(string $topicid, array $body, string $packagehash, string $keyid,
-            string $secretkey, string $contenthash = 'content-hash-v1'): array {
+    public static function sign_scorm(
+        string $topicid,
+        array $body,
+        string $packagehash,
+        string $keyid,
+        string $secretkey,
+        string $contenthash = 'content-hash-v1'
+    ): array {
         if (empty($body['packageHash'])) {
             $body['packageHash'] = $packagehash;
         }
         if (!isset($body['contentHash'])) {
             $body['contentHash'] = $contenthash;
         }
-        $message = \mod_skilland\local\package_signature::message($topicid, (string) $body['contentHash'],
-            $packagehash, (string) ($body['generatedAt'] ?? ''));
+        $message = \mod_skilland\local\package_signature::message(
+            $topicid,
+            (string) $body['contentHash'],
+            $packagehash,
+            (string) ($body['generatedAt'] ?? '')
+        );
         $body['keyId'] = $keyid;
         $body['signature'] = base64_encode(sodium_crypto_sign_detached($message, $secretkey));
         return $body;
@@ -342,8 +352,10 @@ class fixture_api_client implements api_client {
         if (!is_array($body)) {
             return [];
         }
-        if ($field === 'topicScorm' && !empty($body['packageUrl']) && !array_key_exists('signature', $body) &&
-                $this->signingkeyid !== null && $this->signingsecret !== null) {
+        if (
+            $field === 'topicScorm' && !empty($body['packageUrl']) && !array_key_exists('signature', $body) &&
+                $this->signingkeyid !== null && $this->signingsecret !== null
+        ) {
             $body = self::sign_scorm($topicid, $body, $this->package_hash(), $this->signingkeyid, $this->signingsecret);
         }
         return $body;

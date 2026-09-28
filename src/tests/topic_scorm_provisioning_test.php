@@ -191,8 +191,11 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $this->take_debugging();
 
         $this->assertSame([], $this->scorm_cmids((int) $skilland->course));
-        $this->assertSame($filesbefore, $DB->count_records('files', ['component' => 'mod_scorm']),
-            'The package never reached the file API or the SCORM parser');
+        $this->assertSame(
+            $filesbefore,
+            $DB->count_records('files', ['component' => 'mod_scorm']),
+            'The package never reached the file API or the SCORM parser'
+        );
         $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
         $this->assertNull($record->scormcmid);
     }
@@ -246,8 +249,10 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
     public function test_a_package_signed_by_another_key_under_the_trusted_id_is_refused(): void {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
-        $this->client->sign_with(fixture_api_client::FIXTURE_KEY_ID,
-            sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair()));
+        $this->client->sign_with(
+            fixture_api_client::FIXTURE_KEY_ID,
+            sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair())
+        );
 
         $this->assert_provision_refused($skilland, 'error_scorm_signature_invalid');
     }
@@ -256,8 +261,11 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
         $keypair = sodium_crypto_sign_keypair();
-        set_config('signingkeys', 'rotated-2026:' . base64_encode(sodium_crypto_sign_publickey($keypair)),
-            'mod_skilland');
+        set_config(
+            'signingkeys',
+            'rotated-2026:' . base64_encode(sodium_crypto_sign_publickey($keypair)),
+            'mod_skilland'
+        );
         $this->client->sign_with('rotated-2026', sodium_crypto_sign_secretkey($keypair));
 
         $this->assertGreaterThan(0, $this->provision($skilland));
@@ -288,8 +296,13 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $client->set_response('GetTopicScorm', function () use ($client): array {
             $body = fixture_api_client::default_responses()['GetTopicScorm']['topicScorm'];
             // A genuine signature, but for topic-1's package.
-            return ['topicScorm' => fixture_api_client::sign_scorm('topic-1', $body, $client->package_hash(),
-                fixture_api_client::FIXTURE_KEY_ID, sodium_crypto_sign_secretkey(fixture_api_client::fixture_keypair()))];
+            return ['topicScorm' => fixture_api_client::sign_scorm(
+                'topic-1',
+                $body,
+                $client->package_hash(),
+                fixture_api_client::FIXTURE_KEY_ID,
+                sodium_crypto_sign_secretkey(fixture_api_client::fixture_keypair())
+            )];
         });
 
         $this->assert_provision_refused($skilland, 'error_scorm_signature_invalid');
