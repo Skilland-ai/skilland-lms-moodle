@@ -630,7 +630,12 @@ function skilland_process_selected_lessons($skillandid, $json) {
     }
 
     // Get existing lessons for this activity.
-    $existing = $DB->get_records('skilland_lesson', ['skillandid' => $skillandid], '', 'skilland_lessonid, id, visible, orderindex');
+    $existing = $DB->get_records(
+        'skilland_lesson',
+        ['skillandid' => $skillandid],
+        '',
+        'skilland_lessonid, id, visible, orderindex'
+    );
 
     $processedids = [];
     $orderindex = 1; // Start lesson numbering at 1.

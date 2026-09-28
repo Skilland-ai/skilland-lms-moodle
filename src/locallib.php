@@ -273,7 +273,8 @@ function skilland_ensure_course_customfield() {
         $description = get_string('customfield_skilland_course_id_desc', 'mod_skilland');
         $field->set('description', $description);
         $field->set('descriptionformat', FORMAT_HTML);
-        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,"ispassword":"0","link":"","locked":"1","visibility":"2"}');
+        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,' .
+            '"ispassword":"0","link":"","locked":"1","visibility":"2"}');
         $field->save();
 
         return $field;

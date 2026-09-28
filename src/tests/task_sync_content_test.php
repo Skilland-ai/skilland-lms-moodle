@@ -200,6 +200,8 @@ final class task_sync_content_test extends skilland_testcase {
     }
 
     /**
+     * A topic without a ready SCORM package is skipped by the sync task.
+     *
      * @dataProvider unbuildable_snapshot_provider
      * @param array $snapshot TopicScormHash fields.
      */

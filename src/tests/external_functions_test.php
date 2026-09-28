@@ -135,6 +135,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Course-scoped external functions require Studio access.
+     *
      * @dataProvider course_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the course.
@@ -148,6 +150,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Course-scoped external functions refuse a course the user is not enrolled in.
+     *
      * @dataProvider course_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the course.
@@ -313,6 +317,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Module-scoped external functions require the provision capability.
+     *
      * @dataProvider module_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the activity.
@@ -327,6 +333,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Module-scoped external functions refuse when the plugin is disabled.
+     *
      * @dataProvider module_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the activity.
@@ -386,6 +394,15 @@ final class external_functions_test extends skilland_testcase {
             /** @var int Calls received. */
             public int $calls = 0;
 
+            /**
+             * Records the call and simulates a provisioning-in-progress conflict.
+             *
+             * @param mixed $skilland the activity instance.
+             * @param mixed $course the course.
+             * @param int $sectionnum the section number.
+             * @param string|null $contenthash the expected content hash.
+             * @return void
+             */
             public function update($skilland, $course, $sectionnum = 0, ?string $contenthash = null) {
                 $this->calls++;
                 throw new \moodle_exception('error_provision_in_progress', 'mod_skilland');

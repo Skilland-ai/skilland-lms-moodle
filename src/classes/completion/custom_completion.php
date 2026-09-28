@@ -25,6 +25,7 @@ use core_completion\activity_custom_completion;
  * progress store. Hidden lessons are ignored; an activity with no visible lesson never completes.
  *
  * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class custom_completion extends activity_custom_completion {

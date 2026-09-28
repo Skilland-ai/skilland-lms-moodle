@@ -22,6 +22,11 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_skilland_activity_structure_step extends restore_activity_structure_step {
+    /**
+     * Defines the structure paths restored for a skilland activity.
+     *
+     * @return restore_path_element[] the paths to restore, wrapped for activity structure.
+     */
     protected function define_structure() {
 
         $paths = [];
@@ -33,6 +38,12 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         return $this->prepare_activity_structure($paths);
     }
 
+    /**
+     * Restores one skilland activity instance, re-mapping the Skilland course link.
+     *
+     * @param stdClass|array $data the backed-up activity data.
+     * @return void
+     */
     protected function process_skilland($data) {
         global $DB;
 
@@ -90,6 +101,12 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         $this->apply_activity_instance($newitemid);
     }
 
+    /**
+     * Restores one skilland_lesson record for the current activity.
+     *
+     * @param stdClass|array $data the backed-up lesson data.
+     * @return void
+     */
     protected function process_skilland_lesson($data) {
         global $DB;
 

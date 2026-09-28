@@ -22,6 +22,11 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class backup_skilland_activity_structure_step extends backup_activity_structure_step {
+    /**
+     * Defines the structure backed up for a skilland activity, including its lessons.
+     *
+     * @return backup_nested_element the root element of the backup structure.
+     */
     protected function define_structure() {
 
         // To know if we include user data.

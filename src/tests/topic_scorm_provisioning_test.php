@@ -407,6 +407,8 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
     }
 
     /**
+     * A failed update leaves the old SCORM package and its attempts untouched.
+     *
      * @dataProvider failed_update_provider
      * @param string $failure Which step fails.
      * @param string $errorcode Expected error code.
