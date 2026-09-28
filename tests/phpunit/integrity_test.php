@@ -789,7 +789,8 @@ class integrity_test extends TestCase {
 
         $upgrade = file_get_contents(self::$srcDir . '/db/upgrade.php');
         $this->assertMatchesRegularExpression(
-            "/if \\(\\\$oldversion < 2026092608\\) \\{.*new xmldb_field\\('completionlessons'.*new xmldb_field\\('grade'.*" .
+            "/if \\(\\\$oldversion < 2026092608\\) \\{.*new xmldb_field\\(\\s*'completionlessons'.*" .
+            "new xmldb_field\\(\\s*'grade'.*" .
             "new xmldb_table\\('skilland_progress'\\).*table_exists.*create_table.*scorm_grade_item_update.*" .
             "upgrade_mod_savepoint\\(true, 2026092608, 'skilland'\\);/s",
             $upgrade

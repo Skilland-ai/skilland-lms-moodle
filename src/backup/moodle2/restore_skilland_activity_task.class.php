@@ -27,12 +27,11 @@ require_once($CFG->dirroot . '/mod/skilland/backup/moodle2/restore_skilland_step
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_skilland_activity_task extends restore_activity_task {
-
     /**
      * Define (add) particular settings this activity can have
      */
     protected function define_my_settings() {
-        // No particular settings for this activity
+        // No particular settings for this activity.
     }
 
     /**
@@ -45,7 +44,7 @@ class restore_skilland_activity_task extends restore_activity_task {
     /**
      * Define the contents for this activity
      */
-    static public function define_decode_contents() {
+    public static function define_decode_contents() {
         $contents = [];
 
         $contents[] = new restore_decode_content('skilland', ['intro'], 'skilland');
@@ -57,7 +56,7 @@ class restore_skilland_activity_task extends restore_activity_task {
      * Define the decoding rules for links belonging to the activity to be executed
      * by the 'restore_decode_interlinks' step
      */
-    static public function define_decode_rules() {
+    public static function define_decode_rules() {
         $rules = [];
 
         $rules[] = new restore_decode_rule('SKILLANDVIEWBYID', '/mod/skilland/view.php?id=$1', 'course_module');
@@ -70,7 +69,7 @@ class restore_skilland_activity_task extends restore_activity_task {
      * Define the restoring rules for links belonging to the activity to be executed
      * by the 'restore_decode_interlinks' step
      */
-    static public function define_restore_log_rules() {
+    public static function define_restore_log_rules() {
         $rules = [];
 
         $rules[] = new restore_log_rule('skilland', 'add', 'view.php?id={course_module}', '{name}');
@@ -84,7 +83,7 @@ class restore_skilland_activity_task extends restore_activity_task {
      * Define the restoring rules for links belonging to the activity to be executed
      * by the 'restore_decode_interlinks' step
      */
-    static public function define_restore_log_rules_for_course() {
+    public static function define_restore_log_rules_for_course() {
         $rules = [];
 
         $rules[] = new restore_log_rule('skilland', 'view all', 'index.php?id={course}', '{course}');
@@ -114,8 +113,10 @@ class restore_skilland_activity_task extends restore_activity_task {
         try {
             $scormcmid = $this->map_scorm_cmid($skilland);
         } catch (Exception $e) {
-            debugging('Skilland: Could not map the SCORM course module after restore: ' . $e->getMessage(),
-                DEBUG_NORMAL);
+            debugging(
+                'Skilland: Could not map the SCORM course module after restore: ' . $e->getMessage(),
+                DEBUG_NORMAL
+            );
             $scormcmid = null;
         }
         $DB->set_field('skilland', 'scormcmid', $scormcmid, ['id' => $skillandid]);
@@ -143,8 +144,10 @@ class restore_skilland_activity_task extends restore_activity_task {
 
         $newcmid = $this->get_mapped_id('course_module', $skilland->scormcmid);
         if (!$newcmid) {
-            debugging('Skilland: SCORM course module ' . $skilland->scormcmid . ' is not part of this restore',
-                DEBUG_DEVELOPER);
+            debugging(
+                'Skilland: SCORM course module ' . $skilland->scormcmid . ' is not part of this restore',
+                DEBUG_DEVELOPER
+            );
             return null;
         }
         if (!$DB->record_exists('course_modules', ['id' => $newcmid, 'course' => $skilland->course])) {
@@ -185,8 +188,11 @@ class restore_skilland_activity_task extends restore_activity_task {
                     $newscoid = 0;
                 }
                 if (!$newscoid && !empty($lesson->sco_identifier)) {
-                    $newscoid = (int) $DB->get_field('scorm_scoes', 'id',
-                        ['scorm' => $scormid, 'identifier' => $lesson->sco_identifier]);
+                    $newscoid = (int) $DB->get_field(
+                        'scorm_scoes',
+                        'id',
+                        ['scorm' => $scormid, 'identifier' => $lesson->sco_identifier]
+                    );
                 }
             }
 
@@ -211,7 +217,7 @@ class restore_skilland_activity_task extends restore_activity_task {
 
             $hasvisiblelessons = $DB->record_exists('skilland_lesson', [
                 'skillandid' => $skilland->id,
-                'visible' => 1
+                'visible' => 1,
             ]);
 
             if ($hasvisiblelessons) {

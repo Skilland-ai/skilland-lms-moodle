@@ -25,8 +25,6 @@ use mod_skilland\local\api_client;
 use mod_skilland\local\testing\fixture_api_client;
 use mod_skilland\privacy\provider;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * The privacy provider: metadata, and finding, exporting and deleting learners' lesson progress.
  *
@@ -37,7 +35,6 @@ defined('MOODLE_INTERNAL') || die();
  * @covers     \mod_skilland\privacy\provider
  */
 final class privacy_provider_test extends \core_privacy\tests\provider_testcase {
-
     /** @var \stdClass Course. */
     private \stdClass $course;
 
@@ -117,14 +114,18 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
 
         $names = array_map(fn($item) => $item->get_name(), $items);
         $this->assertSame(['skilland_progress', 'skilland'], $names);
-        $this->assertSame(['userid', 'lessonid', 'status', 'score', 'timemodified'],
-            array_keys($items[0]->get_privacy_fields()));
+        $this->assertSame(
+            ['userid', 'lessonid', 'status', 'score', 'timemodified'],
+            array_keys($items[0]->get_privacy_fields())
+        );
         $this->assertArrayHasKey('email', $items[1]->get_privacy_fields());
     }
 
     public function test_contexts_for_a_user_are_the_activities_with_their_progress(): void {
-        $this->assertEqualsCanonicalizing([$this->context(0)->id, $this->context(1)->id],
-            provider::get_contexts_for_userid($this->alice->id)->get_contextids());
+        $this->assertEqualsCanonicalizing(
+            [$this->context(0)->id, $this->context(1)->id],
+            provider::get_contexts_for_userid($this->alice->id)->get_contextids()
+        );
         $this->assertEquals([$this->context(0)->id], provider::get_contexts_for_userid($this->bob->id)->get_contextids());
         $this->assertEmpty(provider::get_contexts_for_userid($this->carol->id)->get_contextids());
     }

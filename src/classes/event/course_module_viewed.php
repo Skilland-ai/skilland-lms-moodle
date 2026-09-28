@@ -28,7 +28,6 @@ namespace mod_skilland\event;
  * The mod_skilland course module viewed event.
  */
 class course_module_viewed extends \core\event\course_module_viewed {
-
     /**
      * Initialise the event data.
      */

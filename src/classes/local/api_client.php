@@ -24,8 +24,6 @@
 
 namespace mod_skilland\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Every call the plugin makes to SkilLand goes through this interface.
  *

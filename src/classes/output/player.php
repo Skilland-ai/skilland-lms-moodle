@@ -32,7 +32,6 @@ use templatable;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class player implements renderable, templatable {
-
     /**
      * Constructor.
      *
@@ -83,8 +82,14 @@ class player implements renderable, templatable {
         $position = lesson_navigation::position_of($this->lesson, $this->alllessons);
         $label = 'L' . $this->topicorderindex . '.' . (($position ?? count($this->alllessons)) + 1);
         $title = format_string($this->lesson->title);
-        $navigation = new lesson_navigation($this->lesson, $this->alllessons, $this->cm, $this->topicorderindex,
-            $this->skilland, lesson_navigation::STYLE_FULLSCREEN);
+        $navigation = new lesson_navigation(
+            $this->lesson,
+            $this->alllessons,
+            $this->cm,
+            $this->topicorderindex,
+            $this->skilland,
+            lesson_navigation::STYLE_FULLSCREEN
+        );
 
         return [
             'notready' => false,

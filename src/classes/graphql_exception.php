@@ -24,15 +24,12 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * A moodle_exception that also carries the API's extensions.code.
  *
  * Callers branch on $graphqlcode instead of searching the translated message for it.
  */
 class graphql_exception extends \moodle_exception {
-
     /** @var string The GraphQL extensions.code of the error, '' when the API sent none. Read-only: set by the constructor. */
     public $graphqlcode;
 

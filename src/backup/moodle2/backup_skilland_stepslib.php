@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Structure step to backup one skilland activity
  *
@@ -24,19 +22,23 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class backup_skilland_activity_structure_step extends backup_activity_structure_step {
-
+    /**
+     * Defines the structure backed up for a skilland activity, including its lessons.
+     *
+     * @return backup_nested_element the root element of the backup structure.
+     */
     protected function define_structure() {
 
-        // To know if we include user data
+        // To know if we include user data.
         $userinfo = $this->get_setting_value('userinfo');
 
-        // Define each element
+        // Define each element.
         $skilland = new backup_nested_element('skilland', ['id'], [
             'name', 'intro', 'introformat', 'skilland_topicid',
             'snapshotid', 'snapshotcreatedat', 'lastsynced',
             'autoupdate', 'lockafterfirstaccess', 'hidelabels', 'topic_orderindex',
             'scormcmid', 'scorm_provisioned', 'scomappings', 'completionlessons', 'grade', 'timecreated', 'timemodified',
-            'skilland_courseid', 'skilland_orgid' // From skilland_course join
+            'skilland_courseid', 'skilland_orgid', // From skilland_course join.
         ]);
 
         $lessons = new backup_nested_element('lessons');
@@ -44,14 +46,14 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         $lesson = new backup_nested_element('lesson', ['id'], [
             'skilland_lessonid', 'title', 'orderindex',
             'scoid', 'sco_identifier', 'snapshotid', 'snapshotcreatedat',
-            'updatedat', 'visible'
+            'updatedat', 'visible',
         ]);
 
-        // Build the tree
+        // Build the tree.
         $skilland->add_child($lessons);
         $lessons->add_child($lesson);
 
-        // Define sources
+        // Define sources.
         $skilland->set_source_sql("
             SELECT e.*, ec.skilland_courseid, ec.skilland_orgid
             FROM {skilland} e
@@ -66,9 +68,9 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         // restore_skilland_activity_task::after_restore(), once every activity is restored.
         $skilland->annotate_ids('course_module', 'scormcmid');
 
-        // Note: scorm_provisioned is a timestamp field, not an ID - no annotation needed
+        // Note: scorm_provisioned is a timestamp field, not an ID - no annotation needed.
 
-        // Define file annotations
+        // Define file annotations.
         $skilland->annotate_files('mod_skilland', 'intro', null);
 
         return $this->prepare_activity_structure($skilland);

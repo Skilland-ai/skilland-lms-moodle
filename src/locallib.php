@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-defined('MOODLE_INTERNAL') || die();
-
 use mod_skilland\graphql_exception;
 use mod_skilland\local\package_signature;
 use mod_skilland\logger;
@@ -80,18 +78,18 @@ function skilland_course_has_mapping($courseid) {
 function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null) {
     global $DB, $CFG;
 
-    // Use global org ID if not provided
+    // Use global org ID if not provided.
     if (empty($orgid)) {
         $orgid = get_config('mod_skilland', 'orgid');
     }
 
-    // Check if mapping already exists
+    // Check if mapping already exists.
     $existing = $DB->get_record('skilland_course', ['course' => $courseid]);
 
     $now = time();
 
     if ($existing) {
-        // Update existing mapping
+        // Update existing mapping.
         $existing->skilland_courseid = $skillandcourseid;
         $existing->skilland_orgid = $orgid;
         $existing->timemodified = $now;
@@ -101,7 +99,7 @@ function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null
         }
         return false;
     } else {
-        // Create new mapping
+        // Create new mapping.
         $mapping = new stdClass();
         $mapping->course = $courseid;
         $mapping->skilland_courseid = $skillandcourseid;
@@ -236,9 +234,9 @@ function skilland_ensure_course_customfield() {
                         $category->save();
                     }
                 }
-            } catch (Exception $catException) {
+            } catch (Exception $catexception) {
                 // Critical failure only if we absolutely cannot get a category AND we need to create one.
-                throw new Exception('Cannot create mandatory Skilland category: ' . $catException->getMessage());
+                throw new Exception('Cannot create mandatory Skilland category: ' . $catexception->getMessage());
             }
         }
 
@@ -264,7 +262,7 @@ function skilland_ensure_course_customfield() {
             'categoryid' => $category->get('id'),
             'component' => 'core_course',
             'area' => 'course',
-            'itemid' => 0
+            'itemid' => 0,
         ];
 
         $field = \core_customfield\field_controller::create(0, $fielddata, $category);
@@ -275,11 +273,11 @@ function skilland_ensure_course_customfield() {
         $description = get_string('customfield_skilland_course_id_desc', 'mod_skilland');
         $field->set('description', $description);
         $field->set('descriptionformat', FORMAT_HTML);
-        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,"ispassword":"0","link":"","locked":"1","visibility":"2"}');
+        $field->set('configdata', '{"required":"0","defaultvalue":"","displaysize":50,"maxlength":255,' .
+            '"ispassword":"0","link":"","locked":"1","visibility":"2"}');
         $field->save();
 
         return $field;
-
     } catch (Exception $e) {
         // Log the error for debugging with full stack trace.
         $errormsg = 'Failed to ensure Skilland Course ID custom field: ' . $e->getMessage();
@@ -479,11 +477,11 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
     // Ensure variables is always an object (associative array in PHP), not an array.
     // If variables is an empty array, convert to empty object for JSON encoding.
     if (empty($variables)) {
-        $variables = new \stdClass(); // Empty object
+        $variables = new \stdClass(); // Empty object.
     }
     $payload = [
         'query' => $query,
-        'variables' => $variables
+        'variables' => $variables,
     ];
     $jsonpayload = json_encode($payload);
     logger::debug('GraphQL', 'Variables: ' . implode(', ', array_keys((array) $variables)));
@@ -491,7 +489,7 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
     $headers = [
         'Content-Type: application/json',
         'X-Skilland-Org-Id: ' . $orgid,
-        'X-Skilland-Api-Key: ' . $apikey
+        'X-Skilland-Api-Key: ' . $apikey,
     ];
     logger::debug('GraphQL', 'Payload length: ' . strlen($jsonpayload));
 
@@ -501,7 +499,7 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
     $operation = mod_skilland_graphql_operation_name($query);
     $started = microtime(true);
 
-    for ($attempt = 1; ; $attempt++) {
+    for ($attempt = 1;; $attempt++) {
         $curl = mod_skilland_make_curl($endpoint);
         $curl->setopt([
             'CURLOPT_CONNECTTIMEOUT' => 10,
@@ -547,8 +545,10 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
             }
         }
 
-        if ($retryable && $attempt < MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS &&
-                mod_skilland_is_transient($httpcode, $errno, $decoded)) {
+        if (
+            $retryable && $attempt < MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS &&
+                mod_skilland_is_transient($httpcode, $errno, $decoded)
+        ) {
             $retryafter = null;
             if ($httpcode === 429 || $httpcode === 503) {
                 $retryafter = mod_skilland_response_header($curl, 'Retry-After');
@@ -636,7 +636,7 @@ function mod_skilland_rest_get_http(string $path): array {
     ];
     $started = microtime(true);
 
-    for ($attempt = 1; ; $attempt++) {
+    for ($attempt = 1;; $attempt++) {
         $curl = mod_skilland_make_curl($url);
         $curl->setopt([
             'CURLOPT_CONNECTTIMEOUT' => 10,
@@ -951,11 +951,11 @@ GRAPHQL;
         $data = mod_skilland_graphql($query, ['courseId' => $courseid]);
 
         if (!isset($data['course']) || empty($data['course'])) {
-            // Return a proper structure with empty topics array
+            // Return a proper structure with empty topics array.
             return [
                 'id' => $courseid,
                 'name' => '',
-                'topics' => []
+                'topics' => [],
             ];
         }
 
@@ -1068,8 +1068,10 @@ function mod_skilland_topic_scorm_rest_failure(string $topicid, \Throwable $e): 
         if ($e->httpcode === 401 || $e->httpcode === 403) {
             throw new moodle_exception('error_config_invalid_credentials', 'mod_skilland');
         }
-    } else if (mod_skilland_is_client_error($e) ||
-            ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))) {
+    } else if (
+        mod_skilland_is_client_error($e) ||
+            ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))
+    ) {
         throw $e;
     }
     logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . get_class($e) .
@@ -1118,8 +1120,10 @@ GRAPHQL;
             throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
         }
         // Configuration and other user-facing errors (error_http_redirect, ...) keep their own code.
-        if (mod_skilland_is_client_error($e) ||
-                ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))) {
+        if (
+            mod_skilland_is_client_error($e) ||
+                ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))
+        ) {
             throw $e;
         }
         logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . get_class($e) .
@@ -1154,16 +1158,16 @@ function mod_skilland_normalise_topic_scorm(array $scorm): array {
         foreach ($scorm['mappings'] as $mapping) {
             // Handle both object and array formats.
             if (is_array($mapping)) {
-                $lessonId = $mapping['lessonId'] ?? null;
-                $scoId = $mapping['scoId'] ?? null;
+                $lessonid = $mapping['lessonId'] ?? null;
+                $scoid = $mapping['scoId'] ?? null;
             } else if (is_object($mapping)) {
-                $lessonId = $mapping->lessonId ?? null;
-                $scoId = $mapping->scoId ?? null;
+                $lessonid = $mapping->lessonId ?? null;
+                $scoid = $mapping->scoId ?? null;
             } else {
                 continue;
             }
-            if ($lessonId && $scoId && (is_string($lessonId) || is_int($lessonId))) {
-                $mappings[$lessonId] = $scoId;
+            if ($lessonid && $scoid && (is_string($lessonid) || is_int($lessonid))) {
+                $mappings[$lessonid] = $scoid;
             }
         }
     }
@@ -1280,8 +1284,12 @@ function skilland_download_topic_scorm_package(string $topicid): array {
  * @return int The new SCORM course module id.
  * @throws moodle_exception When the package cannot be staged or the module cannot be created.
  */
-function skilland_create_topic_scorm_module(stdClass $skilland, stdClass $course, int $sectionnum,
-        string $packagepath): int {
+function skilland_create_topic_scorm_module(
+    stdClass $skilland,
+    stdClass $course,
+    int $sectionnum,
+    string $packagepath
+): int {
     global $DB, $USER;
 
     skilland_require_scorm_apis();
@@ -1397,8 +1405,10 @@ function skilland_delete_scorm_module(int $cmid): void {
         course_delete_module($cmid);
         logger::debug('SCORM', 'Deleted SCORM activity cmid ' . $cmid);
     } catch (\Throwable $e) {
-        debugging('mod_skilland: could not delete SCORM course module ' . $cmid . ': ' . $e->getMessage(),
-            DEBUG_DEVELOPER);
+        debugging(
+            'mod_skilland: could not delete SCORM course module ' . $cmid . ': ' . $e->getMessage(),
+            DEBUG_DEVELOPER
+        );
     }
 }
 
@@ -1694,8 +1704,12 @@ function skilland_link_topic_scorm(stdClass $skilland, array $build, string $con
  * @return int The new SCORM course module id.
  * @throws moodle_exception If provisioning fails.
  */
-function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $course, int $sectionnum,
-        ?string $contenthash = null): int {
+function skilland_provision_topic_scorm_locked(
+    stdClass $skilland,
+    stdClass $course,
+    int $sectionnum,
+    ?string $contenthash = null
+): int {
     $contenthash = skilland_resolve_snapshot_hash($skilland, $contenthash);
     $build = skilland_build_topic_scorm($skilland, $course, $sectionnum);
     $cmid = $build['cmid'];
@@ -1848,10 +1862,10 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?strin
         // Step 5: updatedat = version of the lesson in the installed package; only a successful
         // build advances it.
         foreach ($lessons as $lesson) {
-            $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
-            $DB->set_field('skilland_lesson', 'updatedat', $updatedAt, [
+            $updatedat = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
+            $DB->set_field('skilland_lesson', 'updatedat', $updatedat, [
                 'skillandid' => $current->id,
-                'skilland_lessonid' => $lesson['id']
+                'skilland_lessonid' => $lesson['id'],
             ]);
         }
         logger::debug('SCORM', 'Updated lesson timestamps from Skilland API');
@@ -2058,8 +2072,11 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
     $scoreelements = ['cmi.core.score.raw', 'cmi.score.raw'];
 
     [$scosql, $params] = $DB->get_in_or_equal(array_keys($scotolesson), SQL_PARAMS_NAMED, 'sco');
-    [$elementsql, $elementparams] = $DB->get_in_or_equal(array_merge($statuselements, $scoreelements),
-        SQL_PARAMS_NAMED, 'el');
+    [$elementsql, $elementparams] = $DB->get_in_or_equal(
+        array_merge($statuselements, $scoreelements),
+        SQL_PARAMS_NAMED,
+        'el'
+    );
     $params += $elementparams;
     $params['scormid'] = (int) $scormcm->instance;
     $usersql = '';
@@ -2161,8 +2178,12 @@ function skilland_count_topic_student_attempts(stdClass $skilland): int {
  *        skilland_get_progress_rows_by_user()), or null to read them.
  * @return bool Whether any row was inserted or changed.
  */
-function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $tracks = null,
-        ?array $existing = null): bool {
+function skilland_refresh_progress(
+    stdClass $skilland,
+    int $userid,
+    ?array $tracks = null,
+    ?array $existing = null
+): bool {
     global $DB;
 
     if ($tracks === null) {
@@ -2173,8 +2194,12 @@ function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $trac
     }
 
     if ($existing === null) {
-        $existing = $DB->get_records('skilland_progress', ['skillandid' => $skilland->id, 'userid' => $userid], '',
-            'lessonid, id, status, score');
+        $existing = $DB->get_records(
+            'skilland_progress',
+            ['skillandid' => $skilland->id, 'userid' => $userid],
+            '',
+            'lessonid, id, status, score'
+        );
     }
     $changed = false;
     $now = time();
@@ -2233,8 +2258,14 @@ function skilland_get_progress_rows_by_user(int $skillandid): array {
     global $DB;
 
     $byuser = [];
-    foreach ($DB->get_records('skilland_progress', ['skillandid' => $skillandid], '',
-            'id, userid, lessonid, status, score') as $row) {
+    foreach (
+        $DB->get_records(
+            'skilland_progress',
+            ['skillandid' => $skillandid],
+            '',
+            'id, userid, lessonid, status, score'
+        ) as $row
+    ) {
         $byuser[(int) $row->userid][(int) $row->lessonid] = $row;
     }
     return $byuser;
@@ -2252,8 +2283,12 @@ function skilland_get_user_progress(int $skillandid, int $userid): array {
     global $DB;
 
     $progress = [];
-    $rows = $DB->get_records('skilland_progress', ['skillandid' => $skillandid, 'userid' => $userid], '',
-        'lessonid, status, score');
+    $rows = $DB->get_records(
+        'skilland_progress',
+        ['skillandid' => $skillandid, 'userid' => $userid],
+        '',
+        'lessonid, status, score'
+    );
     foreach ($rows as $row) {
         $score = null;
         if ($row->score !== null && $row->score !== '') {
@@ -2323,73 +2358,93 @@ function skilland_generate_sso_token($user, $orgid) {
         throw new moodle_exception('error_sso_user_not_allowed', 'mod_skilland');
     }
 
-    // Check if composer autoloader exists
+    // Check if composer autoloader exists.
     $autoloadpath = __DIR__ . '/vendor/autoload.php';
     if (!file_exists($autoloadpath)) {
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'JWT library not installed. Please run "composer install" in the plugin directory.');
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'JWT library not installed. Please run "composer install" in the plugin directory.'
+        );
     }
 
     require_once($autoloadpath);
 
-    // Check if JWT class is available
+    // Check if JWT class is available.
     if (!class_exists('\Firebase\JWT\JWT')) {
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'JWT library not found. Please run "composer install" in the plugin directory.');
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'JWT library not found. Please run "composer install" in the plugin directory.'
+        );
     }
 
-    // Get SSO secret from config
+    // Get SSO secret from config.
     $ssosecret = get_config('mod_skilland', 'sso_secret');
     if (empty($ssosecret)) {
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'SSO Shared Secret is not configured. Please set it in the plugin settings.');
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'SSO Shared Secret is not configured. Please set it in the plugin settings.'
+        );
     }
 
-    // Get ALL courses user is enrolled in
-    $enrolled_courses = enrol_get_users_courses($user->id, true);
+    // Get ALL courses user is enrolled in.
+    $enrolledcourses = enrol_get_users_courses($user->id, true);
 
-    $course_access = [];
-    foreach ($enrolled_courses as $course) {
-        // Get Skilland skill ID from course custom field
-        $skilland_skill_id = skilland_get_course_customfield_value($course->id);
+    $courseaccess = [];
+    foreach ($enrolledcourses as $course) {
+        // Get Skilland skill ID from course custom field.
+        $skillandskillid = skilland_get_course_customfield_value($course->id);
 
-        if ($skilland_skill_id) {
-            $course_access[] = [
+        if ($skillandskillid) {
+            $courseaccess[] = [
                 'moodleCourseId' => (int)$course->id,
-                'skillandSkillId' => $skilland_skill_id
+                'skillandSkillId' => $skillandskillid,
             ];
         }
     }
 
-    // Generate a unique nonce for this token
+    // Generate a unique nonce for this token.
     $nonce = bin2hex(random_bytes(16));
 
-    // Prepare token payload
+    // Prepare token payload.
     $issuedat = time();
     $payload = [
         'sub' => (string) $user->id,
         'email' => $user->email,
         'name' => fullname($user),
         'orgId' => $orgid,
-        'role' => 'Expert', // Default role for SSO users
+        'role' => 'Expert', // Default role for SSO users.
         'nonce' => $nonce,
         'iat' => $issuedat,
         'exp' => $issuedat + 60, // The token only has to survive the auto-submitted form.
         'aud' => skilland_get_sso_audience(),
         'iss' => $CFG->wwwroot,
         'source' => 'moodle',
-        'courseAccess' => $course_access
+        'courseAccess' => $courseaccess,
     ];
 
-    // Sign and return the token
+    // Sign and return the token.
     try {
         $token = \Firebase\JWT\JWT::encode($payload, $ssosecret, 'HS256');
         logger::debug('SSO', 'Generated token for user id ' . $user->id);
         return $token;
     } catch (Exception $e) {
         logger::error('SSO', 'Failed to generate token - ' . $e->getMessage());
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'Failed to generate SSO token: ' . $e->getMessage());
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'Failed to generate SSO token: ' . $e->getMessage()
+        );
     }
 }
 
@@ -2668,8 +2723,10 @@ function mod_skilland_download_package_http(string $packageurl, int $expectedsiz
     // The REST routes hand out presigned storage URLs (matched by package_hosts) or, in
     // development, URLs on the frontend host itself; the legacy GraphQL endpoint host stays trusted.
     $endpoint = (string) (get_config('mod_skilland', 'graphql_endpoint') ?? '');
-    if (!mod_skilland_package_host_allowed($packageurl, skilland_get_frontend_url()) &&
-            !mod_skilland_package_host_allowed($packageurl, $endpoint)) {
+    if (
+        !mod_skilland_package_host_allowed($packageurl, skilland_get_frontend_url()) &&
+            !mod_skilland_package_host_allowed($packageurl, $endpoint)
+    ) {
         $host = (string) parse_url($packageurl, PHP_URL_HOST);
         throw new moodle_exception('error_package_host_not_allowed', 'mod_skilland', '', $host);
     }
@@ -2876,8 +2933,14 @@ function mod_skilland_response_header(\curl $curl, string $name): ?string {
  * @param array|null $decoded The decoded JSON body (4xx/5xx with a non-empty body only).
  * @throws moodle_exception Always.
  */
-function mod_skilland_graphql_http_failure(string $endpoint, int $httpcode, int $errno, string $curlerror,
-        string $response, ?array $decoded): never {
+function mod_skilland_graphql_http_failure(
+    string $endpoint,
+    int $httpcode,
+    int $errno,
+    string $curlerror,
+    string $response,
+    ?array $decoded
+): never {
     $safeendpoint = mod_skilland_redact_url($endpoint);
     if ($errno || $httpcode == 0) {
         $details = '';
@@ -2973,29 +3036,29 @@ function mod_skilland_map_graphql_error(array $error): never {
             throw new graphql_exception('error_config_missing_apikey', $errorcode);
 
         case 'SKILLAND_INVALID_ORG_ID_FORMAT':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_invalid_orgid_format', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_invalid_orgid_format', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_ORG_NOT_FOUND':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_org_not_found', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_org_not_found', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_API_KEY_NOT_FOUND':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_apikey_not_found', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_apikey_not_found', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_API_KEY_INACTIVE':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_apikey_inactive', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_apikey_inactive', 'mod_skilland');
+            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
 
         case 'SKILLAND_INVALID_API_KEY':
         case 'SKILLAND_ORG_MISMATCH':
-            $detailedMsg = $errordetails ?: get_string('error_graphql_invalid_apikey', 'mod_skilland');
-            throw new graphql_exception('error_config_invalid_credentials', $errorcode, $detailedMsg);
+            $detailedmsg = $errordetails ?: get_string('error_graphql_invalid_apikey', 'mod_skilland');
+            throw new graphql_exception('error_config_invalid_credentials', $errorcode, $detailedmsg);
 
         default:
-            $finalMessage = $errordetails ?: $errormessage;
-            throw new graphql_exception('error_graphql', $errorcode, $finalMessage);
+            $finalmessage = $errordetails ?: $errormessage;
+            throw new graphql_exception('error_graphql', $errorcode, $finalmessage);
     }
 }
 
@@ -3196,7 +3259,13 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
     }
 
     return skilland_view_renderer()->render(new \mod_skilland\output\lesson_list(
-        $skilland, $lessons, $cm, (int) $topicorderindex, $progress, $canprovision));
+        $skilland,
+        $lessons,
+        $cm,
+        (int) $topicorderindex,
+        $progress,
+        $canprovision
+    ));
 }
 
 /**
@@ -3221,8 +3290,14 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
     }
     if (!$scormcm) {
-        return $renderer->render(new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons,
-            (int) $topicorderindex, null));
+        return $renderer->render(new \mod_skilland\output\player(
+            $skilland,
+            $lesson,
+            $cm,
+            $alllessons,
+            (int) $topicorderindex,
+            null
+        ));
     }
 
     // Build the SCORM player URL.
@@ -3241,18 +3316,24 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         'cm' => $skilland->scormcmid,
         'mode' => 'normal',
         'newattempt' => 'off',
-        'display' => 'popup'
+        'display' => 'popup',
     ]);
 
-    $player = new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons, (int) $topicorderindex,
-        $scormplayerurl);
+    $player = new \mod_skilland\output\player(
+        $skilland,
+        $lesson,
+        $cm,
+        $alllessons,
+        (int) $topicorderindex,
+        $scormplayerurl
+    );
     $html = $renderer->render($player);
 
     // Load the fullscreen JavaScript module.
     $devmode = get_config('mod_skilland', 'devmode');
     $PAGE->requires->js_call_amd('mod_skilland/fullscreen_player', 'init', [[
         'debug' => (bool)$devmode,
-        'backurl' => $player->get_back_url()->out(false)
+        'backurl' => $player->get_back_url()->out(false),
     ]]);
 
     return $html;
@@ -3269,8 +3350,14 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
  * @return string HTML output.
  */
 function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
-    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
-        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_PLAYER));
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation(
+        $currentlesson,
+        $alllessons,
+        $cm,
+        (int) $topicorderindex,
+        $skilland,
+        \mod_skilland\output\lesson_navigation::STYLE_PLAYER
+    ));
 }
 
 /**
@@ -3284,8 +3371,14 @@ function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $to
  * @return string HTML output.
  */
 function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
-    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
-        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN));
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation(
+        $currentlesson,
+        $alllessons,
+        $cm,
+        (int) $topicorderindex,
+        $skilland,
+        \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN
+    ));
 }
 
 /**
@@ -3305,7 +3398,7 @@ function skilland_render_provision_view($skilland, $cm) {
     $PAGE->requires->js_call_amd('mod_skilland/provision_scorm', 'init', [[
         'skillandid' => (int)$skilland->id,
         'cmid' => (int)$cm->id,
-        'debug' => (bool)$devmode
+        'debug' => (bool)$devmode,
     ]]);
 
     return $html;

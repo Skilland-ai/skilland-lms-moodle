@@ -24,15 +24,12 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * A moodle_exception that also carries the HTTP status of the failed request.
  *
  * Callers branch on $httpcode (0 when no response arrived) instead of parsing the message.
  */
 class rest_exception extends \moodle_exception {
-
     /** @var int HTTP status of the response, 0 on a transport failure. Read-only: set by the constructor. */
     public $httpcode;
 

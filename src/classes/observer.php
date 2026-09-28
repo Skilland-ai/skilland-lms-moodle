@@ -16,8 +16,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Event observers for mod_skilland.
  *
@@ -92,7 +90,10 @@ class observer {
             'pending' => 1,
             'sesskey' => sesskey(),
         ]);
-        \core\notification::info(\html_writer::link($url,
-            get_string('open_new_course_in_skilland', 'mod_skilland'), ['target' => '_blank']));
+        \core\notification::info(\html_writer::link(
+            $url,
+            get_string('open_new_course_in_skilland', 'mod_skilland'),
+            ['target' => '_blank']
+        ));
     }
 }

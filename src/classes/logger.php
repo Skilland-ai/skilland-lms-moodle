@@ -28,8 +28,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Logger class for mod_skilland.
  *
@@ -39,7 +37,6 @@ defined('MOODLE_INTERNAL') || die();
  *   \mod_skilland\logger::warn('SCORM', 'SCO identifier not found for lesson ' . $id);
  */
 class logger {
-
     /** @var bool|null Cached devmode value. */
     private static $devmode = null;
 

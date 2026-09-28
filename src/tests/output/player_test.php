@@ -27,7 +27,6 @@ namespace mod_skilland\output;
  * @covers     \mod_skilland\output\renderer
  */
 final class player_test extends \advanced_testcase {
-
     /**
      * Three playable lessons of one activity.
      *
@@ -52,8 +51,14 @@ final class player_test extends \advanced_testcase {
     private function player(int $lessonid, bool $ready = true, int $hidelabels = 0): player {
         $lessons = $this->lessons();
         $playerurl = $ready ? new \moodle_url('/mod/scorm/player.php', ['scoid' => $lessons[$lessonid]->scoid, 'cm' => 40]) : null;
-        return new player((object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => $hidelabels], $lessons[$lessonid],
-            (object) ['id' => 2], $lessons, 2, $playerurl);
+        return new player(
+            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => $hidelabels],
+            $lessons[$lessonid],
+            (object) ['id' => 2],
+            $lessons,
+            2,
+            $playerurl
+        );
     }
 
     /**
@@ -76,12 +81,16 @@ final class player_test extends \advanced_testcase {
         $this->assertSame((new \moodle_url('/mod/skilland/view.php', ['id' => 2]))->out(false), $data['backurl']);
         $this->assertSame('L2.2 - Second', $data['lessontitle']);
         $this->assertSame('Second', $data['iframetitle']);
-        $this->assertSame((new \moodle_url('/mod/scorm/player.php', ['scoid' => 111, 'cm' => 40]))->out(false),
-            $data['playerurl']);
+        $this->assertSame(
+            (new \moodle_url('/mod/scorm/player.php', ['scoid' => 111, 'cm' => 40]))->out(false),
+            $data['playerurl']
+        );
         $this->assertSame('L2.1 - First', $data['navigation']['prev']['text']);
         $this->assertSame('L2.3 - Third', $data['navigation']['next']['text']);
-        $this->assertSame(get_string('aria_next_lesson', 'mod_skilland', 'L2.3 - Third'),
-            $data['navigation']['next']['arialabel']);
+        $this->assertSame(
+            get_string('aria_next_lesson', 'mod_skilland', 'L2.3 - Third'),
+            $data['navigation']['next']['arialabel']
+        );
     }
 
     public function test_export_for_template_drops_the_label_when_hidelabels(): void {
@@ -99,16 +108,24 @@ final class player_test extends \advanced_testcase {
 
         $data = $this->player(10, false)->export_for_template($this->renderer());
 
-        $this->assertSame(['notready' => true, 'backurl' => (new \moodle_url('/mod/skilland/view.php', ['id' => 2]))->out(false)],
-            $data);
+        $this->assertSame(
+            ['notready' => true, 'backurl' => (new \moodle_url('/mod/skilland/view.php', ['id' => 2]))->out(false)],
+            $data
+        );
     }
 
     public function test_lesson_outside_the_list_has_no_navigation(): void {
         $this->resetAfterTest();
         $stray = (object) ['id' => 99, 'title' => 'Stray', 'scoid' => 199];
 
-        $player = new player((object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0], $stray, (object) ['id' => 2],
-            $this->lessons(), 2, new \moodle_url('/mod/scorm/player.php', ['scoid' => 199]));
+        $player = new player(
+            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0],
+            $stray,
+            (object) ['id' => 2],
+            $this->lessons(),
+            2,
+            new \moodle_url('/mod/scorm/player.php', ['scoid' => 199])
+        );
         $data = $player->export_for_template($this->renderer());
 
         $this->assertFalse($data['navigation']);

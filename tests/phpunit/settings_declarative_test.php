@@ -39,7 +39,7 @@ class settings_declarative_test extends TestCase {
 
     public function test_orgid_uses_param_alphanumext(): void {
         $this->assertMatchesRegularExpression(
-            "/'mod_skilland\\/orgid'.*?PARAM_ALPHANUMEXT\\)\\);/s",
+            "/'mod_skilland\\/orgid'.*?PARAM_ALPHANUMEXT\\s*\\)\\s*\\)\\s*;/s",
             self::source('src/settings.php')
         );
     }

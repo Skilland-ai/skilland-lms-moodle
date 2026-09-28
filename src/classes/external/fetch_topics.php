@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 namespace mod_skilland\external;
 
 use core_external\external_function_parameters;
@@ -78,9 +77,9 @@ class fetch_topics extends base {
         logger::debug('AJAX', 'fetch_topics_ajax called with courseid: ' . $courseid);
 
         try {
-            $courseData = mod_skilland_fetch_topics($courseid);
+            $coursedata = mod_skilland_fetch_topics($courseid);
 
-            $topics = $courseData['topics'] ?? [];
+            $topics = $coursedata['topics'] ?? [];
             logger::debug('AJAX', 'Received ' . count($topics) . ' topics');
 
             // Format topics for response.
@@ -94,14 +93,14 @@ class fetch_topics extends base {
                 ];
             }
 
-            $courseDetails = [
-                'id' => $courseData['id'],
-                'name' => $courseData['name'] ?? '',
-                'code' => $courseData['code'] ?? $courseData['id'], // Fallback to ID if code is missing
+            $coursedetails = [
+                'id' => $coursedata['id'],
+                'name' => $coursedata['name'] ?? '',
+                'code' => $coursedata['code'] ?? $coursedata['id'], // Fallback to ID if code is missing.
             ];
 
             return [
-                'course' => $courseDetails,
+                'course' => $coursedetails,
                 'topics' => $formatted,
                 'error' => null,
             ];

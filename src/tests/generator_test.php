@@ -34,7 +34,6 @@ require_once($CFG->dirroot . '/mod/skilland/locallib.php');
  * @covers     \mod_skilland_generator
  */
 final class generator_test extends \advanced_testcase {
-
     public function test_create_instance_maps_the_course_and_selects_the_fixture_lessons(): void {
         global $DB;
         $this->resetAfterTest();
@@ -50,9 +49,15 @@ final class generator_test extends \advanced_testcase {
         $this->assertSame(1, (int) $record->topic_orderindex);
         $this->assertSame(0, (int) $record->grade);
         $this->assertNull($record->scormcmid);
-        $this->assertEquals(['lesson-1' => 'Lesson one', 'lesson-2' => 'Lesson two'],
-            $DB->get_records_menu('skilland_lesson', ['skillandid' => $instance->id, 'visible' => 1], 'orderindex',
-                'skilland_lessonid, title'));
+        $this->assertEquals(
+            ['lesson-1' => 'Lesson one', 'lesson-2' => 'Lesson two'],
+            $DB->get_records_menu(
+                'skilland_lesson',
+                ['skillandid' => $instance->id, 'visible' => 1],
+                'orderindex',
+                'skilland_lessonid, title'
+            )
+        );
     }
 
     public function test_create_instance_can_provision_the_topic_scorm(): void {
@@ -60,8 +65,10 @@ final class generator_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $course = $this->getDataGenerator()->create_course();
-        $instance = $this->getDataGenerator()->create_module('skilland',
-            ['course' => $course->id, 'provisioned' => 1, 'selected_lessons' => '']);
+        $instance = $this->getDataGenerator()->create_module(
+            'skilland',
+            ['course' => $course->id, 'provisioned' => 1, 'selected_lessons' => '']
+        );
 
         $scormcmid = (int) $DB->get_field('skilland', 'scormcmid', ['id' => $instance->id]);
         $this->assertNotEmpty(get_coursemodule_from_id('scorm', $scormcmid, $course->id));

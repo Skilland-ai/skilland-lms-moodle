@@ -387,6 +387,9 @@ class package_signature_test extends TestCase {
 
     public function test_settings_register_the_signing_keys_textarea(): void {
         $source = file_get_contents(__DIR__ . '/../../src/settings.php');
-        $this->assertStringContainsString("new \\mod_skilland\\admin_setting_signing_keys('mod_skilland/signingkeys'", $source);
+        $this->assertMatchesRegularExpression(
+            "/new \\\\mod_skilland\\\\admin_setting_signing_keys\\(\\s*'mod_skilland\\/signingkeys'/",
+            $source
+        );
     }
 }

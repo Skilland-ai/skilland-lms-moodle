@@ -42,7 +42,6 @@ require_once($CFG->libdir . '/gradelib.php');
  * @covers \mod_skilland\observer::scorm_tracking_submitted
  */
 final class progress_completion_test extends skilland_testcase {
-
     /**
      * A course with completion enabled, a student and a provisioned activity.
      *
@@ -73,8 +72,14 @@ final class progress_completion_test extends skilland_testcase {
      * @param string $value
      * @param int $attempt
      */
-    private function track(int $userid, int $scormid, \stdClass $lesson, string $element, string $value,
-            int $attempt = 1): void {
+    private function track(
+        int $userid,
+        int $scormid,
+        \stdClass $lesson,
+        string $element,
+        string $value,
+        int $attempt = 1
+    ): void {
         scorm_insert_track($userid, $scormid, $lesson->scoid, $attempt, $element, $value);
         $this->take_debugging();
     }
@@ -94,8 +99,14 @@ final class progress_completion_test extends skilland_testcase {
      * @param string $value
      * @param int $attempt
      */
-    private function track_unobserved(int $userid, int $scormid, \stdClass $lesson, string $element, string $value,
-            int $attempt = 1): void {
+    private function track_unobserved(
+        int $userid,
+        int $scormid,
+        \stdClass $lesson,
+        string $element,
+        string $value,
+        int $attempt = 1
+    ): void {
         $sink = $this->redirectEvents();
         try {
             $this->track($userid, $scormid, $lesson, $element, $value, $attempt);
@@ -133,8 +144,10 @@ final class progress_completion_test extends skilland_testcase {
         $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.core.score.raw', '40', 2);
         $this->assertFalse(skilland_refresh_progress($skilland, (int) $student->id));
 
-        $this->assertSame([(int) $lesson->id => ['status' => 'completed', 'score' => '90']],
-            skilland_get_user_progress((int) $skilland->id, (int) $student->id));
+        $this->assertSame(
+            [(int) $lesson->id => ['status' => 'completed', 'score' => '90']],
+            skilland_get_user_progress((int) $skilland->id, (int) $student->id)
+        );
     }
 
     public function test_sync_task_backfills_progress_that_missed_the_observer(): void {
@@ -147,8 +160,10 @@ final class progress_completion_test extends skilland_testcase {
         (new sync_content())->execute();
         $this->take_debugging();
 
-        $this->assertSame([(int) $lessons['lesson-2']->id => ['status' => 'completed', 'score' => null]],
-            skilland_get_user_progress((int) $skilland->id, (int) $student->id));
+        $this->assertSame(
+            [(int) $lessons['lesson-2']->id => ['status' => 'completed', 'score' => null]],
+            skilland_get_user_progress((int) $skilland->id, (int) $student->id)
+        );
     }
 
     public function test_progress_survives_a_scorm_rebuild(): void {
@@ -158,8 +173,10 @@ final class progress_completion_test extends skilland_testcase {
 
         $this->update($skilland);
 
-        $this->assertSame([(int) $lessons['lesson-1']->id => ['status' => 'completed', 'score' => null]],
-            skilland_get_user_progress((int) $skilland->id, (int) $student->id));
+        $this->assertSame(
+            [(int) $lessons['lesson-1']->id => ['status' => 'completed', 'score' => null]],
+            skilland_get_user_progress((int) $skilland->id, (int) $student->id)
+        );
     }
 
     public function test_completion_needs_every_visible_lesson_completed_or_passed(): void {
@@ -167,8 +184,10 @@ final class progress_completion_test extends skilland_testcase {
 
         $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
         $student = $this->enrol($course, 'student');
-        $skilland = $this->create_activity($course,
-            ['completion' => COMPLETION_TRACKING_AUTOMATIC, 'completionlessons' => 1]);
+        $skilland = $this->create_activity(
+            $course,
+            ['completion' => COMPLETION_TRACKING_AUTOMATIC, 'completionlessons' => 1]
+        );
         $lessons = $this->lessons($skilland->id);
         $hidden = $this->generator()->create_lesson(['skillandid' => $skilland->id, 'visible' => 0]);
         $cm = get_fast_modinfo($course)->get_cm($skilland->cmid);
@@ -187,8 +206,12 @@ final class progress_completion_test extends skilland_testcase {
             'userid' => $student->id, 'status' => 'not_started']);
         $this->assertSame(COMPLETION_INCOMPLETE, $state());
 
-        $DB->set_field('skilland_progress', 'status', 'completed',
-            ['lessonid' => $lessons['lesson-2']->id, 'userid' => $student->id]);
+        $DB->set_field(
+            'skilland_progress',
+            'status',
+            'completed',
+            ['lessonid' => $lessons['lesson-2']->id, 'userid' => $student->id]
+        );
         // The hidden lesson does not count.
         $this->assertSame(COMPLETION_COMPLETE, $state());
 
@@ -200,7 +223,8 @@ final class progress_completion_test extends skilland_testcase {
     public function test_completing_the_last_lesson_completes_the_activity(): void {
         $this->preventResetByRollback();
         [$course, $student, $skilland, $scormid, $lessons] = $this->provisioned(
-            ['completion' => COMPLETION_TRACKING_AUTOMATIC, 'completionlessons' => 1]);
+            ['completion' => COMPLETION_TRACKING_AUTOMATIC, 'completionlessons' => 1]
+        );
         $cm = get_fast_modinfo($course)->get_cm($skilland->cmid);
         $completion = new \completion_info($course);
 

@@ -22,8 +22,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 use core\output\action_link;
 use mod_skilland\logger;
 
@@ -121,7 +119,7 @@ function skilland_add_instance($skilland, $mform = null) {
     $skilland->timemodified = time();
 
     // Extract selected lessons before cleaning object.
-    $selected_lessons = isset($skilland->selected_lessons) ? $skilland->selected_lessons : null;
+    $selectedlessons = isset($skilland->selected_lessons) ? $skilland->selected_lessons : null;
     unset($skilland->selected_lessons);
 
     // ALWAYS prefer the hidden field value over the select (Moodle may strip select values
@@ -154,8 +152,8 @@ function skilland_add_instance($skilland, $mform = null) {
     $id = $DB->insert_record('skilland', $skilland);
 
     // Process selected lessons with topic order index for proper numbering.
-    if ($selected_lessons && $id) {
-        skilland_process_selected_lessons($id, $selected_lessons);
+    if ($selectedlessons && $id) {
+        skilland_process_selected_lessons($id, $selectedlessons);
     }
 
     if ($id && $skilland->grade > 0) {
@@ -181,7 +179,7 @@ function skilland_update_instance($skilland, $mform = null) {
     $skilland->id = $skilland->instance;
 
     // Extract selected lessons before cleaning object.
-    $selected_lessons = isset($skilland->selected_lessons) ? $skilland->selected_lessons : null;
+    $selectedlessons = isset($skilland->selected_lessons) ? $skilland->selected_lessons : null;
     unset($skilland->selected_lessons);
 
     // ALWAYS prefer the hidden field value over the select (Moodle may strip select values
@@ -221,8 +219,8 @@ function skilland_update_instance($skilland, $mform = null) {
     $result = $DB->update_record('skilland', $skilland);
 
     // Process selected lessons with topic order index for proper numbering.
-    if ($selected_lessons && $result) {
-        skilland_process_selected_lessons($skilland->id, $selected_lessons);
+    if ($selectedlessons && $result) {
+        skilland_process_selected_lessons($skilland->id, $selectedlessons);
     }
 
     if ($result && $old && !empty($old->scormcmid)) {
@@ -435,8 +433,16 @@ function skilland_grade_item_update($skilland, $grades = null) {
 function skilland_grade_item_delete($skilland) {
     skilland_require_gradelib();
 
-    return grade_update('mod/skilland', $skilland->course, 'mod', 'skilland', $skilland->id, 0, null,
-        ['deleted' => 1]);
+    return grade_update(
+        'mod/skilland',
+        $skilland->course,
+        'mod',
+        'skilland',
+        $skilland->id,
+        0,
+        null,
+        ['deleted' => 1]
+    );
 }
 
 /**
@@ -624,13 +630,18 @@ function skilland_process_selected_lessons($skillandid, $json) {
     }
 
     // Get existing lessons for this activity.
-    $existing = $DB->get_records('skilland_lesson', ['skillandid' => $skillandid], '', 'skilland_lessonid, id, visible, orderindex');
+    $existing = $DB->get_records(
+        'skilland_lesson',
+        ['skillandid' => $skillandid],
+        '',
+        'skilland_lessonid, id, visible, orderindex'
+    );
 
-    $processed_ids = [];
+    $processedids = [];
     $orderindex = 1; // Start lesson numbering at 1.
 
     foreach ($selected as $lessonid => $data) {
-        $processed_ids[$lessonid] = true;
+        $processedids[$lessonid] = true;
 
         $name = isset($data['name']) ? $data['name'] : '';
 
@@ -645,17 +656,17 @@ function skilland_process_selected_lessons($skillandid, $json) {
             $DB->update_record('skilland_lesson', $rec);
         } else {
             // Insert new record.
-            $updatedAt = isset($data['updatedAt']) ? $data['updatedAt'] : 0;
+            $updatedat = isset($data['updatedAt']) ? $data['updatedAt'] : 0;
             // Convert ISO8601 string to timestamp if necessary.
-            if (!is_numeric($updatedAt)) {
-                $updatedAt = strtotime($updatedAt);
+            if (!is_numeric($updatedat)) {
+                $updatedat = strtotime($updatedat);
             }
 
             $rec = new stdClass();
             $rec->skillandid = $skillandid;
             $rec->skilland_lessonid = $lessonid;
             $rec->title = $name;
-            $rec->updatedat = $updatedAt;
+            $rec->updatedat = $updatedat;
             $rec->visible = 1;
             $rec->orderindex = $orderindex;
             $DB->insert_record('skilland_lesson', $rec);
@@ -666,7 +677,7 @@ function skilland_process_selected_lessons($skillandid, $json) {
 
     // Mark unselected lessons as hidden.
     foreach ($existing as $lessonid => $rec) {
-        if (!isset($processed_ids[$lessonid]) && $rec->visible == 1) {
+        if (!isset($processedids[$lessonid]) && $rec->visible == 1) {
             $rec->visible = 0;
             $DB->update_record('skilland_lesson', $rec);
         }
@@ -705,10 +716,10 @@ function mod_skilland_extend_navigation_course(
         $text = get_string('edit_in_skilland_header', 'mod_skilland');
         $url = new \moodle_url('/mod/skilland/sso_redirect.php', [
             'courseid' => $course->id,
-            'sesskey' => sesskey()
+            'sesskey' => sesskey(),
         ]);
         $action = new action_link($url, $text, null, [
-            'target' => '_blank'
+            'target' => '_blank',
         ]);
     }
 

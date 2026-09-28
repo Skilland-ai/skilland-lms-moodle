@@ -18,8 +18,6 @@ namespace mod_skilland\completion;
 
 use core_completion\activity_custom_completion;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Custom completion rules of mod_skilland (SKL-668).
  *
@@ -27,10 +25,10 @@ defined('MOODLE_INTERNAL') || die();
  * progress store. Hidden lessons are ignored; an activity with no visible lesson never completes.
  *
  * @package    mod_skilland
+ * @copyright  2024 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class custom_completion extends activity_custom_completion {
-
     /**
      * Fetches the completion state for a given completion rule.
      *
@@ -48,8 +46,12 @@ class custom_completion extends activity_custom_completion {
         }
 
         $done = [];
-        $rows = $DB->get_records('skilland_progress',
-            ['skillandid' => $this->cm->instance, 'userid' => $this->userid], '', 'lessonid, status');
+        $rows = $DB->get_records(
+            'skilland_progress',
+            ['skillandid' => $this->cm->instance, 'userid' => $this->userid],
+            '',
+            'lessonid, status'
+        );
         foreach ($rows as $row) {
             if (in_array($row->status, ['completed', 'passed'], true)) {
                 $done[(int) $row->lessonid] = true;

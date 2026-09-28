@@ -33,55 +33,87 @@ if ($ADMIN->fulltree) {
     $field = skilland_get_course_customfield();
     $description = $field ? get_string('customfield_exists', 'mod_skilland') : get_string('customfield_missing', 'mod_skilland');
 
-    $settings->add(new admin_setting_heading('mod_skilland/customfield_status',
+    $settings->add(new admin_setting_heading(
+        'mod_skilland/customfield_status',
         get_string('customfield_status', 'mod_skilland'),
-        $description));
+        $description
+    ));
 
     // Verbose debug logging toggle.
-    $settings->add(new admin_setting_configcheckbox('mod_skilland/devmode',
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_skilland/devmode',
         get_string('settings_devmode', 'mod_skilland'),
-        get_string('settings_devmode_desc', 'mod_skilland'), 0));
+        get_string('settings_devmode_desc', 'mod_skilland'),
+        0
+    ));
 
     // API Key setting (password type for security).
-    $settings->add(new admin_setting_configpasswordunmask('mod_skilland/apikey',
+    $settings->add(new admin_setting_configpasswordunmask(
+        'mod_skilland/apikey',
         get_string('settings_apikey', 'mod_skilland'),
-        get_string('settings_apikey_desc', 'mod_skilland'), ''));
+        get_string('settings_apikey_desc', 'mod_skilland'),
+        ''
+    ));
 
     // Organization ID setting.
-    $settings->add(new admin_setting_configtext('mod_skilland/orgid',
+    $settings->add(new admin_setting_configtext(
+        'mod_skilland/orgid',
         get_string('settings_orgid', 'mod_skilland'),
-        get_string('settings_orgid_desc', 'mod_skilland'), '', PARAM_ALPHANUMEXT));
+        get_string('settings_orgid_desc', 'mod_skilland'),
+        '',
+        PARAM_ALPHANUMEXT
+    ));
 
     // Legacy GraphQL endpoint setting (fallback for the REST API).
-    $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/graphql_endpoint',
+    $settings->add(new \mod_skilland\admin_setting_https_url(
+        'mod_skilland/graphql_endpoint',
         get_string('settings_graphql_endpoint', 'mod_skilland'),
         get_string('settings_graphql_endpoint_desc', 'mod_skilland'),
-        'https://api.skilland.ai/graphql'));
+        'https://api.skilland.ai/graphql'
+    ));
 
     // Hosts SCORM packages may be downloaded from, besides the frontend URL and GraphQL endpoint hosts.
-    $settings->add(new admin_setting_configtext('mod_skilland/package_hosts',
+    $settings->add(new admin_setting_configtext(
+        'mod_skilland/package_hosts',
         get_string('settings_package_hosts', 'mod_skilland'),
         get_string('settings_package_hosts_desc', 'mod_skilland'),
-        '*.skilland.ai, *.amazonaws.com', PARAM_TEXT));
+        '*.skilland.ai, *.amazonaws.com',
+        PARAM_TEXT
+    ));
 
     // Maximum SCORM package size in MB.
-    $settings->add(new admin_setting_configtext('mod_skilland/package_max_mb',
+    $settings->add(new admin_setting_configtext(
+        'mod_skilland/package_max_mb',
         get_string('settings_package_max_mb', 'mod_skilland'),
-        get_string('settings_package_max_mb_desc', 'mod_skilland'), 200, PARAM_INT));
+        get_string('settings_package_max_mb_desc', 'mod_skilland'),
+        200,
+        PARAM_INT
+    ));
 
     // Extra Ed25519 keys SCORM packages may be signed with, besides the ones pinned in the plugin (SKL-650).
-    $settings->add(new \mod_skilland\admin_setting_signing_keys('mod_skilland/signingkeys',
+    $settings->add(new \mod_skilland\admin_setting_signing_keys(
+        'mod_skilland/signingkeys',
         get_string('settings_signingkeys', 'mod_skilland'),
-        get_string('settings_signingkeys_desc', 'mod_skilland'), '', PARAM_RAW_TRIMMED, 60, 4));
+        get_string('settings_signingkeys_desc', 'mod_skilland'),
+        '',
+        PARAM_RAW_TRIMMED,
+        60,
+        4
+    ));
 
     // Frontend URL setting (SSO redirects and the base of the REST API).
-    $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/frontend_url',
+    $settings->add(new \mod_skilland\admin_setting_https_url(
+        'mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),
         get_string('settings_frontend_url_desc', 'mod_skilland'),
-        'https://app.skilland.ai'));
+        'https://app.skilland.ai'
+    ));
 
     // SSO shared secret setting.
-    $settings->add(new \mod_skilland\admin_setting_sso_secret('mod_skilland/sso_secret',
+    $settings->add(new \mod_skilland\admin_setting_sso_secret(
+        'mod_skilland/sso_secret',
         get_string('settings_sso_secret', 'mod_skilland'),
-        get_string('settings_sso_secret_desc', 'mod_skilland'), ''));
+        get_string('settings_sso_secret_desc', 'mod_skilland'),
+        ''
+    ));
 }

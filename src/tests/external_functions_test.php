@@ -48,7 +48,6 @@ require_once(__DIR__ . '/skilland_testcase.php');
  * @covers     \mod_skilland\external\check_topic_snapshot
  */
 final class external_functions_test extends skilland_testcase {
-
     /**
      * A course mapped to a SkilLand course, with an editing teacher and a student.
      *
@@ -76,8 +75,10 @@ final class external_functions_test extends skilland_testcase {
         $registered = $DB->get_records_menu('external_functions', ['component' => 'mod_skilland'], '', 'name, classname');
         ksort($expected);
         ksort($registered);
-        $this->assertSame(array_map(fn($class) => ltrim($class, '\\'), $expected),
-            array_map(fn($class) => ltrim($class, '\\'), $registered));
+        $this->assertSame(
+            array_map(fn($class) => ltrim($class, '\\'), $expected),
+            array_map(fn($class) => ltrim($class, '\\'), $registered)
+        );
     }
 
     public function test_fetch_courses_lists_every_skill_to_an_admin(): void {
@@ -105,8 +106,10 @@ final class external_functions_test extends skilland_testcase {
 
     public function test_fetch_courses_returns_a_safe_error_when_the_api_fails(): void {
         [$course] = $this->mapped_course();
-        $this->client->set_response('MoodleListCourses',
-            new \moodle_exception('error_graphql_http', 'mod_skilland', '', null, 'upstream secret detail'));
+        $this->client->set_response(
+            'MoodleListCourses',
+            new \moodle_exception('error_graphql_http', 'mod_skilland', '', null, 'upstream secret detail')
+        );
         $this->setAdminUser();
 
         $result = external_api::clean_returnvalue(fetch_courses::execute_returns(), fetch_courses::execute($course->id));
@@ -132,6 +135,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Course-scoped external functions require Studio access.
+     *
      * @dataProvider course_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the course.
@@ -145,6 +150,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Course-scoped external functions refuse a course the user is not enrolled in.
+     *
      * @dataProvider course_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the course.
@@ -170,8 +177,10 @@ final class external_functions_test extends skilland_testcase {
         $this->assertNull($result['error']);
         $this->assertSame('skill-new', $result['skillid']);
         $this->assertSame(['name' => 'Algebra 101', 'userEmail' => $teacher->email], $this->client->calls[0]['variables']);
-        $this->assertSame('/skills-studio/create/microcredential-upload/skill-new',
-            mod_skilland_peek_pending_studio_path((int) $course->id));
+        $this->assertSame(
+            '/skills-studio/create/microcredential-upload/skill-new',
+            mod_skilland_peek_pending_studio_path((int) $course->id)
+        );
         // The mapping is persisted in the text field's own column and reads back.
         $this->assertSame('skill-new', $this->course_mapping_row((int) $course->id)->charvalue);
         $this->assertSame('skill-new', skilland_get_course_customfield_value((int) $course->id));
@@ -200,8 +209,10 @@ final class external_functions_test extends skilland_testcase {
         [$course, $teacher] = $this->mapped_course();
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(fetch_topics::execute_returns(),
-            fetch_topics::execute('skill-1', $course->id));
+        $result = external_api::clean_returnvalue(
+            fetch_topics::execute_returns(),
+            fetch_topics::execute('skill-1', $course->id)
+        );
 
         $this->assertNull($result['error']);
         $this->assertSame('skill-1', $result['course']['id']);
@@ -242,8 +253,10 @@ final class external_functions_test extends skilland_testcase {
         [$course, $teacher] = $this->mapped_course();
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(fetch_lessons::execute_returns(),
-            fetch_lessons::execute('topic-1', $course->id));
+        $result = external_api::clean_returnvalue(
+            fetch_lessons::execute_returns(),
+            fetch_lessons::execute('topic-1', $course->id)
+        );
 
         $this->assertNull($result['error']);
         $this->assertSame(['lesson-1', 'lesson-2'], array_column($result['lessons'], 'id'));
@@ -279,8 +292,10 @@ final class external_functions_test extends skilland_testcase {
         $skilland = $this->create_activity($course);
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(provision_topic_scorm::execute_returns(),
-            provision_topic_scorm::execute($skilland->id, $skilland->cmid));
+        $result = external_api::clean_returnvalue(
+            provision_topic_scorm::execute_returns(),
+            provision_topic_scorm::execute($skilland->id, $skilland->cmid)
+        );
 
         $this->assertTrue($result['success']);
         $this->assertNull($result['error']);
@@ -302,6 +317,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Module-scoped external functions require the provision capability.
+     *
      * @dataProvider module_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the activity.
@@ -316,6 +333,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     /**
+     * Module-scoped external functions refuse when the plugin is disabled.
+     *
      * @dataProvider module_services_provider
      * @param string $class External function class.
      * @param \Closure $args Builds the arguments from the activity.
@@ -338,8 +357,10 @@ final class external_functions_test extends skilland_testcase {
         $other = $this->create_activity($course, ['name' => 'Other topic']);
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(provision_topic_scorm::execute_returns(),
-            provision_topic_scorm::execute($other->id, $skilland->cmid));
+        $result = external_api::clean_returnvalue(
+            provision_topic_scorm::execute_returns(),
+            provision_topic_scorm::execute($other->id, $skilland->cmid)
+        );
         $this->take_debugging();
 
         $this->assertFalse($result['success']);
@@ -355,8 +376,10 @@ final class external_functions_test extends skilland_testcase {
         $oldcmid = $this->provision($skilland);
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(update_topic_scorm::execute_returns(),
-            update_topic_scorm::execute($skilland->id, $skilland->cmid));
+        $result = external_api::clean_returnvalue(
+            update_topic_scorm::execute_returns(),
+            update_topic_scorm::execute($skilland->id, $skilland->cmid)
+        );
 
         $this->assertTrue($result['success']);
         $this->assertNotEquals($oldcmid, $result['scormcmid']);
@@ -371,6 +394,15 @@ final class external_functions_test extends skilland_testcase {
             /** @var int Calls received. */
             public int $calls = 0;
 
+            /**
+             * Records the call and simulates a provisioning-in-progress conflict.
+             *
+             * @param mixed $skilland the activity instance.
+             * @param mixed $course the course.
+             * @param int $sectionnum the section number.
+             * @param string|null $contenthash the expected content hash.
+             * @return void
+             */
             public function update($skilland, $course, $sectionnum = 0, ?string $contenthash = null) {
                 $this->calls++;
                 throw new \moodle_exception('error_provision_in_progress', 'mod_skilland');
@@ -378,8 +410,10 @@ final class external_functions_test extends skilland_testcase {
         });
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(update_topic_scorm::execute_returns(),
-            update_topic_scorm::execute($skilland->id, $skilland->cmid));
+        $result = external_api::clean_returnvalue(
+            update_topic_scorm::execute_returns(),
+            update_topic_scorm::execute($skilland->id, $skilland->cmid)
+        );
         $this->take_debugging();
 
         $this->assertFalse($result['success']);
@@ -394,11 +428,15 @@ final class external_functions_test extends skilland_testcase {
         $this->provision($skilland);
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(check_topic_snapshot::execute_returns(),
-            check_topic_snapshot::execute($skilland->id));
+        $result = external_api::clean_returnvalue(
+            check_topic_snapshot::execute_returns(),
+            check_topic_snapshot::execute($skilland->id)
+        );
 
-        $this->assertSame(['isstale' => false, 'contenthash' => 'hash-v1', 'studentattemptcount' => 0, 'error' => null],
-            $result);
+        $this->assertSame(
+            ['isstale' => false, 'contenthash' => 'hash-v1', 'studentattemptcount' => 0, 'error' => null],
+            $result
+        );
     }
 
     public function test_check_topic_snapshot_detects_changed_content_and_counts_students_at_risk(): void {
@@ -410,8 +448,11 @@ final class external_functions_test extends skilland_testcase {
         $skilland = $this->create_activity($course);
         $cmid = $this->provision($skilland);
         $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
-        $scoid = (int) $DB->get_field('skilland_lesson', 'scoid',
-            ['skillandid' => $skilland->id, 'skilland_lessonid' => 'lesson-1']);
+        $scoid = (int) $DB->get_field(
+            'skilland_lesson',
+            'scoid',
+            ['skillandid' => $skilland->id, 'skilland_lessonid' => 'lesson-1']
+        );
         foreach ([$student, $otherstudent] as $user) {
             scorm_insert_track($user->id, $scormid, $scoid, 1, 'cmi.core.lesson_status', 'incomplete');
         }
@@ -419,8 +460,10 @@ final class external_functions_test extends skilland_testcase {
         $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(check_topic_snapshot::execute_returns(),
-            check_topic_snapshot::execute($skilland->id));
+        $result = external_api::clean_returnvalue(
+            check_topic_snapshot::execute_returns(),
+            check_topic_snapshot::execute($skilland->id)
+        );
 
         $this->assertTrue($result['isstale']);
         $this->assertSame('hash-v2', $result['contenthash']);
@@ -435,8 +478,10 @@ final class external_functions_test extends skilland_testcase {
         $this->client->set_response('TopicScormHash', new \moodle_exception('error_api_unavailable', 'mod_skilland'));
         $this->setUser($teacher);
 
-        $result = external_api::clean_returnvalue(check_topic_snapshot::execute_returns(),
-            check_topic_snapshot::execute($skilland->id));
+        $result = external_api::clean_returnvalue(
+            check_topic_snapshot::execute_returns(),
+            check_topic_snapshot::execute($skilland->id)
+        );
         $this->take_debugging();
 
         $this->assertFalse($result['isstale']);

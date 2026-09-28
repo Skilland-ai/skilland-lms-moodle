@@ -24,8 +24,6 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Text setting (PARAM_URL) that requires the https:// scheme.
  *
@@ -33,7 +31,6 @@ defined('MOODLE_INTERNAL') || die();
  * which the local development stack does.
  */
 class admin_setting_https_url extends \admin_setting_configtext {
-
     /**
      * Constructor.
      *

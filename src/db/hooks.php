@@ -34,4 +34,3 @@ $callbacks = [
         'callback' => 'mod_skilland\hooks::di_configuration',
     ],
 ];
-

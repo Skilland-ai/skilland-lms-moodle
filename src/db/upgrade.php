@@ -22,8 +22,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Upgrade function to create the Skilland Course ID custom field.
  *
@@ -126,8 +124,16 @@ function xmldb_skilland_upgrade($oldversion) {
         $table = new xmldb_table('skilland');
 
         if ($dbman->table_exists($table)) {
-            $field = new xmldb_field('topic_orderindex', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1',
-                'hidelabels');
+            $field = new xmldb_field(
+                'topic_orderindex',
+                XMLDB_TYPE_INTEGER,
+                '10',
+                null,
+                XMLDB_NOTNULL,
+                null,
+                '1',
+                'hidelabels'
+            );
             if (!$dbman->field_exists($table, $field)) {
                 $dbman->add_field($table, $field);
             }
@@ -182,14 +188,30 @@ function xmldb_skilland_upgrade($oldversion) {
     if ($oldversion < 2026092608) {
         $table = new xmldb_table('skilland');
 
-        $field = new xmldb_field('completionlessons', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
-            'scomappings');
+        $field = new xmldb_field(
+            'completionlessons',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'scomappings'
+        );
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
 
-        $field = new xmldb_field('grade', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0',
-            'completionlessons');
+        $field = new xmldb_field(
+            'grade',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'completionlessons'
+        );
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
@@ -267,4 +289,3 @@ function xmldb_skilland_upgrade($oldversion) {
 
     return true;
 }
-

@@ -24,13 +24,10 @@
 
 namespace mod_skilland;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Password setting that rejects short secrets and secrets that were ever shipped as dev defaults.
  */
 class admin_setting_sso_secret extends \admin_setting_configpasswordunmask {
-
     /** Minimum secret length in bytes (after base64 decoding when the value is base64). */
     const MIN_SECRET_BYTES = 32;
 
