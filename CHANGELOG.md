@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.38-beta]
+
+### Added
+- Ed25519 signature verification of every topic SCORM package before import:
+  the signature covers the requested topic id, `contentHash`, the locally
+  computed sha256 of the zip and `generatedAt`; unsigned, tampered,
+  unknown-key and cross-topic packages are refused, including anything reached
+  through the legacy GraphQL fallback (SKL-650).
+- The production signing key `2026-09` pinned in the plugin, plus a
+  **SCORM package signing keys** admin setting for extra keys during a
+  rotation (SKL-650).
+- A `contentupdate` message provider that tells a course's teachers when new
+  SkilLand content is available for an activity (SKL-650).
+- A `skilland.updateavailable` field recording the content hash of an update
+  the teachers were notified about (upgrade step 2026092800, SKL-650).
+
+### Changed
+- The `sync_content` task no longer imports packages: content updates are
+  applied only when a teacher presses **Update From Skilland**, and the
+  "Auto-update content" option is now "Notify me of content updates"
+  (SKL-650).
+- `packageHash` is compared as plain sha256 hex; algorithm-prefixed hashes
+  are no longer read from the API (SKL-650).
+
 ## [0.9.37-beta]
 
 ### Added

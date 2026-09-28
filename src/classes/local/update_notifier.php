@@ -18,13 +18,11 @@
  * Tells the teachers of an activity that new SkilLand content is waiting to be applied.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace mod_skilland\local;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Sends the contentupdate notification (SKL-650). Callers resolve it with \core\di::get() so

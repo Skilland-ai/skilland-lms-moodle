@@ -18,7 +18,7 @@
  * Message providers of mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

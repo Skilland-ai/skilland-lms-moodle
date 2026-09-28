@@ -18,13 +18,11 @@
  * Admin setting for the extra SCORM package signing keys.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace mod_skilland;
-
-defined('MOODLE_INTERNAL') || die();
 
 use mod_skilland\local\package_signature;
 

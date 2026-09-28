@@ -18,13 +18,11 @@
  * Ed25519 signature check of a SkilLand topic SCORM package (SKL-650).
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 SkilLand <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace mod_skilland\local;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Verifies that a downloaded topic SCORM package is the one SkilLand signed for the requested topic.
