@@ -49,7 +49,8 @@ class package_signature {
      * then drop the old one in a later release.
      */
     const PINNED_KEYS = [
-        // Fer: pin the production key id and public key (infra/runbooks/scorm-signing-key.md).
+        // Production key 2026-09; rotate per infra/runbooks/scorm-signing-key.md.
+        '2026-09' => 'KkupKiNBdlqIAAAJOnPb+qNtLQCopb0o8xE437GiC9Q=',
     ];
 
     /**

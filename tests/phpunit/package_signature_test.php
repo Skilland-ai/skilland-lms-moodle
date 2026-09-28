@@ -182,9 +182,10 @@ class package_signature_test extends TestCase {
             'error_scorm_signature_unknown_key');
     }
 
-    public function test_no_trusted_key_at_all_refuses_every_package(): void {
+    public function test_a_key_that_is_neither_pinned_nor_in_the_setting_is_refused(): void {
         $response = $this->signed();
         $GLOBALS['_test_plugin_config']['mod_skilland']->signingkeys = '';
+        $this->assertArrayNotHasKey(\test_package_signer::KEY_ID, package_signature::PINNED_KEYS);
 
         $this->expect_code(fn() => package_signature::verify(self::TOPIC, $response, $this->zip()),
             'error_scorm_signature_unknown_key');
@@ -263,6 +264,23 @@ class package_signature_test extends TestCase {
             $this->assertNotNull(package_signature::decode_public_key($publickey), "Pinned key $keyid is not 32 bytes");
         }
         $this->addToAssertionCount(1);
+    }
+
+    public function test_the_production_key_2026_09_is_pinned_and_trusted_without_the_setting(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland']->signingkeys = '';
+
+        $keys = package_signature::trusted_keys();
+
+        $this->assertArrayHasKey('2026-09', $keys);
+        $this->assertSame(base64_decode('KkupKiNBdlqIAAAJOnPb+qNtLQCopb0o8xE437GiC9Q=', true), $keys['2026-09']);
+        $this->assertSame(SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES, strlen($keys['2026-09']));
+    }
+
+    public function test_an_admin_line_cannot_replace_the_pinned_2026_09_key(): void {
+        \test_package_signer::trust('2026-09:' . base64_encode(sodium_crypto_sign_publickey(\test_package_signer::keypair())));
+
+        $this->assertSame(base64_decode(package_signature::PINNED_KEYS['2026-09'], true),
+            package_signature::trusted_keys()['2026-09']);
     }
 
     public function test_pinned_and_admin_keys_are_both_trusted(): void {
