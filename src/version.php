@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026092900;   // YYYYMMDDHH - green phpcs gate, docblocks, coding standard fixes (SKL-808).
+$plugin->version   = 2026092901;   // YYYYMMDDHH - SSO handoff requires a course and resolves the token role (SKL-645).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.39-beta';
+$plugin->release   = '0.9.40-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

@@ -141,10 +141,11 @@ test.describe('Network Error Handling', () => {
 test.describe('Input Validation', () => {
   test.describe.configure({ mode: 'parallel' })
 
-  test('SSO redirect strips a script from the topic id', async ({ authenticatedPage, skillandMock }) => {
+  test('SSO redirect strips a script from the topic id', async ({ authenticatedPage, skillandMock, moodleCourse }) => {
     const page = authenticatedPage
     const sso = await configureSkillandSso(page)
     skillandMock.stubOrigin(sso.frontendUrl)
+    const courseId = await moodleCourse.create()
     const maliciousInput = '<script>alert("xss")</script>'
 
     /** @type {string[]} */
@@ -155,7 +156,7 @@ test.describe('Input Validation', () => {
     })
 
     const sesskey = await getSesskey(page)
-    await page.goto(`/mod/skilland/sso_redirect.php?topicid=${encodeURIComponent(maliciousInput)}&sesskey=${sesskey}`)
+    await page.goto(`/mod/skilland/sso_redirect.php?topicid=${encodeURIComponent(maliciousInput)}&courseid=${courseId}&sesskey=${sesskey}`)
     await expect(page.locator('#skilland-stub')).toBeVisible()
 
     const redirect = extractRedirectPath(skillandMock.ssoRequests()[0]) || ''
@@ -164,7 +165,8 @@ test.describe('Input Validation', () => {
     expect(dialogs).toEqual([])
   })
 
-  test('SSO redirect ignores a non-numeric course id', async ({ authenticatedPage, skillandMock }) => {
+  test('SSO redirect refuses a non-numeric course id', async ({ authenticatedPage, skillandMock, expectConsoleError }) => {
+    expectConsoleError(/status of 404/)
     const page = authenticatedPage
     const sso = await configureSkillandSso(page)
     skillandMock.stubOrigin(sso.frontendUrl)
@@ -172,8 +174,24 @@ test.describe('Input Validation', () => {
 
     const sesskey = await getSesskey(page)
     await page.goto(`/mod/skilland/sso_redirect.php?topicid=test&courseid=${encodeURIComponent(maliciousInput)}&sesskey=${sesskey}`)
-    await expect(page.locator('#skilland-stub')).toBeVisible()
 
-    expect(extractRedirectPath(skillandMock.ssoRequests()[0])).toBe('/skills-studio/topics/test')
+    // PARAM_INT turns it into course 0, which does not exist: no token is minted (SKL-645).
+    await expect(page.locator('#region-main')).toContainText(/Can't find data record|Invalid course/i)
+    await expect(page.locator('#skilland-stub')).toHaveCount(0)
+    expect(skillandMock.ssoRequests()).toEqual([])
+  })
+
+  test('SSO redirect without a course id is refused', async ({ authenticatedPage, skillandMock, expectConsoleError }) => {
+    expectConsoleError(/status of 404/)
+    const page = authenticatedPage
+    const sso = await configureSkillandSso(page)
+    skillandMock.stubOrigin(sso.frontendUrl)
+
+    const sesskey = await getSesskey(page)
+    await page.goto(`/mod/skilland/sso_redirect.php?topicid=test&sesskey=${sesskey}`)
+
+    // SKL-645: without a course there is no context to check accessstudio in, so no token.
+    await expect(page.getByText('A required parameter (courseid) was missing')).toBeVisible()
+    expect(skillandMock.ssoRequests()).toEqual([])
   })
 })

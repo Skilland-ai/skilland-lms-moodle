@@ -19,6 +19,9 @@ Feature: Teachers reach SkilLand Studio from their course
     And the following "activities" exist:
       | activity | name             | course | idnumber | provisioned |
       | skilland | Fixture activity | C1     | skl1     | 1           |
+    And the following config values are set as admin:
+      | orgid      | org-behat-fixture                            | mod_skilland |
+      | sso_secret | behat-fixture-sso-secret-not-a-real-one-0123 | mod_skilland |
 
   Scenario: A teacher sees the SkilLand Studio link and the provision controls
     When I am on the "Course 1" "course" page logged in as "teacher1"
@@ -30,3 +33,25 @@ Feature: Teachers reach SkilLand Studio from their course
   Scenario: A student gets no SkilLand Studio link
     When I am on the "Course 1" "course" page logged in as "student1"
     Then "//a[contains(@href, '/mod/skilland/sso_redirect.php')]" "xpath_element" should not exist
+
+  @javascript
+  Scenario: A teacher's SkilLand Studio handoff signs them in as an Expert
+    When I am on the "Course 1" "course" page logged in as "teacher1"
+    Then the SkilLand SSO handoff for course "C1" should sign me in as "Expert"
+
+  @javascript
+  Scenario: A student cannot start the SkilLand Studio handoff without a course
+    When I am on the "Course 1" "course" page logged in as "student1"
+    Then the SkilLand SSO handoff without a course should be refused with "A required parameter (courseid) was missing"
+
+  @javascript
+  Scenario: A student cannot start the SkilLand Studio handoff from their course
+    When I am on the "Course 1" "course" page logged in as "student1"
+    Then the SkilLand SSO handoff for course "C1" should be refused with "Sorry, but you do not currently have permissions to do that"
+
+  @javascript
+  Scenario: A guest cannot start the SkilLand Studio handoff
+    Given I am on the "Course 1" "enrolment methods" page logged in as admin
+    And I click on "Enable" "link" in the "Guest access" "table_row"
+    When I am on the "Course 1" "course" page logged in as "guest"
+    Then the SkilLand SSO handoff for course "C1" should be refused with "Course or activity not accessible."

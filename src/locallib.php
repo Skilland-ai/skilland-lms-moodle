@@ -2337,6 +2337,29 @@ function skilland_sso_user_refusal_reason(int $userid): ?string {
 }
 
 /**
+ * The SkilLand role an SSO token carries, from whether the user may add SkilLand activities.
+ *
+ * Only a user who can add the activity (a teacher) is signed in as an Expert; everyone else who
+ * reaches the handoff is a Learner (SKL-645).
+ *
+ * @param bool $hasaddinstance Whether the user holds mod/skilland:addinstance in the course
+ * @return string 'Expert' or 'Learner'
+ */
+function skilland_determine_sso_role(bool $hasaddinstance): string {
+    return $hasaddinstance ? 'Expert' : 'Learner';
+}
+
+/**
+ * The SkilLand role an SSO token carries for the current user in a course context.
+ *
+ * @param context $context The course context the handoff was started from
+ * @return string 'Expert' or 'Learner'
+ */
+function skilland_sso_role_for_context(context $context): string {
+    return skilland_determine_sso_role(has_capability('mod/skilland:addinstance', $context));
+}
+
+/**
  * Generate an SSO token for authenticating a Moodle user to Skilland.
  *
  * This function creates a signed JWT token that allows seamless authentication
@@ -2345,12 +2368,19 @@ function skilland_sso_user_refusal_reason(int $userid): ?string {
  *
  * @param stdClass $user The Moodle user object
  * @param string $orgid The Skilland organization ID
+ * @param string $role The SkilLand role the token carries, 'Learner' or 'Expert' (see skilland_sso_role_for_context())
  * @return string The signed JWT token
+ * @throws coding_exception If the role is not 'Learner' or 'Expert'
  * @throws moodle_exception If the account may not sign in (guest, deleted, suspended, unconfirmed
  *         or nologin), the SSO secret is not configured or the JWT library is not available
  */
-function skilland_generate_sso_token($user, $orgid) {
+function skilland_generate_sso_token($user, $orgid, string $role) {
     global $CFG;
+
+    // Never fail open: a token only ever carries one of the two roles a Moodle user may hold.
+    if ($role !== 'Learner' && $role !== 'Expert') {
+        throw new coding_exception('Invalid SkilLand SSO role: ' . $role);
+    }
 
     $refusal = skilland_sso_user_refusal_reason((int) $user->id);
     if ($refusal !== null) {
@@ -2421,7 +2451,7 @@ function skilland_generate_sso_token($user, $orgid) {
         'email' => $user->email,
         'name' => fullname($user),
         'orgId' => $orgid,
-        'role' => 'Expert', // Default role for SSO users.
+        'role' => $role,
         'nonce' => $nonce,
         'iat' => $issuedat,
         'exp' => $issuedat + 60, // The token only has to survive the auto-submitted form.

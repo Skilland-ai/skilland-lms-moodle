@@ -35,7 +35,7 @@ class sso_token_claims_test extends TestCase {
     private function mint(array $config): \stdClass {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object) array_merge(['sso_secret' => self::FIXTURE_SECRET], $config);
         $user = (object) ['id' => 7, 'email' => 'teacher@school.com', 'firstname' => 'Jane', 'lastname' => 'Doe'];
-        $token = skilland_generate_sso_token($user, 'org-9');
+        $token = skilland_generate_sso_token($user, 'org-9', 'Expert');
         return JWT::decode($token, new Key(self::FIXTURE_SECRET, 'HS256'));
     }
 

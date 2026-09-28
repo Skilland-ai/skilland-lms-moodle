@@ -28,33 +28,34 @@ require_once(__DIR__ . '/locallib.php');
 use mod_skilland\logger;
 
 // Get parameters.
-// $courseid is the Moodle course ID; the Skilland skill ID is resolved from it server-side.
 $topicid  = optional_param('topicid', '', PARAM_TEXT);
-$courseid = optional_param('courseid', 0, PARAM_INT);
 // Pending=1 comes from the post-save notification (observer::course_updated, SKL-664): open the
 // Studio path stored when the course was created from Moodle, once.
 $pending  = optional_param('pending', false, PARAM_BOOL);
 
-// Require login and a valid session key.
+// Require login and a valid session key before reading anything else.
 require_login();
 require_sesskey();
 
 global $USER;
 
-// If a Moodle course ID was provided, verify the user has permission to manage Skilland
-// activities in that course before granting SSO access.
-$skillandcourseid = '';
-if (!empty($courseid)) {
-    $course  = get_course($courseid); // Throws dml_missing_record_exception if not found.
-    $context = context_course::instance($courseid);
-    require_login($course);
-    require_capability('mod/skilland:accessstudio', $context);
+// The Moodle course ID is mandatory (SKL-645): the token is only minted for a user who may open
+// SkilLand Studio from that course, and its role is resolved in that course's context. The
+// Skilland skill ID is resolved from it server-side.
+$courseid = required_param('courseid', PARAM_INT);
+$course  = get_course($courseid); // Throws dml_missing_record_exception if not found.
+$context = context_course::instance($courseid);
+require_login($course);
+if (isguestuser()) {
+    throw new require_login_exception('Guest users cannot access SkilLand');
+}
+require_capability('mod/skilland:accessstudio', $context);
+$role = skilland_sso_role_for_context($context);
 
-    // Resolve the Skilland skill ID from the Moodle course mapping.
-    $skillandcourseid = skilland_get_course_customfield_value($courseid);
-    if (empty($skillandcourseid)) {
-        $skillandcourseid = skilland_get_skilland_courseid($courseid) ?: '';
-    }
+// Resolve the Skilland skill ID from the Moodle course mapping.
+$skillandcourseid = skilland_get_course_customfield_value($courseid);
+if (empty($skillandcourseid)) {
+    $skillandcourseid = skilland_get_skilland_courseid($courseid) ?: '';
 }
 
 try {
@@ -65,7 +66,7 @@ try {
     }
 
     // Generate SSO token.
-    $token = skilland_generate_sso_token($USER, $orgid);
+    $token = skilland_generate_sso_token($USER, $orgid, $role);
 
     // Construct redirect URL: /skills-studio/:skillId/topics/:topicId.
     $redirect = '/skills-studio';
@@ -75,7 +76,7 @@ try {
     if (!empty($topicid)) {
         $redirect .= '/topics/' . urlencode($topicid);
     }
-    if (!empty($courseid) && $pending) {
+    if ($pending) {
         $pendingpath = mod_skilland_take_pending_studio_path($courseid);
         if ($pendingpath !== null) {
             $redirect = $pendingpath;
