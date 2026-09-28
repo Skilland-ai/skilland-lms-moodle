@@ -27,6 +27,12 @@ use mod_skilland\local\api_client;
  * package zipped from tests/fixtures/scorm/. Every call is recorded, and a test can replace any
  * response, make an operation or the download throw, or build the package from another directory.
  *
+ * The scorm route answers like SkilLand does since SKL-650: packageHash, contentHash, keyId and an
+ * Ed25519 signature over the package it serves, made with a test-only key derived from a fixed
+ * seed (FIXTURE_KEY_ID). The plugin trusts that key only once trust_fixture_key() lists it in
+ * mod_skilland/signingkeys; a test can sign with another key, serve unsigned answers or tamper
+ * with the downloaded bytes.
+ *
  * Never used in production: the Behat binding in {@see \mod_skilland\hooks::di_configuration()}
  * only picks it while BEHAT_SITE_RUNNING, and PHPUnit tests install it with \core\di::set().
  *
@@ -50,12 +56,125 @@ class fixture_api_client implements api_client {
     /** @var string Directory the SCORM package is zipped from. */
     protected string $packagedir;
 
+    /** Key id of the test-only signing key. */
+    const FIXTURE_KEY_ID = 'fixture';
+
+    /** @var string|null Key id the scorm route signs with; null serves unsigned answers. */
+    protected ?string $signingkeyid = self::FIXTURE_KEY_ID;
+
+    /** @var string|null Ed25519 secret key (64 bytes) the scorm route signs with. */
+    protected ?string $signingsecret = null;
+
+    /** @var \Closure|null Rewrites the downloaded bytes: fn(string $bytes): string. */
+    protected ?\Closure $downloadtamper = null;
+
     /**
      * Create the client with the default fixtures.
      */
     public function __construct() {
         $this->responses = self::default_responses();
         $this->packagedir = self::fixtures_dir() . '/scorm';
+        $this->signingsecret = sodium_crypto_sign_secretkey(self::fixture_keypair());
+    }
+
+    /**
+     * The test-only Ed25519 keypair, derived from a fixed public seed: never trust it on a real site.
+     *
+     * @return string sodium keypair.
+     */
+    public static function fixture_keypair(): string {
+        return sodium_crypto_sign_seed_keypair(hash('sha256', 'mod_skilland fixture package signing key', true));
+    }
+
+    /**
+     * The mod_skilland/signingkeys line of the fixture key.
+     *
+     * @return string keyid:base64publickey
+     */
+    public static function fixture_key_line(): string {
+        return self::FIXTURE_KEY_ID . ':' . base64_encode(sodium_crypto_sign_publickey(self::fixture_keypair()));
+    }
+
+    /**
+     * Add a keyid:base64publickey line to mod_skilland/signingkeys unless it is there already.
+     *
+     * @param string|null $line The line; the fixture key's when null.
+     */
+    public static function trust_fixture_key(?string $line = null): void {
+        $line = $line ?? self::fixture_key_line();
+        $current = trim((string) get_config('mod_skilland', 'signingkeys'));
+        $lines = $current === '' ? [] : preg_split('/\r\n|\r|\n/', $current);
+        if (!in_array($line, $lines, true)) {
+            $lines[] = $line;
+            set_config('signingkeys', implode("\n", $lines), 'mod_skilland');
+        }
+    }
+
+    /**
+     * Sign the scorm route's answers with another key, or serve them unsigned with null.
+     *
+     * @param string|null $keyid Key id sent as keyId.
+     * @param string|null $secretkey Ed25519 secret key (64 bytes).
+     * @return self
+     */
+    public function sign_with(?string $keyid, ?string $secretkey = null): self {
+        $this->signingkeyid = $keyid;
+        $this->signingsecret = $secretkey;
+        return $this;
+    }
+
+    /**
+     * Rewrite the bytes download_package() serves, after they were signed; null serves them as built.
+     *
+     * @param \Closure|null $tamper fn(string $bytes): string
+     * @return self
+     */
+    public function tamper_download(?\Closure $tamper): self {
+        $this->downloadtamper = $tamper;
+        return $this;
+    }
+
+    /**
+     * Add SkilLand's signature fields to a topic SCORM answer, as the backend does.
+     *
+     * The signature covers the package bytes' real sha256, whatever packageHash the answer
+     * announces; an answer without packageHash or contentHash gets the real hash and $contenthash.
+     *
+     * @param string $topicid The topic id the plugin requested.
+     * @param array $body The scorm answer.
+     * @param string $packagehash Lower-case hex sha256 of the package bytes.
+     * @param string $keyid Key id sent as keyId.
+     * @param string $secretkey Ed25519 secret key (64 bytes).
+     * @param string $contenthash contentHash used when the answer has none.
+     * @return array The answer with packageHash, contentHash, keyId and signature.
+     */
+    public static function sign_scorm(string $topicid, array $body, string $packagehash, string $keyid,
+            string $secretkey, string $contenthash = 'content-hash-v1'): array {
+        if (empty($body['packageHash'])) {
+            $body['packageHash'] = $packagehash;
+        }
+        if (!isset($body['contentHash'])) {
+            $body['contentHash'] = $contenthash;
+        }
+        $message = \mod_skilland\local\package_signature::message($topicid, (string) $body['contentHash'],
+            $packagehash, (string) ($body['generatedAt'] ?? ''));
+        $body['keyId'] = $keyid;
+        $body['signature'] = base64_encode(sodium_crypto_sign_detached($message, $secretkey));
+        return $body;
+    }
+
+    /**
+     * Lower-case hex sha256 of the package download_package() currently serves (before any tamper).
+     *
+     * @return string
+     */
+    public function package_hash(): string {
+        $path = self::build_package($this->packagedir);
+        try {
+            return hash_file('sha256', $path);
+        } finally {
+            @unlink($path);
+        }
     }
 
     /**
@@ -220,7 +339,14 @@ class fixture_api_client implements api_client {
             throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
         }
         $body = $response[$field] ?? null;
-        return is_array($body) ? $body : [];
+        if (!is_array($body)) {
+            return [];
+        }
+        if ($field === 'topicScorm' && !empty($body['packageUrl']) && !array_key_exists('signature', $body) &&
+                $this->signingkeyid !== null && $this->signingsecret !== null) {
+            $body = self::sign_scorm($topicid, $body, $this->package_hash(), $this->signingkeyid, $this->signingsecret);
+        }
+        return $body;
     }
 
     /**
@@ -235,7 +361,11 @@ class fixture_api_client implements api_client {
         if ($this->downloadfailure !== null) {
             throw $this->downloadfailure;
         }
-        return self::build_package($this->packagedir);
+        $path = self::build_package($this->packagedir);
+        if ($this->downloadtamper !== null) {
+            file_put_contents($path, ($this->downloadtamper)((string) file_get_contents($path)));
+        }
+        return $path;
     }
 
     /**

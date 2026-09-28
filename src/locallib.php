@@ -17,6 +17,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 use mod_skilland\graphql_exception;
+use mod_skilland\local\package_signature;
 use mod_skilland\logger;
 use mod_skilland\rest_exception;
 
@@ -1130,15 +1131,20 @@ GRAPHQL;
         throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
     }
 
-    return mod_skilland_normalise_topic_scorm($data['topicScorm']);
+    // The legacy query carries no signature, so package_signature refuses whatever it points at (SKL-650).
+    $scorm = mod_skilland_normalise_topic_scorm($data['topicScorm']);
+    $scorm['signature'] = null;
+    $scorm['keyId'] = null;
+    return $scorm;
 }
 
 /**
  * Normalise a topic SCORM answer (REST body or GraphQL topicScorm) to the shape callers use.
  *
  * @param array $scorm The raw package info.
- * @return array Array with packageUrl, packageSize, packageHash, generatedAt, expiresAt and
- *     mappings (lessonId => scoId).
+ * @return array Array with packageUrl, packageSize, packageHash, generatedAt, expiresAt,
+ *     mappings (lessonId => scoId) and the signature fields contentHash, signature and keyId
+ *     (null when absent; see \mod_skilland\local\package_signature).
  */
 function mod_skilland_normalise_topic_scorm(array $scorm): array {
     // Build mappings array: lessonId => scoId.
@@ -1170,6 +1176,9 @@ function mod_skilland_normalise_topic_scorm(array $scorm): array {
         'generatedAt' => $scorm['generatedAt'] ?? '',
         'expiresAt' => $scorm['expiresAt'] ?? '',
         'mappings' => $mappings,
+        'contentHash' => $scorm['contentHash'] ?? null,
+        'signature' => $scorm['signature'] ?? null,
+        'keyId' => $scorm['keyId'] ?? null,
     ];
 }
 
@@ -1210,7 +1219,11 @@ function skilland_scorm_module_name(string $name): string {
 }
 
 /**
- * Fetch the topic SCORM package info from Skilland, download the zip and verify its hash.
+ * Fetch the topic SCORM package info from Skilland, download the zip and verify its signature.
+ *
+ * Every path that imports a package (provisioning, the manual update, a topic change) goes
+ * through here, so nothing reaches create_file_from_pathname() or the SCORM parser unless
+ * \mod_skilland\local\package_signature::verify() accepted it for the requested topic (SKL-650).
  *
  * @param string $topicid Skilland topic id.
  * @return array ['path' => temp zip path (the caller deletes it), 'info' => package info with mappings]
@@ -1230,8 +1243,15 @@ function skilland_download_topic_scorm_package(string $topicid): array {
         throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
     }
 
+    // An unsigned answer (the legacy GraphQL fallback) is refused before anything is downloaded.
+    try {
+        package_signature::require_signed($scorminfo);
+    } catch (moodle_exception $e) {
+        logger::error('SCORM', 'Refusing the unsigned package of topic ' . $topicid);
+        throw $e;
+    }
+
     $packageurl = $scorminfo['packageUrl'];
-    $expectedhash = $scorminfo['packageHash'] ?? '';
 
     logger::debug('SCORM', 'Downloading topic SCORM package from ' . mod_skilland_redact_url($packageurl));
 
@@ -1239,24 +1259,11 @@ function skilland_download_topic_scorm_package(string $topicid): array {
 
     try {
         logger::debug('SCORM', 'Downloaded topic SCORM package (' . filesize($tempfile) . ' bytes)');
-
-        if (!empty($expectedhash)) {
-            $hashparts = explode(':', $expectedhash, 2);
-            $algorithm = count($hashparts) === 2 ? $hashparts[0] : 'sha256';
-            $expected = count($hashparts) === 2 ? $hashparts[1] : $expectedhash;
-
-            if (!in_array(strtolower($algorithm), hash_algos(), true)) {
-                throw new moodle_exception('error_scorm_hash_mismatch', 'mod_skilland');
-            }
-            $actualhash = hash_file($algorithm, $tempfile);
-            if ($actualhash === false || strcasecmp($actualhash, $expected) !== 0) {
-                logger::error('SCORM', 'Hash mismatch - expected ' . $expected . ', got ' . $actualhash);
-                throw new moodle_exception('error_scorm_hash_mismatch', 'mod_skilland');
-            }
-            logger::debug('SCORM', 'Package hash verified successfully');
-        }
+        package_signature::verify($topicid, $scorminfo, $tempfile);
+        logger::debug('SCORM', 'Package signature verified (key ' . $scorminfo['keyId'] . ')');
     } catch (\Throwable $e) {
         @unlink($tempfile);
+        logger::error('SCORM', 'Package of topic ' . $topicid . ' rejected: ' . $e->getMessage());
         throw $e;
     }
 
@@ -3007,6 +3014,11 @@ const MOD_SKILLAND_CLIENT_ERROR_CODES = [
     'error_course_not_mapped_to_skill',
     'error_lessons_not_in_topic',
     'error_provision_in_progress',
+    'error_scorm_signature_missing',
+    'error_scorm_signature_unknown_key',
+    'error_scorm_signature_malformed',
+    'error_scorm_signature_invalid',
+    'error_scorm_hash_mismatch',
 ];
 
 /**
@@ -3033,7 +3045,9 @@ function mod_skilland_is_client_error(\Throwable $e): bool {
  * error_config_missing_endpoint, error_config_invalid_credentials, error_config_missing_topicid,
  * error_config_missing_courseid, error_config_missing_lessonid, error_http_redirect,
  * error_scorm_not_available, error_plugin_disabled, error_course_not_mapped,
- * error_course_not_mapped_to_skill, error_lessons_not_in_topic, error_provision_in_progress.
+ * error_course_not_mapped_to_skill, error_lessons_not_in_topic, error_provision_in_progress,
+ * error_scorm_signature_missing, error_scorm_signature_unknown_key, error_scorm_signature_malformed,
+ * error_scorm_signature_invalid, error_scorm_hash_mismatch.
  * Add any future user-facing error code to MOD_SKILLAND_CLIENT_ERROR_CODES.
  *
  * @param \Throwable $e The caught exception.

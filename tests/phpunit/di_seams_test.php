@@ -88,6 +88,8 @@ class di_seams_test extends TestCase {
 
     public function test_fixture_client_answers_rest_routes_from_the_graphql_fixtures(): void {
         $client = new \mod_skilland\local\testing\fixture_api_client();
+        // Signing zips the fixture package, which the stub suite cannot do; the real suite covers it.
+        $client->sign_with(null);
         \core\di::set(api_client::class, $client);
 
         $hash = mod_skilland_check_topic_snapshot('topic 1');

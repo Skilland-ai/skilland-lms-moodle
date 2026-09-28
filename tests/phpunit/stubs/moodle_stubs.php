@@ -331,6 +331,15 @@ if (!class_exists('admin_setting_configpasswordunmask')) {
     }
 }
 
+if (!class_exists('admin_setting_configtextarea')) {
+    class admin_setting_configtextarea extends admin_setting_configtext {
+        public function __construct($name, $visiblename, $description, $defaultsetting, $paramtype = PARAM_RAW,
+                $cols = '60', $rows = '8') {
+            parent::__construct($name, $visiblename, $description, $defaultsetting, $paramtype);
+        }
+    }
+}
+
 if (!class_exists('invalid_parameter_exception')) {
     class invalid_parameter_exception extends \moodle_exception {
         public function __construct($debuginfo = null) {

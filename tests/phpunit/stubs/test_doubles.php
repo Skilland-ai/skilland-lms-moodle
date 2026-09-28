@@ -181,3 +181,61 @@ class recording_retry_sleeper extends retry_sleeper {
         $this->sleeps[] = $ms;
     }
 }
+
+/**
+ * Signs topic SCORM answers the way SkilLand does (SKL-650), with a test-only key derived from a
+ * fixed public seed, and trusts that key in the current test's plugin config.
+ */
+class test_package_signer {
+    /** Key id of the test key. */
+    const KEY_ID = 'stub-test-key';
+
+    /** The test-only keypair: never trust it on a real site. */
+    public static function keypair(): string {
+        return sodium_crypto_sign_seed_keypair(hash('sha256', 'mod_skilland stub suite package signing key', true));
+    }
+
+    /** The mod_skilland/signingkeys line of the test key. */
+    public static function key_line(): string {
+        return self::KEY_ID . ':' . base64_encode(sodium_crypto_sign_publickey(self::keypair()));
+    }
+
+    /** Add a keyid:base64publickey line (the test key's by default) to the current plugin config. */
+    public static function trust(?string $line = null): void {
+        $line = $line ?? self::key_line();
+        $config = $GLOBALS['_test_plugin_config']['mod_skilland'] ?? new \stdClass();
+        $current = trim((string) ($config->signingkeys ?? ''));
+        $lines = $current === '' ? [] : preg_split('/\r\n|\r|\n/', $current);
+        if (!in_array($line, $lines, true)) {
+            $lines[] = $line;
+        }
+        $config->signingkeys = implode("\n", $lines);
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = $config;
+    }
+
+    /**
+     * Sign a topic SCORM answer for the package $zipbytes, trusting the test key.
+     *
+     * The signature covers the real sha256 of $zipbytes; an answer without packageHash (or with an
+     * empty one) and without contentHash gets the real hash and a fixed content hash.
+     */
+    public static function sign(string $topicid, array $body, string $zipbytes, ?string $secretkey = null,
+            string $keyid = self::KEY_ID): array {
+        if ($secretkey === null) {
+            self::trust();
+            $secretkey = sodium_crypto_sign_secretkey(self::keypair());
+        }
+        $packagehash = hash('sha256', $zipbytes);
+        if (!array_key_exists('packageHash', $body) || $body['packageHash'] === '') {
+            $body['packageHash'] = $packagehash;
+        }
+        if (!array_key_exists('contentHash', $body)) {
+            $body['contentHash'] = 'content-hash-v1';
+        }
+        $message = \mod_skilland\local\package_signature::message($topicid, (string) $body['contentHash'],
+            $packagehash, (string) ($body['generatedAt'] ?? ''));
+        $body['keyId'] = $keyid;
+        $body['signature'] = base64_encode(sodium_crypto_sign_detached($message, $secretkey));
+        return $body;
+    }
+}

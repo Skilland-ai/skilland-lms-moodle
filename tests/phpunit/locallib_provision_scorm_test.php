@@ -111,14 +111,14 @@ class locallib_provision_scorm_test extends TestCase {
         foreach ($mappings as $lessonid => $scoid) {
             $list[] = ['lessonId' => $lessonid, 'scoId' => $scoid];
         }
-        $GLOBALS['_test_curl_responses'][] = $this->rest_response([
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(\test_package_signer::sign('topic1', [
             'packageUrl' => 'https://cdn.skilland.ai/topic1.zip',
             'packageSize' => $size ?? strlen($this->zipbytes()),
             'packageHash' => $hash,
             'generatedAt' => '2026-01-02T00:00:00Z',
             'expiresAt' => '',
             'mappings' => $list,
-        ]);
+        ], $this->zipbytes()));
         $GLOBALS['_test_curl_responses'][] = ['body' => $this->zipbytes(), 'http_code' => 200, 'errno' => 0,
             'error' => ''];
     }
@@ -293,7 +293,7 @@ class locallib_provision_scorm_test extends TestCase {
     }
 
     public function test_download_returns_path_and_info_on_matching_hash(): void {
-        $this->queue_package(['L1' => 'sco_1'], 'sha256:' . hash('sha256', $this->zipbytes()));
+        $this->queue_package(['L1' => 'sco_1'], hash('sha256', $this->zipbytes()));
 
         $package = skilland_download_topic_scorm_package('topic1');
         $this->zips[] = $package['path'];
@@ -638,6 +638,18 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertSame($before, $this->tempfiles());
         $this->assertEmpty($this->skilland()->scormcmid);
         $this->assertCount(1, $this->lockcalls('release'));
+    }
+
+    public function test_an_algorithm_prefixed_hash_is_a_mismatch(): void {
+        // packageHash is plain sha256 hex since SKL-650; no algorithm is read from the API.
+        $before = $this->tempfiles();
+        $this->queue_package(['L1' => 'sco_1'], 'sha256:' . hash('sha256', $this->zipbytes()));
+
+        $this->expect_code(fn() => skilland_provision_topic_scorm($this->skilland(), $this->course(), 0),
+            'error_scorm_hash_mismatch');
+
+        $this->assertEmpty($GLOBALS['_test_create_module_calls'] ?? []);
+        $this->assertSame($before, $this->tempfiles());
     }
 
     public function test_unknown_hash_algorithm_fails_closed(): void {

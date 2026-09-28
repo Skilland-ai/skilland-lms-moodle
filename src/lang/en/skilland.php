@@ -67,9 +67,9 @@ $string['remove_from_activity'] = 'Remove from activity';
 
 // Behaviour settings.
 $string['behaviour'] = 'Behaviour Settings';
-$string['autoupdate'] = 'Auto-update content';
-$string['autoupdate_desc'] = 'When a new version is published in Skilland, automatically delete and recreate this SCORM package. This deletes all student attempts and grades for this activity — there is no way to recover them.';
-$string['autoupdate_warning'] = 'Auto-update is on and "Lock after first access" is off: as soon as content changes in Skilland, this activity will be deleted and recreated, erasing every student\'s attempts and grades. Turn on "Lock after first access" to stop that once students have started.';
+$string['autoupdate'] = 'Notify me of content updates';
+$string['autoupdate_desc'] = 'When a new version is published in Skilland, the teachers of this course are notified and this activity offers to apply it. Nothing is replaced until a teacher applies the update, which deletes all student attempts and grades for this activity — there is no way to recover them.';
+$string['autoupdate_warning'] = 'Update notices are on and "Lock after first access" is off: teachers are told about every content change in Skilland, and applying one deletes and recreates this activity, erasing every student\'s attempts and grades. Turn on "Lock after first access" to stop the notices once students have started.';
 $string['lockafterfirstaccess'] = 'Lock after first access';
 $string['lockafterfirstaccess_desc'] = 'Once a student has accessed the content, stop auto-update from deleting and recreating this SCORM package (their attempts and grades are preserved)';
 $string['hidelabels'] = 'Hide Skilland codes';
@@ -93,6 +93,9 @@ $string['settings_package_hosts'] = 'SCORM package hosts';
 $string['settings_package_hosts_desc'] = 'Comma-separated hosts SCORM packages may be downloaded from, besides the Frontend URL and GraphQL endpoint hosts. "*.example.com" matches subdomains of example.com only.';
 $string['settings_package_max_mb'] = 'Maximum SCORM package size (MB)';
 $string['settings_package_max_mb_desc'] = 'Downloads larger than this are aborted.';
+$string['settings_signingkeys'] = 'SCORM package signing keys';
+$string['settings_signingkeys_desc'] = 'SkilLand signs every SCORM package it sends, and this site imports a package only when its Ed25519 signature verifies, for the topic that was requested, against a trusted key: the keys built into the plugin plus the ones listed here, one <code>keyid:base64publickey</code> per line. A package runs in the Moodle SCORM player as content of this site, calls the SCORM API and reads and writes each learner\'s SCORM track, so add only a public key SkilLand has published, for example while it rotates keys. Unsigned packages are always refused.';
+$string['error_signing_keys_invalid'] = 'Invalid lines: {$a}. Each line must be keyid:publickey, where the key id has 1 to 64 letters, digits, dots, underscores or hyphens (each id once) and the public key is base64 of exactly 32 bytes.';
 $string['settings_frontend_url'] = 'Frontend URL';
 $string['settings_frontend_url_desc'] = 'The URL of the Skilland frontend application. It is used for SSO redirects and as the base of the SkilLand REST API (topic SCORM packages), authenticated with the API key. If not set, the GraphQL endpoint URL without /graphql is used.';
 
@@ -186,6 +189,10 @@ $string['error_scorm_create_failed'] = 'Failed to create SCORM activity: {$a}';
 $string['error_scorm_upload_failed'] = 'Failed to upload SCORM package to Moodle.';
 $string['error_provision_in_progress'] = 'SCORM content for this activity is already being prepared. Please try again in a moment.';
 $string['error_scorm_parse_failed'] = 'The SCORM package could not be parsed into launchable lessons: {$a}';
+$string['error_scorm_signature_missing'] = 'The SCORM package from Skilland is not signed, so it was not imported. Ask your site administrator to check the Skilland plugin settings.';
+$string['error_scorm_signature_unknown_key'] = 'The SCORM package from Skilland is signed with a key this site does not trust, so it was not imported. Ask your site administrator to check the SCORM package signing keys.';
+$string['error_scorm_signature_malformed'] = 'The signature of the SCORM package from Skilland is malformed, so the package was not imported.';
+$string['error_scorm_signature_invalid'] = 'The signature of the SCORM package from Skilland does not match the package, so it was not imported.';
 $string['scorm_downloading'] = 'Downloading lesson content...';
 $string['scorm_download_complete'] = 'Download complete';
 $string['provision_content'] = 'Prepare Content';
@@ -250,6 +257,12 @@ $string['creating_course'] = 'Creating course in Skilland...';
 $string['task_sync_content'] = 'Sync Skilland content for auto-update activities';
 $string['update_available'] = 'Update Available';
 $string['update_available_desc'] = 'Content has been updated in Skilland. Click the button to refresh the SCORM package.';
+$string['messageprovider:contentupdate'] = 'Skilland content updates available for your activities';
+$string['update_notification_subject'] = 'Content update available: {$a->activity}';
+$string['update_notification_body'] = 'The Skilland content of "{$a->activity}" in {$a->course} has changed. Nothing was replaced: open the activity and press "Update From Skilland" to apply it. Applying the update deletes the students\' attempts and grades on this activity.
+
+{$a->url}';
+$string['update_notification_small'] = 'New Skilland content is available for "{$a->activity}".';
 
 // Plugin disabled.
 $string['error_plugin_disabled'] = 'The Skilland plugin is currently disabled.';

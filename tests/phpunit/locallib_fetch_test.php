@@ -342,7 +342,8 @@ class locallib_fetch_test extends TestCase {
 
     public function test_fetch_topic_scorm_reads_the_rest_route_with_a_bearer_key(): void {
         $this->setValidConfig();
-        $this->queue($this->rest(200, $this->scormBody()));
+        $this->queue($this->rest(200, $this->scormBody() + ['contentHash' => 'c1', 'signature' => 'c2ln',
+            'keyId' => 'k1']));
 
         $result = mod_skilland_fetch_topic_scorm('t1');
 
@@ -353,6 +354,9 @@ class locallib_fetch_test extends TestCase {
             'generatedAt' => '2024-01-01T00:00:00Z',
             'expiresAt' => '2024-01-02T00:00:00Z',
             'mappings' => ['l1' => 'sco1', 'l2' => 'sco2'],
+            'contentHash' => 'c1',
+            'signature' => 'c2ln',
+            'keyId' => 'k1',
         ], $result);
         $this->assertSame([self::REST_SCORM_URL], $GLOBALS['_test_curl_requests']);
         $headers = $GLOBALS['_test_curl_last']['headers'];
@@ -373,11 +377,15 @@ class locallib_fetch_test extends TestCase {
 
     public function test_fetch_topic_scorm_rest_404_falls_back_to_graphql(): void {
         $this->setValidConfig();
-        $this->queue($this->rest(404, ['error' => 'not found']), $this->graphql(['topicScorm' => $this->scormBody()]));
+        $this->queue($this->rest(404, ['error' => 'not found']), $this->graphql(['topicScorm' => $this->scormBody() +
+            ['signature' => 'c2ln', 'keyId' => 'k1']]));
 
         $result = mod_skilland_fetch_topic_scorm('t1');
 
         $this->assertSame(['l1' => 'sco1', 'l2' => 'sco2'], $result['mappings']);
+        // The legacy answer is never trusted as signed, so package_signature refuses it (SKL-650).
+        $this->assertNull($result['signature']);
+        $this->assertNull($result['keyId']);
         $this->assertSame([self::REST_SCORM_URL, self::GRAPHQL_URL], $GLOBALS['_test_curl_requests']);
         $this->assertStringContainsString('falling back to the legacy GraphQL endpoint', $this->logText());
     }

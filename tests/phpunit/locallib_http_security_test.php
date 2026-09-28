@@ -545,19 +545,26 @@ class locallib_http_security_test extends TestCase {
             "/function mod_skilland_download_package\(.*?tempnam\(make_temp_directory\('skilland_scorm'\)/s", $source);
     }
 
-    public function test_provision_topic_scorm_still_verifies_hash_after_download(): void {
-        // SKL-663 moved the download and hash check into skilland_download_topic_scorm_package().
+    public function test_provision_topic_scorm_still_verifies_the_signature_after_download(): void {
+        // SKL-663 moved the download and hash check into skilland_download_topic_scorm_package();
+        // SKL-650 replaced the hash check with package_signature, which also checks the sha256.
         $source = file_get_contents(__DIR__ . '/../../src/locallib.php');
         $this->assertSame(1, preg_match('/function skilland_download_topic_scorm_package\(.*?\n}\n/s', $source, $m));
         $body = $m[0];
+        $signed = strpos($body, 'package_signature::require_signed($scorminfo)');
         $download = strpos($body, 'mod_skilland_download_package($packageurl, (int) ($scorminfo[\'packageSize\'] ?? 0))');
-        $hash = strpos($body, 'hash_file($algorithm, $tempfile)');
+        $verify = strpos($body, 'package_signature::verify($topicid, $scorminfo, $tempfile)');
+        $this->assertNotFalse($signed);
         $this->assertNotFalse($download);
-        $this->assertNotFalse($hash);
-        $this->assertGreaterThan($download, $hash);
-        $this->assertStringContainsString("'sha256'", $body);
-        $this->assertStringContainsString('error_scorm_hash_mismatch', $body);
+        $this->assertNotFalse($verify);
+        $this->assertGreaterThan($signed, $download);
+        $this->assertGreaterThan($download, $verify);
+        $this->assertStringNotContainsString('hash_algos()', $body);
         $this->assertStringNotContainsString('new \curl(', $body);
+
+        $verifier = file_get_contents(__DIR__ . '/../../src/classes/local/package_signature.php');
+        $this->assertStringContainsString('hash_file(\'sha256\', $zippath)', $verifier);
+        $this->assertStringContainsString('error_scorm_hash_mismatch', $verifier);
     }
 
     public function test_no_outbound_curl_ignores_security_unconditionally(): void {
