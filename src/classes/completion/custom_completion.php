@@ -30,7 +30,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class custom_completion extends activity_custom_completion {
-
     /**
      * Fetches the completion state for a given completion rule.
      *
@@ -48,8 +47,12 @@ class custom_completion extends activity_custom_completion {
         }
 
         $done = [];
-        $rows = $DB->get_records('skilland_progress',
-            ['skillandid' => $this->cm->instance, 'userid' => $this->userid], '', 'lessonid, status');
+        $rows = $DB->get_records(
+            'skilland_progress',
+            ['skillandid' => $this->cm->instance, 'userid' => $this->userid],
+            '',
+            'lessonid, status'
+        );
         foreach ($rows as $row) {
             if (in_array($row->status, ['completed', 'passed'], true)) {
                 $done[(int) $row->lessonid] = true;

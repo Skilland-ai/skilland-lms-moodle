@@ -33,7 +33,6 @@ use templatable;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class lesson_navigation implements renderable, templatable {
-
     /** The fullscreen player's bottom bar, mod_skilland/fullscreen_navigation. */
     public const STYLE_FULLSCREEN = 'fullscreen';
 

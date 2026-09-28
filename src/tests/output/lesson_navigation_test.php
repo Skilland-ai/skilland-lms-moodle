@@ -27,7 +27,6 @@ namespace mod_skilland\output;
  * @covers     \mod_skilland\output\renderer
  */
 final class lesson_navigation_test extends \advanced_testcase {
-
     /**
      * Three lessons; the middle one has no SCO in the package.
      *
@@ -49,8 +48,14 @@ final class lesson_navigation_test extends \advanced_testcase {
      * @return lesson_navigation
      */
     private function navigation(\stdClass $current, string $style = lesson_navigation::STYLE_FULLSCREEN): lesson_navigation {
-        return new lesson_navigation($current, $this->lessons(), (object) ['id' => 2], 1,
-            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0], $style);
+        return new lesson_navigation(
+            $current,
+            $this->lessons(),
+            (object) ['id' => 2],
+            1,
+            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0],
+            $style
+        );
     }
 
     /**
@@ -91,8 +96,13 @@ final class lesson_navigation_test extends \advanced_testcase {
         $lessons = $this->lessons();
         $lessons[11]->scoid = 111;
 
-        $navigation = new lesson_navigation($lessons[11], $lessons, (object) ['id' => 2], 4,
-            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0]);
+        $navigation = new lesson_navigation(
+            $lessons[11],
+            $lessons,
+            (object) ['id' => 2],
+            4,
+            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0]
+        );
         $data = $navigation->export_for_template($this->renderer());
 
         $this->assertSame([
@@ -107,8 +117,13 @@ final class lesson_navigation_test extends \advanced_testcase {
         $this->resetAfterTest();
         $lessons = $this->lessons();
 
-        $navigation = new lesson_navigation($lessons[10], [$lessons[10], $lessons[12]], (object) ['id' => 2], 1,
-            (object) ['id' => 7, 'scormcmid' => 0, 'hidelabels' => 0]);
+        $navigation = new lesson_navigation(
+            $lessons[10],
+            [$lessons[10], $lessons[12]],
+            (object) ['id' => 2],
+            1,
+            (object) ['id' => 7, 'scormcmid' => 0, 'hidelabels' => 0]
+        );
 
         $this->assertSame(['prev' => false, 'next' => false], $navigation->export_for_template($this->renderer()));
     }

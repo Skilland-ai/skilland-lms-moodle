@@ -90,7 +90,6 @@ try {
     header('Content-Type: text/html; charset=utf-8');
     echo skilland_render_sso_post_form($token, $redirect);
     die();
-
 } catch (moodle_exception $e) {
     // Carries its own localized string (error_sso_user_not_allowed, error_config_missing_orgid):
     // rethrow it as is so the user reads that message rather than a generic error.

@@ -24,7 +24,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class backup_skilland_activity_structure_step extends backup_activity_structure_step {
-
     protected function define_structure() {
 
         // To know if we include user data
@@ -36,7 +35,7 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
             'snapshotid', 'snapshotcreatedat', 'lastsynced',
             'autoupdate', 'lockafterfirstaccess', 'hidelabels', 'topic_orderindex',
             'scormcmid', 'scorm_provisioned', 'scomappings', 'completionlessons', 'grade', 'timecreated', 'timemodified',
-            'skilland_courseid', 'skilland_orgid' // From skilland_course join
+            'skilland_courseid', 'skilland_orgid', // From skilland_course join
         ]);
 
         $lessons = new backup_nested_element('lessons');
@@ -44,7 +43,7 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         $lesson = new backup_nested_element('lesson', ['id'], [
             'skilland_lessonid', 'title', 'orderindex',
             'scoid', 'sco_identifier', 'snapshotid', 'snapshotcreatedat',
-            'updatedat', 'visible'
+            'updatedat', 'visible',
         ]);
 
         // Build the tree

@@ -35,7 +35,6 @@ require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
  * @covers     \restore_skilland_activity_task
  */
 final class backup_restore_test extends skilland_testcase {
-
     /**
      * Back a course up and restore it into a new course.
      *
@@ -46,8 +45,14 @@ final class backup_restore_test extends skilland_testcase {
     private function backup_and_restore(\stdClass $course, bool $withscorm = true): int {
         global $USER;
 
-        $bc = new \backup_controller(\backup::TYPE_1COURSE, $course->id, \backup::FORMAT_MOODLE,
-            \backup::INTERACTIVE_NO, \backup::MODE_IMPORT, $USER->id);
+        $bc = new \backup_controller(
+            \backup::TYPE_1COURSE,
+            $course->id,
+            \backup::FORMAT_MOODLE,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_IMPORT,
+            $USER->id
+        );
         if (!$withscorm) {
             foreach ($this->scorm_cmids($course->id) as $cmid) {
                 $bc->get_plan()->get_setting('scorm_' . $cmid . '_included')->set_value(false);
@@ -58,8 +63,14 @@ final class backup_restore_test extends skilland_testcase {
         $bc->destroy();
 
         $newcourseid = \restore_dbops::create_new_course('Restored', 'RESTORED', $course->category);
-        $rc = new \restore_controller($backupid, $newcourseid, \backup::INTERACTIVE_NO, \backup::MODE_IMPORT,
-            $USER->id, \backup::TARGET_NEW_COURSE);
+        $rc = new \restore_controller(
+            $backupid,
+            $newcourseid,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_IMPORT,
+            $USER->id,
+            \backup::TARGET_NEW_COURSE
+        );
         $this->assertTrue($rc->execute_precheck());
         $rc->execute_plan();
         $rc->destroy();
@@ -85,8 +96,10 @@ final class backup_restore_test extends skilland_testcase {
         $newcourseid = $this->backup_and_restore($course);
 
         $restored = $DB->get_record('skilland', ['course' => $newcourseid], '*', MUST_EXIST);
-        foreach (['name', 'skilland_topicid', 'autoupdate', 'hidelabels', 'topic_orderindex', 'grade',
-                'snapshotid', 'scomappings', 'completionlessons'] as $field) {
+        foreach (
+            ['name', 'skilland_topicid', 'autoupdate', 'hidelabels', 'topic_orderindex', 'grade',
+                'snapshotid', 'scomappings', 'completionlessons'] as $field
+        ) {
             $this->assertEquals($original->$field, $restored->$field, $field);
         }
 
@@ -101,8 +114,10 @@ final class backup_restore_test extends skilland_testcase {
         $lessons = $this->lessons($restored->id);
         $this->assertSame(['lesson-1', 'lesson-2'], array_keys($lessons));
         foreach ($lessons as $lessonid => $lesson) {
-            $this->assertEquals($DB->get_field('scorm_scoes', 'id', ['scorm' => $scormid, 'identifier' => 'sco-' . $lessonid]),
-                $lesson->scoid);
+            $this->assertEquals(
+                $DB->get_field('scorm_scoes', 'id', ['scorm' => $scormid, 'identifier' => 'sco-' . $lessonid]),
+                $lesson->scoid
+            );
         }
 
         // The mapping travels with the course.

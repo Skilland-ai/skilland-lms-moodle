@@ -435,8 +435,16 @@ function skilland_grade_item_update($skilland, $grades = null) {
 function skilland_grade_item_delete($skilland) {
     skilland_require_gradelib();
 
-    return grade_update('mod/skilland', $skilland->course, 'mod', 'skilland', $skilland->id, 0, null,
-        ['deleted' => 1]);
+    return grade_update(
+        'mod/skilland',
+        $skilland->course,
+        'mod',
+        'skilland',
+        $skilland->id,
+        0,
+        null,
+        ['deleted' => 1]
+    );
 }
 
 /**
@@ -705,10 +713,10 @@ function mod_skilland_extend_navigation_course(
         $text = get_string('edit_in_skilland_header', 'mod_skilland');
         $url = new \moodle_url('/mod/skilland/sso_redirect.php', [
             'courseid' => $course->id,
-            'sesskey' => sesskey()
+            'sesskey' => sesskey(),
         ]);
         $action = new action_link($url, $text, null, [
-            'target' => '_blank'
+            'target' => '_blank',
         ]);
     }
 

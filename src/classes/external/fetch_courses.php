@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 namespace mod_skilland\external;
 
 use core_external\external_function_parameters;
@@ -94,7 +93,7 @@ class fetch_courses extends base {
                 logger::debug('AJAX', 'After adding Skilland-editable courses: ' . count($allowedSkillandIds) . ' total allowed');
 
                 // Filter API response to only return matching courses.
-                $courses = array_filter($courses, function($course) use ($allowedSkillandIds) {
+                $courses = array_filter($courses, function ($course) use ($allowedSkillandIds) {
                     return isset($allowedSkillandIds[$course['id']]);
                 });
 

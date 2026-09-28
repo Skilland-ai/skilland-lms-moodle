@@ -36,7 +36,6 @@ require_once($CFG->dirroot . '/mod/skilland/locallib.php');
  * @covers     ::skilland_generate_sso_token
  */
 final class sso_token_test extends \advanced_testcase {
-
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
@@ -59,8 +58,10 @@ final class sso_token_test extends \advanced_testcase {
             $this->assertSame('error_sso_user_not_allowed', $e->errorcode);
             $this->assertSame(get_string('error_sso_user_not_allowed', 'mod_skilland'), $e->getMessage());
         }
-        $this->assertDebuggingCalled('[Skilland] [SSO] WARNING: Refused token for user id ' . $user->id . ': ' . $reason,
-            DEBUG_NORMAL);
+        $this->assertDebuggingCalled(
+            '[Skilland] [SSO] WARNING: Refused token for user id ' . $user->id . ': ' . $reason,
+            DEBUG_NORMAL
+        );
     }
 
     public function test_active_confirmed_accounts_may_sign_in(): void {

@@ -37,7 +37,6 @@ require_once(__DIR__ . '/../../lib.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class sync_content extends \core\task\scheduled_task {
-
     /**
      * Return the task name.
      *

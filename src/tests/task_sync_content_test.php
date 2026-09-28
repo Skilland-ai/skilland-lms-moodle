@@ -34,7 +34,6 @@ require_once(__DIR__ . '/skilland_testcase.php');
  * @covers     \mod_skilland\task\sync_content
  */
 final class task_sync_content_test extends skilland_testcase {
-
     /**
      * A provisioned activity whose API log is cleared, so assertions only see the task's calls.
      *
@@ -235,8 +234,11 @@ final class task_sync_content_test extends skilland_testcase {
         [$course, $skilland, $cmid] = $this->provisioned_activity(['lockafterfirstaccess' => 1]);
         $student = $this->enrol($course, 'student');
         $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
-        $scoid = (int) $DB->get_field('skilland_lesson', 'scoid',
-            ['skillandid' => $skilland->id, 'skilland_lessonid' => 'lesson-1']);
+        $scoid = (int) $DB->get_field(
+            'skilland_lesson',
+            'scoid',
+            ['skillandid' => $skilland->id, 'skilland_lessonid' => 'lesson-1']
+        );
         scorm_insert_track($student->id, $scormid, $scoid, 1, 'cmi.core.lesson_status', 'incomplete');
         $this->take_debugging();
         $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);

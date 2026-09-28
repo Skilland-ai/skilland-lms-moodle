@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 namespace mod_skilland\external;
 
 use core_external\external_function_parameters;
@@ -127,8 +126,12 @@ class check_topic_snapshot extends base {
         return new external_single_structure([
             'isstale' => new external_value(PARAM_BOOL, 'Whether content has changed since last sync'),
             'contenthash' => new external_value(PARAM_TEXT, 'Current content hash from Skilland'),
-            'studentattemptcount' => new external_value(PARAM_INT,
-                'Number of distinct students with a SCORM attempt on this topic', VALUE_DEFAULT, 0),
+            'studentattemptcount' => new external_value(
+                PARAM_INT,
+                'Number of distinct students with a SCORM attempt on this topic',
+                VALUE_DEFAULT,
+                0
+            ),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),
         ]);
     }

@@ -24,7 +24,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_skilland_activity_structure_step extends restore_activity_structure_step {
-
     protected function define_structure() {
 
         $paths = [];
@@ -77,9 +76,11 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
                 }
             } else if ($existing_map->skilland_courseid != $data->skilland_courseid) {
                 // Warn if course is already mapped to a different Skilland course
-                debugging('Course already mapped to different Skilland course (existing: ' .
+                debugging(
+                    'Course already mapped to different Skilland course (existing: ' .
                          $existing_map->skilland_courseid . ', backup: ' . $data->skilland_courseid . ')',
-                         DEBUG_DEVELOPER);
+                    DEBUG_DEVELOPER
+                );
             }
         }
 

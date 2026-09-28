@@ -27,7 +27,6 @@ namespace mod_skilland\output;
  * @covers     \mod_skilland\output\renderer
  */
 final class provision_test extends \advanced_testcase {
-
     /**
      * The mod_skilland renderer, on a page with a context.
      *

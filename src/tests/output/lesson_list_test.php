@@ -27,7 +27,6 @@ namespace mod_skilland\output;
  * @covers     \mod_skilland\output\renderer
  */
 final class lesson_list_test extends \advanced_testcase {
-
     /**
      * A list of one completed playable lesson and one lesson missing from the package.
      *
@@ -38,8 +37,14 @@ final class lesson_list_test extends \advanced_testcase {
             10 => (object) ['id' => 10, 'title' => 'First', 'scoid' => 110, 'updatedat' => 0],
             11 => (object) ['id' => 11, 'title' => 'Second', 'scoid' => null, 'updatedat' => 0],
         ];
-        return new lesson_list((object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0], $lessons,
-            (object) ['id' => 2], 3, [10 => ['status' => 'passed', 'score' => 80.0]], true);
+        return new lesson_list(
+            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0],
+            $lessons,
+            (object) ['id' => 2],
+            3,
+            [10 => ['status' => 'passed', 'score' => 80.0]],
+            true
+        );
     }
 
     public function test_export_for_template_maps_progress_and_playability(): void {
@@ -52,8 +57,10 @@ final class lesson_list_test extends \advanced_testcase {
         $this->assertTrue($data['haslessons']);
         [$first, $second] = $data['lessons'];
         $this->assertTrue($first['playable']);
-        $this->assertSame((new \moodle_url('/mod/skilland/view.php', ['id' => 2, 'play' => 10]))->out(false),
-            $first['url']);
+        $this->assertSame(
+            (new \moodle_url('/mod/skilland/view.php', ['id' => 2, 'play' => 10]))->out(false),
+            $first['url']
+        );
         $this->assertSame('L3.1', $first['label']);
         $this->assertSame('skilland-lesson-completed', $first['completionclass']);
         $this->assertSame(get_string('completed', 'mod_skilland'), $first['statustext']);
@@ -72,8 +79,10 @@ final class lesson_list_test extends \advanced_testcase {
         $html = $PAGE->get_renderer('mod_skilland')->render($this->lesson_list());
 
         $this->assertStringContainsString('class="skilland-lesson-card skilland-lesson-completed"', $html);
-        $this->assertStringContainsString('class="skilland-lesson-card skilland-lesson-disabled skilland-lesson-pending"',
-            $html);
+        $this->assertStringContainsString(
+            'class="skilland-lesson-card skilland-lesson-disabled skilland-lesson-pending"',
+            $html
+        );
         $this->assertStringContainsString('<div class="skilland-lesson-number">L3.2</div>', $html);
         $this->assertStringContainsString(get_string('lessons', 'mod_skilland'), $html);
         $this->assertStringContainsString(get_string('lesson_sco_missing', 'mod_skilland'), $html);
@@ -85,7 +94,8 @@ final class lesson_list_test extends \advanced_testcase {
         $PAGE->set_context(\context_system::instance());
 
         $html = $PAGE->get_renderer('mod_skilland')->render(
-            new lesson_list((object) ['id' => 7, 'scormcmid' => 40], [], (object) ['id' => 2]));
+            new lesson_list((object) ['id' => 7, 'scormcmid' => 40], [], (object) ['id' => 2])
+        );
 
         $this->assertStringContainsString(get_string('no_lessons_configured', 'mod_skilland'), $html);
         $this->assertStringNotContainsString('skilland-lessons-container', $html);

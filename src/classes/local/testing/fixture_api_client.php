@@ -381,8 +381,10 @@ class fixture_api_client implements api_client {
             throw new \moodle_exception('error_scorm_download_failed', 'mod_skilland');
         }
         $files = [];
-        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir,
-            \FilesystemIterator::SKIP_DOTS));
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(
+            $dir,
+            \FilesystemIterator::SKIP_DOTS
+        ));
         foreach ($iterator as $file) {
             $files[] = $file->getPathname();
         }

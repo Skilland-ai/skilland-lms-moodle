@@ -62,7 +62,7 @@ $PAGE->requires->css(new moodle_url('/mod/skilland/styles/view.css'));
 // Fetch visible lessons for this activity.
 $lessons = $DB->get_records('skilland_lesson', [
     'skillandid' => $skilland->id,
-    'visible' => 1
+    'visible' => 1,
 ], 'orderindex ASC');
 
 // If playing a lesson, show the SCORM player iframe.
@@ -75,8 +75,12 @@ if ($play > 0) {
         echo $OUTPUT->footer();
         exit;
     }
-    redirect(new moodle_url('/mod/skilland/view.php', ['id' => $cm->id]),
-        get_string('lesson_not_available', 'mod_skilland'), null, \core\output\notification::NOTIFY_WARNING);
+    redirect(
+        new moodle_url('/mod/skilland/view.php', ['id' => $cm->id]),
+        get_string('lesson_not_available', 'mod_skilland'),
+        null,
+        \core\output\notification::NOTIFY_WARNING
+    );
 }
 
 // Default: Show lesson list.
@@ -118,8 +122,11 @@ if (empty($skilland->scormcmid)) {
     // manual "update now" deletes and recreates the SCORM package, resetting every attempt.
     if (!empty($skilland->snapshotcreatedat)) {
         echo html_writer::div(
-            get_string('content_last_updated', 'mod_skilland',
-                userdate($skilland->snapshotcreatedat, get_string('strftimedatetimeshort'))),
+            get_string(
+                'content_last_updated',
+                'mod_skilland',
+                userdate($skilland->snapshotcreatedat, get_string('strftimedatetimeshort'))
+            ),
             'alert alert-info skilland-snapshot-notice'
         );
     }

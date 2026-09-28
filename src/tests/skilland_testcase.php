@@ -168,7 +168,8 @@ abstract class skilland_testcase extends \advanced_testcase {
                FROM {customfield_data} d
                JOIN {customfield_field} f ON f.id = d.fieldid
               WHERE f.shortname = :shortname AND d.instanceid = :courseid",
-            ['shortname' => 'skilland_course_id', 'courseid' => $courseid]);
+            ['shortname' => 'skilland_course_id', 'courseid' => $courseid]
+        );
         return $row ?: null;
     }
 

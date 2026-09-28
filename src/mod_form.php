@@ -16,8 +16,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot.'/course/moodleform_mod.php');
-require_once($CFG->dirroot.'/mod/skilland/locallib.php');
+require_once($CFG->dirroot . '/course/moodleform_mod.php');
+require_once($CFG->dirroot . '/mod/skilland/locallib.php');
 
 use mod_skilland\logger;
 
@@ -29,7 +29,6 @@ use mod_skilland\logger;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mod_skilland_mod_form extends moodleform_mod {
-
     /**
      * Defines forms elements
      */
@@ -52,7 +51,7 @@ class mod_skilland_mod_form extends moodleform_mod {
             $linktext = get_string('set_skilland_course_id', 'mod_skilland');
             $link = html_writer::link($courseediturl, $linktext, [
                 'class' => 'btn btn-primary',
-                'target' => '_blank'
+                'target' => '_blank',
             ]);
 
             // Add a "Go to Skilland" button (SSO without a specific course).
@@ -60,7 +59,7 @@ class mod_skilland_mod_form extends moodleform_mod {
             $golink = html_writer::link($ssourl, get_string('go_to_skilland', 'mod_skilland'), [
                 'class' => 'btn btn-secondary ml-2',
                 'target' => '_blank',
-                'rel' => 'noopener'
+                'rel' => 'noopener',
             ]);
 
             $message = html_writer::div(
@@ -105,16 +104,22 @@ class mod_skilland_mod_form extends moodleform_mod {
         $editlink = html_writer::link($courseediturl, $editlinktext, ['target' => '_blank']);
         $displaytext = $displayvalue . ' (' . $editlink . ')';
 
-        $mform->addElement('static', 'skilland_course_id_display',
+        $mform->addElement(
+            'static',
+            'skilland_course_id_display',
             get_string('skilland_course_id', 'mod_skilland'),
-            $displaytext);
+            $displaytext
+        );
         $mform->addHelpButton('skilland_course_id_display', 'skilland_course_id', 'mod_skilland');
 
         // Topic ID field (always shown, depends on Skilland course).
         // This will be populated via AJAX based on Skilland course.
-        $mform->addElement('select', 'skilland_topicid',
+        $mform->addElement(
+            'select',
+            'skilland_topicid',
             get_string('topicid', 'mod_skilland'),
-            ['' => get_string('loading', 'mod_skilland')]);
+            ['' => get_string('loading', 'mod_skilland')]
+        );
         $mform->setType('skilland_topicid', PARAM_ALPHANUMEXT);
         // No client-side 'required' rule: the topic select is populated by AJAX and stays
         // usable (loading, then a saved/stale option) while the SkilLand API is unreachable,
@@ -204,26 +209,39 @@ class mod_skilland_mod_form extends moodleform_mod {
         // 3. Behavior flags
         $mform->addElement('header', 'behaviourfieldset', get_string('behaviour', 'mod_skilland'));
 
-        $mform->addElement('advcheckbox', 'autoupdate',
+        $mform->addElement(
+            'advcheckbox',
+            'autoupdate',
             get_string('autoupdate', 'mod_skilland'),
-            get_string('autoupdate_desc', 'mod_skilland'));
+            get_string('autoupdate_desc', 'mod_skilland')
+        );
         $mform->setDefault('autoupdate', 0);
 
-        $mform->addElement('advcheckbox', 'lockafterfirstaccess',
+        $mform->addElement(
+            'advcheckbox',
+            'lockafterfirstaccess',
             get_string('lockafterfirstaccess', 'mod_skilland'),
-            get_string('lockafterfirstaccess_desc', 'mod_skilland'));
+            get_string('lockafterfirstaccess_desc', 'mod_skilland')
+        );
         $mform->setDefault('lockafterfirstaccess', 0);
 
         // Shown only while auto-update is on and the lock is off - the combination that lets a
         // future sync silently wipe student progress.
-        $mform->addElement('static', 'autoupdatewarning', '',
-            html_writer::div(get_string('autoupdate_warning', 'mod_skilland'), 'alert alert-warning'));
+        $mform->addElement(
+            'static',
+            'autoupdatewarning',
+            '',
+            html_writer::div(get_string('autoupdate_warning', 'mod_skilland'), 'alert alert-warning')
+        );
         $mform->hideIf('autoupdatewarning', 'autoupdate', 'eq', 0);
         $mform->hideIf('autoupdatewarning', 'lockafterfirstaccess', 'eq', 1);
 
-        $mform->addElement('advcheckbox', 'hidelabels',
+        $mform->addElement(
+            'advcheckbox',
+            'hidelabels',
             get_string('hidelabels', 'mod_skilland'),
-            get_string('hidelabels_desc', 'mod_skilland'));
+            get_string('hidelabels_desc', 'mod_skilland')
+        );
         $mform->setDefault('hidelabels', 0);
 
         // Grade (SKL-668): opt-in, "None" by default so the gradebook stays untouched.
@@ -255,15 +273,17 @@ class mod_skilland_mod_form extends moodleform_mod {
                     $topicstudentattemptcount = skilland_count_topic_student_attempts($skilland);
                     $mform->setDefault('skilland_topicid', $currenttopicid);
                     // Fetch existing selected lessons (visible=1)
-                    $records = $DB->get_records('skilland_lesson',
+                    $records = $DB->get_records(
+                        'skilland_lesson',
                         ['skillandid' => $this->_instance, 'visible' => 1],
                         '',
-                        'skilland_lessonid, updatedat, title');
+                        'skilland_lessonid, updatedat, title'
+                    );
 
                     foreach ($records as $record) {
                         $currentSelectedLessons[$record->skilland_lessonid] = [
                             'updatedAt' => $record->updatedat,
-                            'name' => $record->title
+                            'name' => $record->title,
                         ];
                     }
                 }
@@ -374,8 +394,12 @@ class mod_skilland_mod_form extends moodleform_mod {
         $mform = $this->_form;
 
         $name = 'completionlessons' . $this->completion_suffix();
-        $mform->addElement('advcheckbox', $name, get_string('completionlessons', 'mod_skilland'),
-            get_string('completionlessons_desc', 'mod_skilland'));
+        $mform->addElement(
+            'advcheckbox',
+            $name,
+            get_string('completionlessons', 'mod_skilland'),
+            get_string('completionlessons_desc', 'mod_skilland')
+        );
         $mform->addHelpButton($name, 'completionlessons', 'mod_skilland');
         $mform->setDefault($name, 0);
 
@@ -424,10 +448,12 @@ class mod_skilland_mod_form extends moodleform_mod {
                 $defaultvalues['topic_orderindex'] = $skilland->topic_orderindex ?? 1;
             }
 
-            $records = $DB->get_records('skilland_lesson',
+            $records = $DB->get_records(
+                'skilland_lesson',
                 ['skillandid' => $this->_instance, 'visible' => 1],
                 'orderindex ASC',
-                'skilland_lessonid, title, updatedat');
+                'skilland_lessonid, title, updatedat'
+            );
 
             if (!empty($records)) {
                 $lessons = [];

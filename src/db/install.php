@@ -37,4 +37,3 @@ function xmldb_skilland_install() {
 
     return true;
 }
-

@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 namespace mod_skilland\external;
 
 use core_external\external_function_parameters;
@@ -87,8 +86,10 @@ class create_course extends base {
 
             // The Studio link is offered after the course form saves (observer::course_updated);
             // sso_redirect.php mints the SSO token when the teacher clicks it.
-            mod_skilland_set_pending_studio_path($moodlecourseid,
-                '/skills-studio/create/' . rawurlencode((string) $creationstep) . '/' . rawurlencode((string) $skillid));
+            mod_skilland_set_pending_studio_path(
+                $moodlecourseid,
+                '/skills-studio/create/' . rawurlencode((string) $creationstep) . '/' . rawurlencode((string) $skillid)
+            );
 
             return [
                 'skillid' => $skillid,

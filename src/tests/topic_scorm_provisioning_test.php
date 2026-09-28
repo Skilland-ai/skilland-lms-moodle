@@ -37,7 +37,6 @@ require_once(__DIR__ . '/skilland_testcase.php');
  * @covers \mod_skilland\local\package_signature
  */
 final class topic_scorm_provisioning_test extends skilland_testcase {
-
     public function test_provision_creates_a_stealth_scorm_and_maps_every_lesson(): void {
         global $DB;
 
@@ -56,8 +55,10 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $this->assertSame($cmid, (int) $record->scormcmid);
         $this->assertSame('hash-v1', $record->snapshotid);
         $this->assertNotEmpty($record->scorm_provisioned);
-        $this->assertSame(['lesson-1' => 'sco-lesson-1', 'lesson-2' => 'sco-lesson-2'],
-            json_decode($record->scomappings, true));
+        $this->assertSame(
+            ['lesson-1' => 'sco-lesson-1', 'lesson-2' => 'sco-lesson-2'],
+            json_decode($record->scomappings, true)
+        );
 
         $scoes = $DB->get_records_menu('scorm_scoes', ['scorm' => $cm->instance], '', 'identifier, id');
         foreach ($this->lessons($skilland->id) as $lessonid => $lesson) {
@@ -422,8 +423,14 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $lessonsbefore = $this->lessons($skilland->id);
 
         $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $oldcmid]);
-        scorm_insert_track($student->id, $scormid, $lessonsbefore['lesson-1']->scoid, 1,
-            'cmi.core.lesson_status', 'incomplete');
+        scorm_insert_track(
+            $student->id,
+            $scormid,
+            $lessonsbefore['lesson-1']->scoid,
+            1,
+            'cmi.core.lesson_status',
+            'incomplete'
+        );
         $this->take_debugging();
 
         $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);

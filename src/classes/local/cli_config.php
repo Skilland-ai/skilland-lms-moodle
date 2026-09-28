@@ -31,7 +31,6 @@ defined('MOODLE_INTERNAL') || die();
  * config writes, so nothing is written when any option is invalid.
  */
 class cli_config {
-
     /**
      * Validate a GraphQL endpoint URL.
      *

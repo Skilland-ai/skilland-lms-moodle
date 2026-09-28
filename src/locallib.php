@@ -264,7 +264,7 @@ function skilland_ensure_course_customfield() {
             'categoryid' => $category->get('id'),
             'component' => 'core_course',
             'area' => 'course',
-            'itemid' => 0
+            'itemid' => 0,
         ];
 
         $field = \core_customfield\field_controller::create(0, $fielddata, $category);
@@ -279,7 +279,6 @@ function skilland_ensure_course_customfield() {
         $field->save();
 
         return $field;
-
     } catch (Exception $e) {
         // Log the error for debugging with full stack trace.
         $errormsg = 'Failed to ensure Skilland Course ID custom field: ' . $e->getMessage();
@@ -483,7 +482,7 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
     }
     $payload = [
         'query' => $query,
-        'variables' => $variables
+        'variables' => $variables,
     ];
     $jsonpayload = json_encode($payload);
     logger::debug('GraphQL', 'Variables: ' . implode(', ', array_keys((array) $variables)));
@@ -491,7 +490,7 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
     $headers = [
         'Content-Type: application/json',
         'X-Skilland-Org-Id: ' . $orgid,
-        'X-Skilland-Api-Key: ' . $apikey
+        'X-Skilland-Api-Key: ' . $apikey,
     ];
     logger::debug('GraphQL', 'Payload length: ' . strlen($jsonpayload));
 
@@ -501,7 +500,7 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
     $operation = mod_skilland_graphql_operation_name($query);
     $started = microtime(true);
 
-    for ($attempt = 1; ; $attempt++) {
+    for ($attempt = 1;; $attempt++) {
         $curl = mod_skilland_make_curl($endpoint);
         $curl->setopt([
             'CURLOPT_CONNECTTIMEOUT' => 10,
@@ -547,8 +546,10 @@ function mod_skilland_graphql_http(string $query, array $variables = []): array 
             }
         }
 
-        if ($retryable && $attempt < MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS &&
-                mod_skilland_is_transient($httpcode, $errno, $decoded)) {
+        if (
+            $retryable && $attempt < MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS &&
+                mod_skilland_is_transient($httpcode, $errno, $decoded)
+        ) {
             $retryafter = null;
             if ($httpcode === 429 || $httpcode === 503) {
                 $retryafter = mod_skilland_response_header($curl, 'Retry-After');
@@ -636,7 +637,7 @@ function mod_skilland_rest_get_http(string $path): array {
     ];
     $started = microtime(true);
 
-    for ($attempt = 1; ; $attempt++) {
+    for ($attempt = 1;; $attempt++) {
         $curl = mod_skilland_make_curl($url);
         $curl->setopt([
             'CURLOPT_CONNECTTIMEOUT' => 10,
@@ -955,7 +956,7 @@ GRAPHQL;
             return [
                 'id' => $courseid,
                 'name' => '',
-                'topics' => []
+                'topics' => [],
             ];
         }
 
@@ -1068,8 +1069,10 @@ function mod_skilland_topic_scorm_rest_failure(string $topicid, \Throwable $e): 
         if ($e->httpcode === 401 || $e->httpcode === 403) {
             throw new moodle_exception('error_config_invalid_credentials', 'mod_skilland');
         }
-    } else if (mod_skilland_is_client_error($e) ||
-            ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))) {
+    } else if (
+        mod_skilland_is_client_error($e) ||
+            ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))
+    ) {
         throw $e;
     }
     logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . get_class($e) .
@@ -1118,8 +1121,10 @@ GRAPHQL;
             throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
         }
         // Configuration and other user-facing errors (error_http_redirect, ...) keep their own code.
-        if (mod_skilland_is_client_error($e) ||
-                ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))) {
+        if (
+            mod_skilland_is_client_error($e) ||
+                ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))
+        ) {
             throw $e;
         }
         logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . get_class($e) .
@@ -1280,8 +1285,12 @@ function skilland_download_topic_scorm_package(string $topicid): array {
  * @return int The new SCORM course module id.
  * @throws moodle_exception When the package cannot be staged or the module cannot be created.
  */
-function skilland_create_topic_scorm_module(stdClass $skilland, stdClass $course, int $sectionnum,
-        string $packagepath): int {
+function skilland_create_topic_scorm_module(
+    stdClass $skilland,
+    stdClass $course,
+    int $sectionnum,
+    string $packagepath
+): int {
     global $DB, $USER;
 
     skilland_require_scorm_apis();
@@ -1397,8 +1406,10 @@ function skilland_delete_scorm_module(int $cmid): void {
         course_delete_module($cmid);
         logger::debug('SCORM', 'Deleted SCORM activity cmid ' . $cmid);
     } catch (\Throwable $e) {
-        debugging('mod_skilland: could not delete SCORM course module ' . $cmid . ': ' . $e->getMessage(),
-            DEBUG_DEVELOPER);
+        debugging(
+            'mod_skilland: could not delete SCORM course module ' . $cmid . ': ' . $e->getMessage(),
+            DEBUG_DEVELOPER
+        );
     }
 }
 
@@ -1694,8 +1705,12 @@ function skilland_link_topic_scorm(stdClass $skilland, array $build, string $con
  * @return int The new SCORM course module id.
  * @throws moodle_exception If provisioning fails.
  */
-function skilland_provision_topic_scorm_locked(stdClass $skilland, stdClass $course, int $sectionnum,
-        ?string $contenthash = null): int {
+function skilland_provision_topic_scorm_locked(
+    stdClass $skilland,
+    stdClass $course,
+    int $sectionnum,
+    ?string $contenthash = null
+): int {
     $contenthash = skilland_resolve_snapshot_hash($skilland, $contenthash);
     $build = skilland_build_topic_scorm($skilland, $course, $sectionnum);
     $cmid = $build['cmid'];
@@ -1851,7 +1866,7 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?strin
             $updatedAt = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
             $DB->set_field('skilland_lesson', 'updatedat', $updatedAt, [
                 'skillandid' => $current->id,
-                'skilland_lessonid' => $lesson['id']
+                'skilland_lessonid' => $lesson['id'],
             ]);
         }
         logger::debug('SCORM', 'Updated lesson timestamps from Skilland API');
@@ -2058,8 +2073,11 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
     $scoreelements = ['cmi.core.score.raw', 'cmi.score.raw'];
 
     [$scosql, $params] = $DB->get_in_or_equal(array_keys($scotolesson), SQL_PARAMS_NAMED, 'sco');
-    [$elementsql, $elementparams] = $DB->get_in_or_equal(array_merge($statuselements, $scoreelements),
-        SQL_PARAMS_NAMED, 'el');
+    [$elementsql, $elementparams] = $DB->get_in_or_equal(
+        array_merge($statuselements, $scoreelements),
+        SQL_PARAMS_NAMED,
+        'el'
+    );
     $params += $elementparams;
     $params['scormid'] = (int) $scormcm->instance;
     $usersql = '';
@@ -2161,8 +2179,12 @@ function skilland_count_topic_student_attempts(stdClass $skilland): int {
  *        skilland_get_progress_rows_by_user()), or null to read them.
  * @return bool Whether any row was inserted or changed.
  */
-function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $tracks = null,
-        ?array $existing = null): bool {
+function skilland_refresh_progress(
+    stdClass $skilland,
+    int $userid,
+    ?array $tracks = null,
+    ?array $existing = null
+): bool {
     global $DB;
 
     if ($tracks === null) {
@@ -2173,8 +2195,12 @@ function skilland_refresh_progress(stdClass $skilland, int $userid, ?array $trac
     }
 
     if ($existing === null) {
-        $existing = $DB->get_records('skilland_progress', ['skillandid' => $skilland->id, 'userid' => $userid], '',
-            'lessonid, id, status, score');
+        $existing = $DB->get_records(
+            'skilland_progress',
+            ['skillandid' => $skilland->id, 'userid' => $userid],
+            '',
+            'lessonid, id, status, score'
+        );
     }
     $changed = false;
     $now = time();
@@ -2233,8 +2259,14 @@ function skilland_get_progress_rows_by_user(int $skillandid): array {
     global $DB;
 
     $byuser = [];
-    foreach ($DB->get_records('skilland_progress', ['skillandid' => $skillandid], '',
-            'id, userid, lessonid, status, score') as $row) {
+    foreach (
+        $DB->get_records(
+            'skilland_progress',
+            ['skillandid' => $skillandid],
+            '',
+            'id, userid, lessonid, status, score'
+        ) as $row
+    ) {
         $byuser[(int) $row->userid][(int) $row->lessonid] = $row;
     }
     return $byuser;
@@ -2252,8 +2284,12 @@ function skilland_get_user_progress(int $skillandid, int $userid): array {
     global $DB;
 
     $progress = [];
-    $rows = $DB->get_records('skilland_progress', ['skillandid' => $skillandid, 'userid' => $userid], '',
-        'lessonid, status, score');
+    $rows = $DB->get_records(
+        'skilland_progress',
+        ['skillandid' => $skillandid, 'userid' => $userid],
+        '',
+        'lessonid, status, score'
+    );
     foreach ($rows as $row) {
         $score = null;
         if ($row->score !== null && $row->score !== '') {
@@ -2326,23 +2362,38 @@ function skilland_generate_sso_token($user, $orgid) {
     // Check if composer autoloader exists
     $autoloadpath = __DIR__ . '/vendor/autoload.php';
     if (!file_exists($autoloadpath)) {
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'JWT library not installed. Please run "composer install" in the plugin directory.');
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'JWT library not installed. Please run "composer install" in the plugin directory.'
+        );
     }
 
     require_once($autoloadpath);
 
     // Check if JWT class is available
     if (!class_exists('\Firebase\JWT\JWT')) {
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'JWT library not found. Please run "composer install" in the plugin directory.');
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'JWT library not found. Please run "composer install" in the plugin directory.'
+        );
     }
 
     // Get SSO secret from config
     $ssosecret = get_config('mod_skilland', 'sso_secret');
     if (empty($ssosecret)) {
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'SSO Shared Secret is not configured. Please set it in the plugin settings.');
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'SSO Shared Secret is not configured. Please set it in the plugin settings.'
+        );
     }
 
     // Get ALL courses user is enrolled in
@@ -2356,7 +2407,7 @@ function skilland_generate_sso_token($user, $orgid) {
         if ($skilland_skill_id) {
             $course_access[] = [
                 'moodleCourseId' => (int)$course->id,
-                'skillandSkillId' => $skilland_skill_id
+                'skillandSkillId' => $skilland_skill_id,
             ];
         }
     }
@@ -2378,7 +2429,7 @@ function skilland_generate_sso_token($user, $orgid) {
         'aud' => skilland_get_sso_audience(),
         'iss' => $CFG->wwwroot,
         'source' => 'moodle',
-        'courseAccess' => $course_access
+        'courseAccess' => $course_access,
     ];
 
     // Sign and return the token
@@ -2388,8 +2439,13 @@ function skilland_generate_sso_token($user, $orgid) {
         return $token;
     } catch (Exception $e) {
         logger::error('SSO', 'Failed to generate token - ' . $e->getMessage());
-        throw new moodle_exception('error', 'mod_skilland', '', null,
-            'Failed to generate SSO token: ' . $e->getMessage());
+        throw new moodle_exception(
+            'error',
+            'mod_skilland',
+            '',
+            null,
+            'Failed to generate SSO token: ' . $e->getMessage()
+        );
     }
 }
 
@@ -2668,8 +2724,10 @@ function mod_skilland_download_package_http(string $packageurl, int $expectedsiz
     // The REST routes hand out presigned storage URLs (matched by package_hosts) or, in
     // development, URLs on the frontend host itself; the legacy GraphQL endpoint host stays trusted.
     $endpoint = (string) (get_config('mod_skilland', 'graphql_endpoint') ?? '');
-    if (!mod_skilland_package_host_allowed($packageurl, skilland_get_frontend_url()) &&
-            !mod_skilland_package_host_allowed($packageurl, $endpoint)) {
+    if (
+        !mod_skilland_package_host_allowed($packageurl, skilland_get_frontend_url()) &&
+            !mod_skilland_package_host_allowed($packageurl, $endpoint)
+    ) {
         $host = (string) parse_url($packageurl, PHP_URL_HOST);
         throw new moodle_exception('error_package_host_not_allowed', 'mod_skilland', '', $host);
     }
@@ -2876,8 +2934,14 @@ function mod_skilland_response_header(\curl $curl, string $name): ?string {
  * @param array|null $decoded The decoded JSON body (4xx/5xx with a non-empty body only).
  * @throws moodle_exception Always.
  */
-function mod_skilland_graphql_http_failure(string $endpoint, int $httpcode, int $errno, string $curlerror,
-        string $response, ?array $decoded): never {
+function mod_skilland_graphql_http_failure(
+    string $endpoint,
+    int $httpcode,
+    int $errno,
+    string $curlerror,
+    string $response,
+    ?array $decoded
+): never {
     $safeendpoint = mod_skilland_redact_url($endpoint);
     if ($errno || $httpcode == 0) {
         $details = '';
@@ -3196,7 +3260,13 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
     }
 
     return skilland_view_renderer()->render(new \mod_skilland\output\lesson_list(
-        $skilland, $lessons, $cm, (int) $topicorderindex, $progress, $canprovision));
+        $skilland,
+        $lessons,
+        $cm,
+        (int) $topicorderindex,
+        $progress,
+        $canprovision
+    ));
 }
 
 /**
@@ -3221,8 +3291,14 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
     }
     if (!$scormcm) {
-        return $renderer->render(new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons,
-            (int) $topicorderindex, null));
+        return $renderer->render(new \mod_skilland\output\player(
+            $skilland,
+            $lesson,
+            $cm,
+            $alllessons,
+            (int) $topicorderindex,
+            null
+        ));
     }
 
     // Build the SCORM player URL.
@@ -3241,18 +3317,24 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         'cm' => $skilland->scormcmid,
         'mode' => 'normal',
         'newattempt' => 'off',
-        'display' => 'popup'
+        'display' => 'popup',
     ]);
 
-    $player = new \mod_skilland\output\player($skilland, $lesson, $cm, $alllessons, (int) $topicorderindex,
-        $scormplayerurl);
+    $player = new \mod_skilland\output\player(
+        $skilland,
+        $lesson,
+        $cm,
+        $alllessons,
+        (int) $topicorderindex,
+        $scormplayerurl
+    );
     $html = $renderer->render($player);
 
     // Load the fullscreen JavaScript module.
     $devmode = get_config('mod_skilland', 'devmode');
     $PAGE->requires->js_call_amd('mod_skilland/fullscreen_player', 'init', [[
         'debug' => (bool)$devmode,
-        'backurl' => $player->get_back_url()->out(false)
+        'backurl' => $player->get_back_url()->out(false),
     ]]);
 
     return $html;
@@ -3269,8 +3351,14 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
  * @return string HTML output.
  */
 function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
-    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
-        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_PLAYER));
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation(
+        $currentlesson,
+        $alllessons,
+        $cm,
+        (int) $topicorderindex,
+        $skilland,
+        \mod_skilland\output\lesson_navigation::STYLE_PLAYER
+    ));
 }
 
 /**
@@ -3284,8 +3372,14 @@ function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $to
  * @return string HTML output.
  */
 function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
-    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation($currentlesson, $alllessons,
-        $cm, (int) $topicorderindex, $skilland, \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN));
+    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation(
+        $currentlesson,
+        $alllessons,
+        $cm,
+        (int) $topicorderindex,
+        $skilland,
+        \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN
+    ));
 }
 
 /**
@@ -3305,7 +3399,7 @@ function skilland_render_provision_view($skilland, $cm) {
     $PAGE->requires->js_call_amd('mod_skilland/provision_scorm', 'init', [[
         'skillandid' => (int)$skilland->id,
         'cmid' => (int)$cm->id,
-        'debug' => (bool)$devmode
+        'debug' => (bool)$devmode,
     ]]);
 
     return $html;
