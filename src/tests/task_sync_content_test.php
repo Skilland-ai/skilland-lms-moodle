@@ -25,6 +25,8 @@ require_once(__DIR__ . '/skilland_testcase.php');
 /**
  * The scheduled content sync, run against real SCORM modules through the fixture API.
  *
+ * Since SKL-650 it never imports a package: it records the update and notifies the teachers.
+ *
  * @package    mod_skilland
  * @category   test
  * @copyright  2026 SkilLand
@@ -61,22 +63,82 @@ final class task_sync_content_test extends skilland_testcase {
         return $this->take_debugging();
     }
 
-    public function test_autoupdate_rebuilds_an_activity_whose_snapshot_is_stale(): void {
+    /**
+     * Run the task and return the messages it sent.
+     *
+     * @return \stdClass[]
+     */
+    private function run_task_collecting_messages(): array {
+        $sink = $this->redirectMessages();
+        $this->run_task();
+        $messages = $sink->get_messages();
+        $sink->close();
+        return $messages;
+    }
+
+    public function test_autoupdate_announces_a_stale_snapshot_without_importing_it(): void {
+        global $DB;
+
+        [$course, $skilland, $oldcmid] = $this->provisioned_activity();
+        $teacher = $this->enrol($course, 'editingteacher');
+        $this->enrol($course, 'student');
+        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+
+        $messages = $this->run_task_collecting_messages();
+
+        $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
+        $this->assertEquals($oldcmid, $record->scormcmid);
+        $this->assertSame([$oldcmid], $this->scorm_cmids($course->id));
+        $this->assertSame('hash-v1', $record->snapshotid);
+        $this->assertSame('hash-v2', $record->updateavailable);
+        $this->assertNotEmpty($record->lastsynced);
+        $this->assertSame([], $this->client->downloads, 'The cron downloads nothing');
+        $this->assertSame(0, $this->client->count_calls('GetTopicScorm'));
+
+        // Only the course's teacher is told; the student is not.
+        $this->assertCount(1, $messages);
+        $this->assertSame('mod_skilland', $messages[0]->component);
+        $this->assertSame('contentupdate', $messages[0]->eventtype);
+        $this->assertEquals($teacher->id, $messages[0]->useridto);
+        $cm = get_coursemodule_from_instance('skilland', $skilland->id, $course->id, false, MUST_EXIST);
+        $this->assertStringContainsString('/mod/skilland/view.php?id=' . $cm->id, $messages[0]->contexturl);
+    }
+
+    public function test_the_same_update_is_announced_once(): void {
+        global $DB;
+
+        [$course, $skilland] = $this->provisioned_activity();
+        $this->enrol($course, 'editingteacher');
+        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+
+        $first = $this->run_task_collecting_messages();
+        $DB->set_field('skilland', 'lastsynced', 0, ['id' => $skilland->id]);
+        $second = $this->run_task_collecting_messages();
+
+        $this->assertCount(1, $first);
+        $this->assertCount(0, $second);
+
+        // A newer version is announced again.
+        $DB->set_field('skilland', 'lastsynced', 0, ['id' => $skilland->id]);
+        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v3']);
+        $this->assertCount(1, $this->run_task_collecting_messages());
+        $this->assertSame('hash-v3', $DB->get_field('skilland', 'updateavailable', ['id' => $skilland->id]));
+    }
+
+    public function test_applying_the_announced_update_imports_it_and_clears_the_notice(): void {
         global $DB;
 
         [$course, $skilland, $oldcmid] = $this->provisioned_activity();
         $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
-
         $this->run_task();
 
+        $newcmid = $this->update($DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST));
+
         $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
-        $this->assertNotEquals($oldcmid, $record->scormcmid);
-        $this->assertSame([(int) $record->scormcmid], $this->scorm_cmids($course->id));
+        $this->assertNotEquals($oldcmid, $newcmid);
+        $this->assertSame([$newcmid], $this->scorm_cmids($course->id));
         $this->assertSame('hash-v2', $record->snapshotid);
-        $this->assertNotEmpty($record->lastsynced);
-        $this->assertCount(1, $this->client->downloads);
-        // The hash read by the task is threaded through to the build, never queried twice.
-        $this->assertSame(1, $this->client->count_calls('TopicScormHash'));
+        $this->assertNull($record->updateavailable);
     }
 
     public function test_autoupdate_setting_is_checked(): void {
@@ -122,24 +184,6 @@ final class task_sync_content_test extends skilland_testcase {
         $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
         $this->assertEquals($cmid, $record->scormcmid);
         $this->assertSame('hash-v1', $record->snapshotid);
-        $this->assertEmpty($record->lastsynced);
-        $this->assertSame([$cmid], $this->scorm_cmids($course->id));
-    }
-
-    public function test_a_failed_rebuild_keeps_the_old_scorm_and_retries_later(): void {
-        global $DB;
-
-        [$course, $skilland, $cmid] = $this->provisioned_activity();
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
-        $this->client->fail_download(new \moodle_exception('error_scorm_download_failed', 'mod_skilland'));
-
-        $log = $this->run_task();
-
-        $this->assertNotEmpty(preg_grep('/1 errors/', $log));
-        $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
-        $this->assertEquals($cmid, $record->scormcmid);
-        $this->assertSame('hash-v1', $record->snapshotid);
-        // No lastsynced: the cooldown must not delay the next attempt.
         $this->assertEmpty($record->lastsynced);
         $this->assertSame([$cmid], $this->scorm_cmids($course->id));
     }
@@ -213,20 +257,22 @@ final class task_sync_content_test extends skilland_testcase {
         $this->assertSame([], $this->client->operations());
     }
 
-    public function test_an_activity_that_lost_its_scorm_is_rebuilt(): void {
+    public function test_an_activity_that_lost_its_scorm_is_announced_not_rebuilt(): void {
         global $DB;
         // The course_module_deleted observer is external: it only runs outside the test transaction.
         $this->preventResetByRollback();
 
         [$course, $skilland, $cmid] = $this->provisioned_activity();
+        $this->enrol($course, 'editingteacher');
         course_delete_module($cmid);
         $this->take_debugging();
         $this->assertNull($DB->get_field('skilland', 'scormcmid', ['id' => $skilland->id]));
 
-        $this->run_task();
+        $messages = $this->run_task_collecting_messages();
 
-        $newcmid = (int) $DB->get_field('skilland', 'scormcmid', ['id' => $skilland->id]);
-        $this->assertGreaterThan(0, $newcmid);
-        $this->assertSame([$newcmid], $this->scorm_cmids($course->id));
+        $this->assertNull($DB->get_field('skilland', 'scormcmid', ['id' => $skilland->id]));
+        $this->assertSame([], $this->scorm_cmids($course->id));
+        $this->assertSame([], $this->client->downloads);
+        $this->assertCount(1, $messages);
     }
 }

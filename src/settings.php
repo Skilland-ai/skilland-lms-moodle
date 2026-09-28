@@ -69,6 +69,11 @@ if ($ADMIN->fulltree) {
         get_string('settings_package_max_mb', 'mod_skilland'),
         get_string('settings_package_max_mb_desc', 'mod_skilland'), 200, PARAM_INT));
 
+    // Extra Ed25519 keys SCORM packages may be signed with, besides the ones pinned in the plugin (SKL-650).
+    $settings->add(new \mod_skilland\admin_setting_signing_keys('mod_skilland/signingkeys',
+        get_string('settings_signingkeys', 'mod_skilland'),
+        get_string('settings_signingkeys_desc', 'mod_skilland'), '', PARAM_RAW_TRIMMED, 60, 4));
+
     // Frontend URL setting (SSO redirects and the base of the REST API).
     $settings->add(new \mod_skilland\admin_setting_https_url('mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),

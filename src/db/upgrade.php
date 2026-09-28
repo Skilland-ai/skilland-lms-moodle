@@ -253,6 +253,18 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092613, 'skilland');
     }
 
+    // For version 2026092800 (SKL-650): the sync task no longer imports content; it records the
+    // content hash of an available update and notifies the teachers once per hash.
+    if ($oldversion < 2026092800) {
+        $table = new xmldb_table('skilland');
+        $field = new xmldb_field('updateavailable', XMLDB_TYPE_CHAR, '64', null, null, null, null, 'lastsynced');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026092800, 'skilland');
+    }
+
     return true;
 }
 

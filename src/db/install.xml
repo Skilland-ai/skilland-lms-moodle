@@ -27,6 +27,8 @@
                        COMMENT="Unix time when the current snapshot was created in Skilland"/>
                 <FIELD NAME="lastsynced" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
                        COMMENT="Unix time when SCORM activities were last synced from Skilland"/>
+                <FIELD NAME="updateavailable" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"
+                       COMMENT="Content hash of a Skilland update the teachers were notified about and have not applied yet"/>
 
                 <!-- Behaviour flags -->
                 <FIELD NAME="autoupdate" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"

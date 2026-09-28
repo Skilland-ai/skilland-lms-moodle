@@ -33,7 +33,7 @@ The **Skilland Content** module bridges the gap between the Skilland platform an
 ### Key Benefits
 - 🔗 **Connect** Moodle courses to Skilland courses
 - 📚 **Import** specific topics and select which lessons to include
-- 🔄 **Stay Updated** with optional auto-updates from Skilland
+- 🔄 **Stay Updated** with optional update notices from Skilland, applied when you choose
 - 🔒 **Control Access** with flexible locking and visibility settings
 - 💾 **Backup & Restore** fully supported
 
@@ -53,7 +53,7 @@ Full support for Moodle's backup, restore, and course copy features.
 When creating an activity (Topic), you can now **select exactly which lessons** you want to display to your students. This gives you granular control over the content curriculum.
 
 ### ⚙️ Smart Behavior
-- **Auto-update**: Automatically receive content improvements.
+- **Update notices**: Be told when content improves in Skilland, and apply it when it suits your course.
 - **Lock after access**: Ensure content stability once students start learning.
 - **Clean Interface**: Options to hide internal system codes/labels for a cleaner student experience.
 
@@ -104,6 +104,19 @@ Opening SkilLand Studio signs an HS256 JWT with the SSO shared secret and hands 
 Tokens are only issued to accounts that may sign in, read from the user table at click time: guest, suspended, deleted, unconfirmed and `nologin` accounts get an error page instead.
 - **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the Frontend URL and GraphQL endpoint hosts (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only; the default `*.amazonaws.com` covers the presigned S3 URLs the REST API hands out.
 - **Maximum SCORM package size (MB)**: Downloads larger than this are aborted (default: `200`).
+- **SCORM package signing keys**: Extra public keys SCORM packages may be signed with, one `keyid:base64publickey` per line, besides the keys built into the plugin (the setting is empty by default; key `2026-09` is pinned). See [Trust boundary](#trust-boundary).
+
+#### Trust boundary
+
+A SCORM package SkilLand sends is not inert content. Once imported, it is served by Moodle's SCORM player **as same-origin content of your Moodle site**: its HTML and JavaScript run with the learner's Moodle session, call the SCORM API, and read and write the learner's SCORM track (status, score, suspend data), which feeds the activity's completion and grade. Whoever can put a package into that player can act on the site as the learner viewing it.
+
+So the plugin never imports a package it cannot prove SkilLand made for the topic it asked for:
+
+- **Signed packages only.** For every package SkilLand returns `contentHash`, `keyId` and an Ed25519 `signature` over five lines: `skilland-scorm-package-v1`, the topic id the plugin requested (lower case, never the one in the answer), `contentHash`, the sha256 of the package bytes the plugin downloaded (computed locally, and required to equal the announced `packageHash`), and `generatedAt`. The plugin checks it after the download and **before** the package reaches Moodle's file API or the SCORM parser, on every import path: first provisioning, **Update From Skilland**, and a topic change.
+- **Unsigned packages are refused.** A missing signature or key id, a key id the site does not trust, a malformed signature, a hash mismatch or a signature that does not verify each abort the import with its own error, and the activity's existing SCORM is left as it was. The legacy GraphQL fallback never carries a signature, so a package reached through it is always refused (the metadata-only hash check still falls back to it).
+- **Pinned keys.** The production public keys ship inside the plugin (`mod_skilland\local\package_signature::PINNED_KEYS`; currently key id `2026-09`, rotated per SkilLand's `infra/runbooks/scorm-signing-key.md`). An administrator can trust additional keys with **SCORM package signing keys**; the trusted set is the pinned keys plus those lines, and a pinned key id always wins over an admin line with the same id. Each line must be a key id of 1–64 letters, digits, `.`, `_` or `-`, a colon, and base64 of exactly 32 bytes; a value with any invalid line is not saved.
+- **Rotation.** Several keys can be trusted at once: SkilLand publishes the new public key, it is pinned in a plugin release (or added to the setting in the meantime), SkilLand starts signing with the new key id, and the old key is dropped from a later release or from the setting.
+- **No silent imports.** The scheduled `sync_content` task never downloads or imports anything. When an activity with update notices on has new content, it records the update and notifies the course's teachers (message provider *Skilland content updates available*, once per content version); a teacher applies it from the activity page, through the same verified path.
 
 ### 2. Course Setup (Teacher/Admin)
 Before adding activities, you must link the course:
@@ -143,7 +156,7 @@ When the plugin is first installed or upgraded, `mod/skilland:provision` copies 
    - **Check the boxes** next to the lessons you want to include in this activity.
    - You can come back later and check/uncheck lessons to show or hide them.
 5. **Behavior Settings**:
-   - **Auto-update**: Check this if you want the content to update automatically when changed on Skilland.
+   - **Notify me of content updates**: Check this to be told (by a Moodle notification and a banner on the activity) when the content changes in Skilland. Nothing is replaced until a teacher presses **Update From Skilland**, which deletes the students' attempts on the activity.
    - **Lock after first access**: Check this to freeze content versions once students start working.
 6. Click **Save and return to course**.
 
@@ -159,7 +172,7 @@ The Skilland activity owns completion and the grade; the hidden topic SCORM has 
 
 - **Completion rule**: under *Activity completion*, choose automatic completion and tick **Complete all lessons**. The activity completes once the learner has completed or passed every visible lesson. Hidden lessons are ignored; an activity with no visible lesson never completes.
 - **Grade** (opt-in, *None* by default): with a maximum grade set, the raw grade is `grade × mean / 100`, the mean taken over the visible lessons of the SCO raw score (clamped to 0–100) when one was reported, else 100 for a completed or passed lesson, else 0. A learner with no recorded progress gets no grade. Scales are not supported.
-- **Progress survives re-provisioning**: each learner's best status and highest score per lesson are kept in the plugin's own table, so rebuilding the SCORM (auto-update, topic change) never loses completion or grades. The `sync_content` task also backfills that table from the SCORM tracks.
+- **Progress survives re-provisioning**: each learner's best status and highest score per lesson are kept in the plugin's own table, so rebuilding the SCORM (an applied update, topic change) never loses completion or grades. The `sync_content` task also backfills that table from the SCORM tracks.
 
 ## Privacy
 

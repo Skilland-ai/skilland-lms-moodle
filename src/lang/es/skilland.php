@@ -67,9 +67,9 @@ $string['remove_from_activity'] = 'Eliminar de la actividad';
 
 // Behaviour settings.
 $string['behaviour'] = 'Configuración de Comportamiento';
-$string['autoupdate'] = 'Actualización automática de contenido';
-$string['autoupdate_desc'] = 'Cuando se publique una nueva versión en Skilland, eliminar y volver a crear automáticamente este paquete SCORM. Esto elimina todos los intentos y calificaciones de los estudiantes para esta actividad, sin posibilidad de recuperarlos.';
-$string['autoupdate_warning'] = 'La actualización automática está activada y "Bloquear después del primer acceso" está desactivada: en cuanto el contenido cambie en Skilland, esta actividad se eliminará y volverá a crear, borrando los intentos y calificaciones de todos los estudiantes. Active "Bloquear después del primer acceso" para evitarlo una vez que los estudiantes hayan comenzado.';
+$string['autoupdate'] = 'Avisarme de actualizaciones de contenido';
+$string['autoupdate_desc'] = 'Cuando se publique una nueva versión en Skilland, se avisa a los profesores de este curso y esta actividad ofrece aplicarla. No se sustituye nada hasta que un profesor aplica la actualización, lo que elimina todos los intentos y calificaciones de los estudiantes para esta actividad, sin posibilidad de recuperarlos.';
+$string['autoupdate_warning'] = 'Los avisos de actualización están activados y "Bloquear después del primer acceso" está desactivada: se avisa a los profesores de cada cambio de contenido en Skilland, y aplicar uno elimina y vuelve a crear esta actividad, borrando los intentos y calificaciones de todos los estudiantes. Active "Bloquear después del primer acceso" para dejar de recibir avisos una vez que los estudiantes hayan comenzado.';
 $string['lockafterfirstaccess'] = 'Bloquear después del primer acceso';
 $string['lockafterfirstaccess_desc'] = 'Una vez que un estudiante haya accedido al contenido, evitar que la actualización automática elimine y vuelva a crear este paquete SCORM (se conservan sus intentos y calificaciones)';
 $string['hidelabels'] = 'Ocultar códigos de Skilland';
@@ -93,6 +93,9 @@ $string['settings_package_hosts'] = 'Hosts de paquetes SCORM';
 $string['settings_package_hosts_desc'] = 'Hosts separados por comas desde los que se pueden descargar paquetes SCORM, además de los hosts de la URL del Frontend y del endpoint GraphQL. "*.example.com" solo coincide con subdominios de example.com.';
 $string['settings_package_max_mb'] = 'Tamaño máximo del paquete SCORM (MB)';
 $string['settings_package_max_mb_desc'] = 'Las descargas que superen este tamaño se cancelan.';
+$string['settings_signingkeys'] = 'Claves de firma de paquetes SCORM';
+$string['settings_signingkeys_desc'] = 'SkilLand firma cada paquete SCORM que envía, y este sitio importa un paquete solo cuando su firma Ed25519 se verifica, para el tema solicitado, con una clave de confianza: las claves incluidas en el plugin más las que figuran aquí, una <code>idclave:clavepublicabase64</code> por línea. Un paquete se ejecuta en el reproductor SCORM de Moodle como contenido de este sitio, llama a la API SCORM y lee y escribe el registro SCORM de cada estudiante, así que añada solo una clave pública que SkilLand haya publicado, por ejemplo mientras rota sus claves. Los paquetes sin firma se rechazan siempre.';
+$string['error_signing_keys_invalid'] = 'Líneas no válidas: {$a}. Cada línea debe ser idclave:clavepublica, donde el id de clave tiene de 1 a 64 letras, dígitos, puntos, guiones bajos o guiones (cada id una sola vez) y la clave pública es base64 de exactamente 32 bytes.';
 $string['settings_frontend_url'] = 'URL del Frontend';
 $string['settings_frontend_url_desc'] = 'La URL de la aplicación frontend de Skilland. Se usa para las redirecciones SSO y como base de la API REST de SkilLand (paquetes SCORM de los temas), autenticada con la clave API. Si no está configurada, se usará la URL del endpoint GraphQL sin /graphql.';
 
@@ -186,6 +189,10 @@ $string['error_scorm_create_failed'] = 'Error al crear la actividad SCORM: {$a}'
 $string['error_scorm_upload_failed'] = 'Error al subir el paquete SCORM a Moodle.';
 $string['error_provision_in_progress'] = 'El contenido SCORM de esta actividad ya se está preparando. Inténtalo de nuevo en un momento.';
 $string['error_scorm_parse_failed'] = 'No se pudo convertir el paquete SCORM en lecciones ejecutables: {$a}';
+$string['error_scorm_signature_missing'] = 'El paquete SCORM de Skilland no está firmado, así que no se importó. Pida al administrador del sitio que revise los ajustes del plugin Skilland.';
+$string['error_scorm_signature_unknown_key'] = 'El paquete SCORM de Skilland está firmado con una clave en la que este sitio no confía, así que no se importó. Pida al administrador del sitio que revise las claves de firma de paquetes SCORM.';
+$string['error_scorm_signature_malformed'] = 'La firma del paquete SCORM de Skilland está mal formada, así que el paquete no se importó.';
+$string['error_scorm_signature_invalid'] = 'La firma del paquete SCORM de Skilland no corresponde al paquete, así que no se importó.';
 $string['scorm_downloading'] = 'Descargando contenido de la lección...';
 $string['scorm_download_complete'] = 'Descarga completa';
 $string['provision_content'] = 'Preparar contenido';
@@ -250,6 +257,12 @@ $string['creating_course'] = 'Creando curso en Skilland...';
 $string['task_sync_content'] = 'Sincronizar contenido de Skilland para actividades con actualización automática';
 $string['update_available'] = 'Actualización disponible';
 $string['update_available_desc'] = 'El contenido ha sido actualizado en Skilland. Haga clic en el botón para actualizar el paquete SCORM.';
+$string['messageprovider:contentupdate'] = 'Actualizaciones de contenido de Skilland disponibles para sus actividades';
+$string['update_notification_subject'] = 'Actualización de contenido disponible: {$a->activity}';
+$string['update_notification_body'] = 'El contenido de Skilland de "{$a->activity}" en {$a->course} ha cambiado. No se ha sustituido nada: abra la actividad y pulse "Actualizar desde Skilland" para aplicarlo. Aplicar la actualización elimina los intentos y calificaciones de los estudiantes en esta actividad.
+
+{$a->url}';
+$string['update_notification_small'] = 'Hay contenido nuevo de Skilland disponible para "{$a->activity}".';
 
 // Plugin disabled.
 $string['error_plugin_disabled'] = 'El plugin de Skilland está desactivado.';

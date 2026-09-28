@@ -302,103 +302,89 @@ class task_sync_content_test extends TestCase {
         $this->assertEquals('current', $result);
     }
 
-    public function test_check_and_update_returns_updated_when_hash_differs(): void {
-        $activity = (object)[
-            'id' => 1,
-            'skilland_topicid' => 'topic1',
-            'lastsynced' => time() - 600,
-            'scormcmid' => 100,
-            'lockafterfirstaccess' => 0,
-            'snapshotid' => 'oldhash',
-        ];
-
-        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
-        \fake_topic_scorm_updater::install(200);
-        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
-
-        $task = $this->makeTask();
-        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
-
-        $this->assertEquals('updated', $result);
-
-        // SKL-654: the hash is written once, by skilland_link_topic_scorm() at build time (stubbed
-        // out here); the cron no longer writes a second, redundant copy.
-        $snapshotwrites = array_filter($this->db->get_calls_for('update_record'),
-            fn($c) => isset($c['data']->snapshotid));
-        $this->assertEmpty($snapshotwrites);
-    }
-
-    public function test_check_and_update_skips_when_provisioning_lock_is_busy(): void {
-        $activity = (object)[
-            'id' => 1,
-            'skilland_topicid' => 'topic1',
-            'lastsynced' => time() - 600,
-            'scormcmid' => 100,
-            'lockafterfirstaccess' => 0,
-            'snapshotid' => 'oldhash',
-        ];
-
-        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
-        $GLOBALS['_test_lock_available'] = false;
-        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
-
-        $task = $this->makeTask();
-        $result = $this->invokePrivate($task, 'check_and_update', [$activity]);
-
-        $this->assertEquals('skipped', $result);
-        $this->assertSame('mod_skilland/provision_1', $GLOBALS['_test_lock_calls'][0]['key']);
-        $snapshotwrites = array_filter($this->db->get_calls_for('update_record'),
-            fn($c) => isset($c['data']->snapshotid));
-        $this->assertEmpty($snapshotwrites, 'A skipped activity keeps its old snapshot so the next run retries');
-        unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
-    }
-
-    public function test_check_and_update_rethrows_other_provisioning_failures(): void {
-        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
-            'apikey' => 'key',
-            'orgid' => 'org',
-            'graphql_endpoint' => 'https://api.skilland.ai/graphql',
-        ];
-        $activity = (object)[
+    /** A provisioned activity whose stored snapshot is older than SkilLand's. */
+    private function changedActivity(array $fields = []): \stdClass {
+        return (object) ($fields + [
             'id' => 1,
             'name' => 'Topic',
             'skilland_topicid' => 'topic1',
             'lastsynced' => time() - 600,
-            'scormcmid' => null,
-            'scorm_provisioned' => null,
+            'scormcmid' => 100,
             'lockafterfirstaccess' => 0,
             'snapshotid' => 'oldhash',
-        ];
-        $this->db->seed('skilland', [clone $activity]);
-        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
-        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
-        $ok = fn(array $data) => ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
-        $GLOBALS['_test_curl_responses'] = [
-            $ok(['topic' => ['id' => 'topic1', 'name' => 'T', 'lessons' => []]]),
-            ['body' => json_encode(['packageUrl' => '', 'mappings' => []]), 'http_code' => 200, 'errno' => 0,
-                'error' => ''],
-        ];
-
-        $task = $this->makeTask();
-        try {
-            $this->invokePrivate($task, 'check_and_update', [$activity]);
-            $this->fail('A non-lock provisioning failure must propagate');
-        } catch (\moodle_exception $e) {
-            $this->assertSame('error_scorm_not_available', $e->errorcode);
-        } finally {
-            unset($GLOBALS['_test_curl_responses'], $GLOBALS['_test_curl_response'], $GLOBALS['_test_curl_requests'],
-                $GLOBALS['_test_curl_last']);
-        }
-
-        $releases = array_filter($GLOBALS['_test_lock_calls'], fn($c) => $c['action'] === 'release');
-        $this->assertCount(1, $releases, 'The lock is released on failure');
-        $snapshotwrites = array_filter($this->db->get_calls_for('update_record'),
-            fn($c) => isset($c['data']->snapshotid));
-        $this->assertEmpty($snapshotwrites);
-        unset($GLOBALS['_test_lock_calls']);
+            'updateavailable' => null,
+        ]);
     }
 
-    public function test_execute_counts_a_busy_lock_as_skipped_not_error(): void {
+    private function snapshot(string $hash): void {
+        \fake_api_client::topic_snapshot(['contentHash' => $hash, 'generatedAt' => '2024-06-01T00:00:00Z',
+            'hasPackage' => true, 'isStale' => false]);
+        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+    }
+
+    /** SKL-650: changed content is recorded and announced, never imported by the cron. */
+    public function test_check_and_update_notifies_and_never_imports_when_hash_differs(): void {
+        $this->snapshot('newhash');
+        $updater = \fake_topic_scorm_updater::install(200);
+        $notifier = \fake_update_notifier::install(2);
+
+        $result = $this->invokePrivate($this->makeTask(), 'check_and_update', [$this->changedActivity()]);
+
+        $this->assertEquals('notified', $result);
+        $this->assertSame([], $updater->calls, 'The cron never rebuilds the SCORM');
+        $this->assertCount(1, $notifier->calls);
+        $this->assertSame(1, (int) $notifier->calls[0][0]->id);
+        $this->assertSame(100, (int) $notifier->calls[0][1]->id);
+
+        $updates = $this->db->get_calls_for('update_record');
+        $this->assertCount(1, $updates);
+        $this->assertSame('newhash', $updates[0]['data']->updateavailable);
+        $this->assertNotEmpty($updates[0]['data']->lastsynced);
+        $this->assertObjectNotHasProperty('snapshotid', $updates[0]['data'], 'The snapshot only moves when a teacher applies it');
+        $this->assertEmpty($GLOBALS['_test_curl_requests'] ?? [], 'Nothing is downloaded');
+        $this->assertEmpty($GLOBALS['_test_lock_calls'] ?? [], 'No provisioning lock is taken');
+    }
+
+    public function test_check_and_update_does_not_notify_twice_for_the_same_hash(): void {
+        $this->snapshot('newhash');
+        $notifier = \fake_update_notifier::install();
+
+        $result = $this->invokePrivate($this->makeTask(), 'check_and_update',
+            [$this->changedActivity(['updateavailable' => 'newhash'])]);
+
+        $this->assertEquals('pending', $result);
+        $this->assertSame([], $notifier->calls);
+        $this->assertSame([], $this->db->get_calls_for('update_record'));
+        $lastsynced = array_filter($this->db->get_calls_for('set_field'), fn($c) => $c['field'] === 'lastsynced');
+        $this->assertCount(1, $lastsynced);
+    }
+
+    public function test_check_and_update_notifies_again_for_a_newer_hash(): void {
+        $this->snapshot('newerhash');
+        $notifier = \fake_update_notifier::install();
+
+        $result = $this->invokePrivate($this->makeTask(), 'check_and_update',
+            [$this->changedActivity(['updateavailable' => 'newhash'])]);
+
+        $this->assertEquals('notified', $result);
+        $this->assertCount(1, $notifier->calls);
+        $this->assertSame('newerhash', $this->db->get_calls_for('update_record')[0]['data']->updateavailable);
+    }
+
+    public function test_an_activity_without_a_scorm_is_announced_not_provisioned(): void {
+        $this->snapshot('newhash');
+        $updater = \fake_topic_scorm_updater::install(200);
+        $notifier = \fake_update_notifier::install();
+
+        $result = $this->invokePrivate($this->makeTask(), 'check_and_update',
+            [$this->changedActivity(['scormcmid' => null, 'snapshotid' => null])]);
+
+        $this->assertEquals('notified', $result);
+        $this->assertSame([], $updater->calls);
+        $this->assertCount(1, $notifier->calls);
+    }
+
+    public function test_execute_counts_notified_activities(): void {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'apikey' => 'key',
             'orgid' => 'org',
@@ -408,17 +394,16 @@ class task_sync_content_test extends TestCase {
             (object)['id' => 1, 'autoupdate' => 1, 'scormcmid' => 100, 'skilland_topicid' => 'topic1',
                 'lastsynced' => 0, 'lockafterfirstaccess' => 0, 'snapshotid' => 'oldhash'],
         ]);
-        \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
-        $GLOBALS['_test_lock_available'] = false;
-        $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
+        $this->snapshot('newhash');
+        \fake_update_notifier::install();
 
         $this->makeTask()->execute();
 
         $complete = array_values(array_filter($GLOBALS['_test_debug_messages'],
             fn($m) => str_contains($m['message'], 'Sync complete')));
         $this->assertNotEmpty($complete);
-        $this->assertStringContainsString('1 skipped, 0 errors', $complete[0]['message']);
-        unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
+        $this->assertStringContainsString('1 notified, 0 skipped, 0 errors', $complete[0]['message']);
+        $this->assertSame('newhash', $this->db->get_record('skilland', ['id' => 1])->updateavailable);
     }
 
     // ---------------------------------------------------------------
@@ -634,16 +619,16 @@ class task_sync_content_test extends TestCase {
         $this->assertCount(1, $this->db->get_records('skilland_progress'));
     }
 
-    public function test_reprovision_path_does_not_recompute(): void {
+    public function test_update_notice_path_does_not_recompute(): void {
         $this->seedTrackedActivity();
         \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
-        \fake_topic_scorm_updater::install(200);
+        \fake_update_notifier::install();
 
         $this->makeTask()->execute();
 
         $complete = array_values(array_filter($GLOBALS['_test_debug_messages'],
             fn($m) => str_contains($m['message'], 'Sync complete')));
-        $this->assertStringContainsString('1 updated', $complete[0]['message']);
+        $this->assertStringContainsString('1 notified', $complete[0]['message']);
         $this->assertEmpty($GLOBALS['_test_completion_updates'] ?? []);
         $this->assertEmpty($GLOBALS['_test_grade_updates'] ?? []);
         $this->assertEmpty($this->db->get_records('skilland_progress'));
@@ -683,12 +668,12 @@ class task_sync_content_test extends TestCase {
         \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2024-06-01T00:00:00Z', 'hasPackage' => true, 'isStale' => false]);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object)['id' => 100, 'instance' => 1, 'course' => 1, 'section' => 1];
         $processed = [];
-        \fake_topic_scorm_updater::install(function ($skilland) use (&$processed) {
+        \fake_update_notifier::install(function ($skilland) use (&$processed) {
             if ((int) $skilland->id === 2) {
                 throw new \TypeError('Cannot access offset of type array');
             }
             $processed[] = (int) $skilland->id;
-            return 500 + (int) $skilland->id;
+            return 1;
         });
 
         $this->makeTask()->execute();
@@ -697,7 +682,7 @@ class task_sync_content_test extends TestCase {
         $complete = array_values(array_filter($GLOBALS['_test_debug_messages'],
             fn($m) => str_contains($m['message'], 'Sync complete')));
         $this->assertNotEmpty($complete);
-        $this->assertStringContainsString('2 updated, 0 skipped, 1 errors', $complete[0]['message']);
+        $this->assertStringContainsString('2 notified, 0 skipped, 1 errors', $complete[0]['message']);
         $errors = array_values(array_filter($GLOBALS['_test_debug_messages'],
             fn($m) => str_contains($m['message'], 'Error checking activity 2')));
         $this->assertCount(1, $errors);

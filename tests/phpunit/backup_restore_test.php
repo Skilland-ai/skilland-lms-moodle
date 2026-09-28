@@ -284,14 +284,14 @@ class backup_restore_test extends TestCase {
     /** Queue the topicScorm GraphQL answer and the package download a re-provision makes. */
     private function queue_package(): void {
         $zip = base64_decode('UEsDBBQAAAAAAGC1OV3tN8mLCwAAAAsAAAAPAAAAaW1zbWFuaWZlc3QueG1sPG1hbmlmZXN0Lz5QSwECFAMUAAAAAABgtTld7TfJiwsAAAALAAAADwAAAAAAAAAAAAAAgAEAAAAAaW1zbWFuaWZlc3QueG1sUEsFBgAAAAABAAEAPQAAADgAAAAAAA==');
-        $GLOBALS['_test_curl_responses'][] = $this->rest_response([
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(\test_package_signer::sign('topic1', [
             'packageUrl' => 'https://cdn.skilland.ai/topic1.zip',
             'packageSize' => strlen($zip),
             'packageHash' => '',
             'generatedAt' => '2026-01-02T00:00:00Z',
             'expiresAt' => '',
             'mappings' => [['lessonId' => 'L1', 'scoId' => 'sco_1'], ['lessonId' => 'L2', 'scoId' => 'sco_2']],
-        ]);
+        ], $zip));
         $GLOBALS['_test_curl_responses'][] = ['body' => $zip, 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 

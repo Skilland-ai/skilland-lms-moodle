@@ -8,16 +8,19 @@ use mod_skilland\task\sync_content;
 require_once __DIR__ . '/stubs/completionlib.php';
 
 /**
- * The sync cron picks up activities left without a SCORM, and never builds from a topic whose
- * package is missing or stale (SKL-654).
+ * The sync cron picks up activities left without a SCORM, and never announces a topic whose
+ * package is missing or stale (SKL-654). It never rebuilds anything itself (SKL-650).
  */
 class task_sync_content_package_state_test extends TestCase {
 
     /** @var \FakeDatabase */
     private $db;
 
-    /** @var array Activities skilland_update_topic_scorm() was called for. */
+    /** @var array Activities skilland_update_topic_scorm() was called for (must stay empty). */
     private $updated = [];
+
+    /** @var array Activities the teachers were notified about. */
+    private $notified = [];
 
     protected function setUp(): void {
         parent::setUp();
@@ -35,10 +38,15 @@ class task_sync_content_package_state_test extends TestCase {
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object) ['id' => 90, 'instance' => 1, 'course' => 1,
             'section' => 1];
         $this->updated = [];
+        $this->notified = [];
         \core\di::reset_container();
         \fake_topic_scorm_updater::install(function ($skilland) {
             $this->updated[] = (int) $skilland->id;
             return 700 + (int) $skilland->id;
+        });
+        \fake_update_notifier::install(function ($skilland) {
+            $this->notified[] = (int) $skilland->id;
+            return 1;
         });
     }
 
@@ -73,6 +81,7 @@ class task_sync_content_package_state_test extends TestCase {
 
     private function assert_nothing_written(): void {
         $this->assertSame([], $this->updated, 'The SCORM is not rebuilt');
+        $this->assertSame([], $this->notified, 'Nobody is notified');
         $this->assertEmpty($this->db->get_calls_for('update_record'));
         $this->assertEmpty($this->db->get_calls_for('set_field'), 'lastsynced is not advanced, so the next run retries');
     }
@@ -92,25 +101,28 @@ class task_sync_content_package_state_test extends TestCase {
         $this->assertCount(1, $selects);
         $this->assertSame('autoupdate = 1 AND skilland_topicid IS NOT NULL', $selects[0]['select']);
         $this->assertStringNotContainsString('scormcmid', $selects[0]['select']);
-        $this->assertSame([1], $this->updated, 'The activity without a SCORM is rebuilt');
+        $this->assertSame([1], $this->notified, 'The activity without a SCORM is announced');
+        $this->assertSame([], $this->updated, 'The cron never rebuilds it');
     }
 
-    public function test_activity_without_a_scorm_is_rebuilt_even_when_its_hash_matches(): void {
+    public function test_activity_without_a_scorm_is_announced_even_when_its_hash_matches(): void {
         \fake_api_client::topic_snapshot($this->snapshot(['contentHash' => 'samehash']));
 
         $result = $this->check($this->activity(['scormcmid' => null, 'snapshotid' => 'samehash']));
 
-        $this->assertSame('updated', $result);
-        $this->assertSame([1], $this->updated);
+        $this->assertSame('notified', $result);
+        $this->assertSame([1], $this->notified);
+        $this->assertSame([], $this->updated);
     }
 
-    public function test_activity_without_a_scorm_and_no_hash_is_rebuilt_not_migrated(): void {
+    public function test_activity_without_a_scorm_and_no_hash_is_announced_not_migrated(): void {
         \fake_api_client::topic_snapshot($this->snapshot());
 
         $result = $this->check($this->activity(['scormcmid' => null, 'snapshotid' => null]));
 
-        $this->assertSame('updated', $result);
-        $this->assertSame([1], $this->updated);
+        $this->assertSame('notified', $result);
+        $this->assertSame([1], $this->notified);
+        $this->assertSame([], $this->updated);
     }
 
     // ---------------------------------------------------------------
@@ -166,14 +178,16 @@ class task_sync_content_package_state_test extends TestCase {
         $complete = array_values(array_filter($GLOBALS['_test_debug_messages'],
             fn($m) => str_contains($m['message'], 'Sync complete')));
         $this->assertNotEmpty($complete);
-        $this->assertStringContainsString('0 updated, 2 skipped, 0 errors', $complete[0]['message']);
+        $this->assertStringContainsString('0 notified, 2 skipped, 0 errors', $complete[0]['message']);
         $this->assertSame([], $this->updated);
+        $this->assertSame([], $this->notified);
     }
 
-    public function test_ready_package_with_changed_hash_still_updates(): void {
+    public function test_ready_package_with_changed_hash_is_announced_not_imported(): void {
         \fake_api_client::topic_snapshot($this->snapshot());
 
-        $this->assertSame('updated', $this->check($this->activity()));
-        $this->assertSame([1], $this->updated);
+        $this->assertSame('notified', $this->check($this->activity()));
+        $this->assertSame([1], $this->notified);
+        $this->assertSame([], $this->updated);
     }
 }

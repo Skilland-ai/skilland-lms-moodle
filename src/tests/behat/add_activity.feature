@@ -14,6 +14,9 @@ Feature: Teachers add a SkilLand activity to a course
     And the following "course enrolments" exist:
       | user     | course | role           |
       | teacher1 | C1     | editingteacher |
+    # The fixture API signs its SCORM package with a test-only key (fixture_api_client::fixture_key_line()).
+    And the following config values are set as admin:
+      | signingkeys | fixture:jTte47f+m0Osdcz/wIohztUx4OSXUtq4f4BxGucmeoM= | mod_skilland |
 
   Scenario: The form lists the mapped skill's topics and lessons and saves the activity
     Given I log in as "teacher1"
