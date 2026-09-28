@@ -1673,7 +1673,8 @@ function skilland_link_topic_scorm(stdClass $skilland, array $build, string $con
         'snapshotcreatedat' => $build['generatedat'],
         'snapshotid' => $contenthash,
     ];
-    $DB->update_record('skilland', $fields);
+    // The update the teachers were told about is applied (or superseded) now (SKL-650).
+    $DB->update_record('skilland', (object) ((array) $fields + ['updateavailable' => null]));
 
     return $fields;
 }

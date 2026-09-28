@@ -24,11 +24,13 @@ require_once(__DIR__ . '/../../locallib.php');
 require_once(__DIR__ . '/../../lib.php');
 
 /**
- * Scheduled task to sync Skilland content for activities with auto-update enabled.
+ * Scheduled task to check Skilland content for activities with auto-update enabled.
  *
- * Polls the Skilland API to check if content has changed for each activity
- * that has autoupdate=1. If content changed, or the activity lost its SCORM, and the topic
- * has a ready package, re-provisions the SCORM package automatically.
+ * Polls the Skilland API to check if content has changed for each activity that has
+ * autoupdate=1. It never imports a package itself (SKL-650): when content changed, or the
+ * activity lost its SCORM, and the topic has a ready package, it records the update as
+ * available (skilland.updateavailable) and notifies the course's teachers once per content hash.
+ * A teacher applies it from the activity page, through the verified import path.
  *
  * @package    mod_skilland
  * @copyright  2024 SkilLand <https://skilland.ai>
@@ -90,15 +92,15 @@ class sync_content extends \core\task\scheduled_task {
 
         logger::info('SyncContent', 'Found ' . count($activities) . ' auto-update activities to check');
 
-        $updated = 0;
+        $notified = 0;
         $skipped = 0;
         $errors = 0;
 
         foreach ($activities as $skilland) {
             try {
                 $result = $this->check_and_update($skilland);
-                if ($result === 'updated') {
-                    $updated++;
+                if ($result === 'notified') {
+                    $notified++;
                 } else if ($result === 'skipped') {
                     $skipped++;
                 }
@@ -110,7 +112,7 @@ class sync_content extends \core\task\scheduled_task {
             }
         }
 
-        logger::info('SyncContent', "Sync complete: {$updated} updated, {$skipped} skipped, {$errors} errors");
+        logger::info('SyncContent', "Sync complete: {$notified} notified, {$skipped} skipped, {$errors} errors");
     }
 
     /**
@@ -162,10 +164,10 @@ class sync_content extends \core\task\scheduled_task {
     }
 
     /**
-     * Check a single activity for content changes and update if needed.
+     * Check a single activity for content changes and record an available update.
      *
      * @param \stdClass $skilland The skilland activity record.
-     * @return string 'updated', 'skipped', or 'current'
+     * @return string 'notified', 'pending' (already notified of this content), 'skipped', or 'current'
      */
     private function check_and_update($skilland) {
         global $DB;
@@ -236,33 +238,31 @@ class sync_content extends \core\task\scheduled_task {
             return 'current';
         }
 
-        // Content has changed — re-provision SCORM.
+        // Content has changed: never import from cron (SKL-650). Record the update once per
+        // content hash and tell the teachers, who apply it from the activity page.
+        if (($skilland->updateavailable ?? '') === $remoteHash) {
+            $DB->set_field('skilland', 'lastsynced', time(), ['id' => $skilland->id]);
+            logger::debug('SyncContent', 'Activity ' . $skilland->id . ' already has update ' . $remoteHash .
+                ' waiting for a teacher');
+            return 'pending';
+        }
+
         logger::info('SyncContent', 'Content changed for activity ' . $skilland->id .
-            ' (old: ' . $currentHash . ', new: ' . $remoteHash . ') — updating SCORM');
+            ' (old: ' . $currentHash . ', new: ' . $remoteHash . ') — notifying teachers');
 
         $cm = get_coursemodule_from_instance('skilland', $skilland->id, 0, false, MUST_EXIST);
         $course = get_course($cm->course);
-        $sectionnum = $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
 
-        try {
-            // Thread the hash already fetched above through to provisioning, so it isn't queried twice.
-            $newcmid = \core\di::get(\mod_skilland\local\topic_scorm_updater::class)->update($skilland, $course, $sectionnum,
-                $remoteHash);
-        } catch (\moodle_exception $e) {
-            if ($e->errorcode === 'error_provision_in_progress') {
-                logger::info('SyncContent', 'Activity ' . $skilland->id . ' is being provisioned elsewhere — skipping');
-                return 'skipped';
-            }
-            throw $e;
-        }
+        $DB->update_record('skilland', (object) [
+            'id' => $skilland->id,
+            'updateavailable' => $remoteHash,
+            'lastsynced' => time(),
+        ]);
+        $sent = \core\di::get(\mod_skilland\local\update_notifier::class)->notify($skilland, $cm, $course);
 
-        // skilland_link_topic_scorm() wrote snapshotid/snapshotcreatedat with the built package,
-        // and only once the new SCORM was linked; a failed build threw above and wrote nothing.
-        $DB->set_field('skilland', 'lastsynced', time(), ['id' => $skilland->id]);
+        logger::info('SyncContent', 'Activity ' . $skilland->id . ': update available, ' . $sent . ' teacher(s) notified');
 
-        logger::info('SyncContent', 'Activity ' . $skilland->id . ' updated successfully (new SCORM cmid: ' . $newcmid . ')');
-
-        return 'updated';
+        return 'notified';
     }
 
     /**

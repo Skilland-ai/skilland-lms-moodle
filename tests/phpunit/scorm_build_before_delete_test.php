@@ -114,14 +114,14 @@ class scorm_build_before_delete_test extends TestCase {
         foreach ($mappings as $lessonid => $scoid) {
             $list[] = ['lessonId' => $lessonid, 'scoId' => $scoid];
         }
-        $GLOBALS['_test_curl_responses'][] = $this->rest_response([
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(\test_package_signer::sign('topic1', [
             'packageUrl' => 'https://cdn.skilland.ai/topic1.zip',
             'packageSize' => strlen($this->zipbytes()),
             'packageHash' => '',
             'generatedAt' => '2026-03-01T00:00:00Z',
             'expiresAt' => '',
             'mappings' => $list,
-        ]);
+        ], $this->zipbytes()));
     }
 
     private function queue_zip(): void {
@@ -331,27 +331,37 @@ class scorm_build_before_delete_test extends TestCase {
         $this->assertSame('newhash', $this->db->get_record('skilland', ['id' => 7])->snapshotid);
     }
 
-    public function test_cron_update_writes_the_snapshot_hash_exactly_once_and_links_the_new_module(): void {
+    public function test_cron_only_announces_and_the_teacher_apply_links_the_new_module(): void {
         \fake_api_client::topic_snapshot(['contentHash' => 'newhash', 'generatedAt' => '2026-03-01T00:00:00Z',
             'hasPackage' => true, 'isStale' => false]);
         $GLOBALS['_test_get_coursemodule_from_instance'] = (object) ['id' => 90, 'instance' => 7, 'course' => 3,
             'section' => 1];
-        $this->queue_lessons();
-        $this->queue_package();
+        $notifier = \fake_update_notifier::install();
+        $before = $this->old_state();
 
         $task = new \mod_skilland\task\sync_content();
         $method = new \ReflectionMethod($task, 'check_and_update');
         $result = $method->invoke($task, $this->db->get_record('skilland', ['id' => 7]));
 
-        $this->assertSame('updated', $result);
-        $writes = array_values(array_filter($this->db->get_calls_for('update_record'),
-            fn($c) => $c['table'] === 'skilland' && property_exists($c['data'], 'snapshotid')));
-        $this->assertCount(1, $writes, 'The hash is stored once, at link time, not again by the cron');
-        $this->assertSame('newhash', $writes[0]['data']->snapshotid);
+        // SKL-650: the cron records the update and tells the teachers; the old SCORM is untouched.
+        $this->assertSame('notified', $result);
+        $this->assertCount(1, $notifier->calls);
+        $this->assertEmpty($GLOBALS['_test_curl_requests'] ?? [], 'The cron downloads nothing');
+        $this->assertEmpty($GLOBALS['_test_create_module_calls'] ?? []);
+        $row = $this->db->get_record('skilland', ['id' => 7]);
+        $this->assertSame('newhash', $row->updateavailable);
+        $this->assertSame(50, (int) $row->scormcmid);
+        $this->assertSame($before['skilland']->snapshotid, $row->snapshotid);
+
+        // The teacher applies it through the verified import path, which clears the notice.
+        $this->queue_lessons();
+        $this->queue_package();
+        $this->update('newhash');
+
         $row = $this->db->get_record('skilland', ['id' => 7]);
         $this->assertNotEquals(50, (int) $row->scormcmid);
-        $this->assertNotFalse($this->db->get_record('course_modules', ['id' => (int) $row->scormcmid]));
+        $this->assertSame('newhash', $row->snapshotid);
+        $this->assertNull($row->updateavailable);
         $this->assertSame([50], $GLOBALS['_test_deleted_cmids']);
-        $this->assertGreaterThan(0, (int) $row->lastsynced);
     }
 }

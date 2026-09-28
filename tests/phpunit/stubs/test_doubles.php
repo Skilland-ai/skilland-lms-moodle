@@ -170,6 +170,34 @@ class fake_topic_scorm_updater extends topic_scorm_updater {
 }
 
 /**
+ * update_notifier that records each notify() call instead of messaging anyone, returning a fixed
+ * count or running a Closure($skilland, $cm, $course) and returning its result.
+ */
+class fake_update_notifier extends \mod_skilland\local\update_notifier {
+    /** @var array<int, array{0: \stdClass, 1: \stdClass, 2: \stdClass}> The arguments of every call. */
+    public $calls = [];
+
+    /** @var int|\Closure What notify() returns, or computes. */
+    private $result;
+
+    public function __construct($result = 1) {
+        $this->result = $result;
+    }
+
+    /** Create a fake and bind it as the update_notifier for the current test. */
+    public static function install($result = 1): self {
+        $fake = new self($result);
+        \core\di::set(\mod_skilland\local\update_notifier::class, $fake);
+        return $fake;
+    }
+
+    public function notify(\stdClass $skilland, \stdClass $cm, \stdClass $course): int {
+        $this->calls[] = [$skilland, $cm, $course];
+        return $this->result instanceof \Closure ? ($this->result)($skilland, $cm, $course) : $this->result;
+    }
+}
+
+/**
  * retry_sleeper that records each delay instead of sleeping. bootstrap.php makes it the suite
  * default, so no stub test ever waits on a retry.
  */

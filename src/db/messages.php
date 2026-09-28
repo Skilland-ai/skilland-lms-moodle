@@ -15,21 +15,22 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details for mod_skilland.
+ * Message providers of mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2026 SkilLand
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->requires  = 2024100700;   // Moodle 4.5+ (core_external)
-$plugin->component = 'mod_skilland';
-$plugin->supported = [405, 405];
-
-
-$plugin->version   = 2026092800;   // YYYYMMDDHH - signed SCORM packages, update notices instead of cron imports (SKL-650)
-$plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.38-beta';
-$plugin->dependencies = ['mod_scorm' => ANY_VERSION];
+$messageproviders = [
+    // The sync task found new SkilLand content for an activity; a teacher applies it by hand (SKL-650).
+    'contentupdate' => [
+        'capability' => 'mod/skilland:provision',
+        'defaults' => [
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+            'email' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+        ],
+    ],
+];
