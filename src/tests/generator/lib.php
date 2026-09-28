@@ -111,6 +111,8 @@ class mod_skilland_generator extends testing_module_generator {
         $sectionnum = (int) $DB->get_field('course_sections', 'section', ['id' => $cm->section]);
 
         $this->ensure_fixture_client();
+        // The fixture package is signed with a test-only key the site must trust (SKL-650).
+        fixture_api_client::trust_fixture_key();
         // The package is staged in the current user's draft area, which a guest or no user lacks.
         $previoususer = $USER;
         $switch = !isloggedin() || isguestuser();

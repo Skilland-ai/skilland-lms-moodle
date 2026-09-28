@@ -16,6 +16,8 @@
 
 namespace mod_skilland;
 
+use mod_skilland\local\testing\fixture_api_client;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/skilland_testcase.php');
@@ -31,6 +33,8 @@ require_once(__DIR__ . '/skilland_testcase.php');
  * @covers ::skilland_update_topic_scorm
  * @covers ::skilland_build_topic_scorm
  * @covers ::skilland_link_topic_scorm
+ * @covers ::skilland_download_topic_scorm_package
+ * @covers \mod_skilland\local\package_signature
  */
 final class topic_scorm_provisioning_test extends skilland_testcase {
 
@@ -167,6 +171,172 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $this->assertSame([], $this->scorm_cmids($course->id));
     }
 
+    /**
+     * Assert that provisioning $skilland fails with $errorcode and imports nothing.
+     *
+     * @param \stdClass $skilland
+     * @param string $errorcode
+     */
+    private function assert_provision_refused(\stdClass $skilland, string $errorcode): void {
+        global $DB;
+
+        $filesbefore = $DB->count_records('files', ['component' => 'mod_scorm']);
+        try {
+            $this->provision($skilland);
+            $this->fail('Provisioning must refuse the package with ' . $errorcode);
+        } catch (\moodle_exception $e) {
+            $this->assertSame($errorcode, $e->errorcode);
+        }
+        $this->take_debugging();
+
+        $this->assertSame([], $this->scorm_cmids((int) $skilland->course));
+        $this->assertSame($filesbefore, $DB->count_records('files', ['component' => 'mod_scorm']),
+            'The package never reached the file API or the SCORM parser');
+        $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
+        $this->assertNull($record->scormcmid);
+    }
+
+    public function test_the_fixture_package_is_signed_and_verified(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+
+        $info = mod_skilland_fetch_topic_scorm('topic-1');
+
+        $this->assertSame(fixture_api_client::FIXTURE_KEY_ID, $info['keyId']);
+        $this->assertSame($this->client->package_hash(), $info['packageHash']);
+        $this->assertSame(64, strlen(base64_decode($info['signature'], true)));
+        $this->assertGreaterThan(0, $this->provision($skilland));
+    }
+
+    public function test_a_tampered_package_is_refused(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->client->tamper_download(function (string $bytes): string {
+            $bytes[40] = chr(ord($bytes[40]) ^ 0x01);
+            return $bytes;
+        });
+
+        $this->assert_provision_refused($skilland, 'error_scorm_hash_mismatch');
+    }
+
+    public function test_a_tampered_package_announced_with_its_own_hash_is_refused(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $tamper = function (string $bytes): string {
+            return $bytes . 'appended';
+        };
+        $this->client->tamper_download($tamper);
+        $path = fixture_api_client::build_package(fixture_api_client::fixtures_dir() . '/scorm');
+        $tamperedhash = hash('sha256', $tamper((string) file_get_contents($path)));
+        @unlink($path);
+        $this->client->merge_response('GetTopicScorm', 'topicScorm', ['packageHash' => $tamperedhash]);
+
+        $this->assert_provision_refused($skilland, 'error_scorm_signature_invalid');
+    }
+
+    public function test_a_package_signed_by_an_unknown_key_is_refused(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->client->sign_with('someone-else', sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair()));
+
+        $this->assert_provision_refused($skilland, 'error_scorm_signature_unknown_key');
+    }
+
+    public function test_a_package_signed_by_another_key_under_the_trusted_id_is_refused(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->client->sign_with(fixture_api_client::FIXTURE_KEY_ID,
+            sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair()));
+
+        $this->assert_provision_refused($skilland, 'error_scorm_signature_invalid');
+    }
+
+    public function test_a_key_trusted_through_the_admin_setting_verifies(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $keypair = sodium_crypto_sign_keypair();
+        set_config('signingkeys', 'rotated-2026:' . base64_encode(sodium_crypto_sign_publickey($keypair)),
+            'mod_skilland');
+        $this->client->sign_with('rotated-2026', sodium_crypto_sign_secretkey($keypair));
+
+        $this->assertGreaterThan(0, $this->provision($skilland));
+    }
+
+    public function test_an_unsigned_package_is_refused_before_downloading(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->client->sign_with(null);
+
+        $this->assert_provision_refused($skilland, 'error_scorm_signature_missing');
+        $this->assertSame([], $this->client->downloads);
+    }
+
+    public function test_a_malformed_signature_is_refused(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->client->merge_response('GetTopicScorm', 'topicScorm', ['signature' => 'not*base64',
+            'keyId' => fixture_api_client::FIXTURE_KEY_ID]);
+
+        $this->assert_provision_refused($skilland, 'error_scorm_signature_malformed');
+    }
+
+    public function test_a_signature_replayed_from_another_topic_is_refused(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course, ['skilland_topicid' => 'topic-2']);
+        $client = $this->client;
+        $client->set_response('GetTopicScorm', function () use ($client): array {
+            $body = fixture_api_client::default_responses()['GetTopicScorm']['topicScorm'];
+            // A genuine signature, but for topic-1's package.
+            return ['topicScorm' => fixture_api_client::sign_scorm('topic-1', $body, $client->package_hash(),
+                fixture_api_client::FIXTURE_KEY_ID, sodium_crypto_sign_secretkey(fixture_api_client::fixture_keypair()))];
+        });
+
+        $this->assert_provision_refused($skilland, 'error_scorm_signature_invalid');
+    }
+
+    public function test_a_package_reached_through_the_graphql_fallback_is_refused(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        // The REST route is gone (404), so the legacy GraphQL topicScorm answers: it is never signed.
+        $client = new class extends fixture_api_client {
+            /**
+             * Fail the scorm route with a 404, answer the others from the fixtures.
+             *
+             * @param string $path Route path.
+             * @return array
+             */
+            public function rest_get(string $path): array {
+                if (str_ends_with($path, '/scorm')) {
+                    $this->calls[] = ['operation' => 'rest-scorm', 'variables' => [], 'path' => $path];
+                    throw new rest_exception('error_scorm_fetch_failed', 404);
+                }
+                return parent::rest_get($path);
+            }
+        };
+        \core\di::set(local\api_client::class, $client);
+        $this->client = $client;
+
+        $this->assert_provision_refused($skilland, 'error_scorm_signature_missing');
+        $this->assertSame(1, $client->count_calls('GetTopicScorm'), 'The GraphQL fallback answered');
+        $this->assertSame([], $client->downloads);
+    }
+
+    public function test_a_successful_update_clears_the_update_notice(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->provision($skilland);
+        $DB->set_field('skilland', 'updateavailable', 'hash-v2', ['id' => $skilland->id]);
+        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+
+        $this->update($skilland);
+
+        $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
+        $this->assertNull($record->updateavailable);
+        $this->assertSame('hash-v2', $record->snapshotid);
+    }
+
     public function test_update_builds_the_new_scorm_before_deleting_the_old_one(): void {
         global $DB;
 
@@ -230,6 +400,8 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
             'download fails' => ['download', 'error_scorm_download_failed'],
             'package lacks a mapped SCO' => ['mapping', 'error_scorm_parse_failed'],
             'package info unavailable' => ['info', 'error_scorm_not_available'],
+            'package tampered with' => ['tamper', 'error_scorm_hash_mismatch'],
+            'package unsigned' => ['unsigned', 'error_scorm_signature_missing'],
         ];
     }
 
@@ -257,6 +429,10 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
         if ($failure === 'download') {
             $this->client->fail_download(new \moodle_exception('error_scorm_download_failed', 'mod_skilland'));
+        } else if ($failure === 'tamper') {
+            $this->client->tamper_download(fn(string $bytes): string => $bytes . 'x');
+        } else if ($failure === 'unsigned') {
+            $this->client->sign_with(null);
         } else if ($failure === 'mapping') {
             $this->client->merge_response('GetTopicScorm', 'topicScorm', ['mappings' => [
                 ['lessonId' => 'lesson-1', 'scoId' => 'sco-gone'],

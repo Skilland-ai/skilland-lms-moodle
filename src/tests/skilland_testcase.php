@@ -54,6 +54,8 @@ abstract class skilland_testcase extends \advanced_testcase {
 
         $this->client = new fixture_api_client();
         \core\di::set(api_client::class, $this->client);
+        // The fixture client signs its packages with a test-only key; trust it as an admin would (SKL-650).
+        fixture_api_client::trust_fixture_key();
     }
 
     /**
