@@ -17,7 +17,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@playwright/test": "^1.50.0",
+    "@playwright/test": "^1.63.0",
     "eslint": "^8.57.1",
     "grunt": "^1.6.1",
     "grunt-contrib-clean": "^2.0.1",
