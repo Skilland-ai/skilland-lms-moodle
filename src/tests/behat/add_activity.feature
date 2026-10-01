@@ -22,7 +22,7 @@ Feature: Teachers add a SkilLand activity to a course
     Given I log in as "teacher1"
     And I add a "skilland" activity to course "Course 1" section "1"
     And I should see "Fixture skill"
-    When I set the field "Topic" to "T1 - Fixture topic one (topic-1)"
+    When I set the field "Topic" to "T1 - Fixture topic one"
     Then I should see "L1.1 - Lesson one"
     And I should see "L1.2 - Lesson two"
     And the field "lesson_lesson-1" matches value "1"
@@ -50,3 +50,16 @@ Feature: Teachers add a SkilLand activity to a course
     And I add a "skilland" activity to course "Course 2" section "1"
     Then I should see "Set Skilland Course ID in course settings"
     And "Topic" "field" should not exist
+
+  Scenario: Edit settings keeps a custom name and shows the General note
+    Given I log in as "teacher1"
+    And I add a "skilland" activity to course "Course 1" section "1"
+    And I set the field "Topic" to "T1 - Fixture topic one"
+    And I set the field "Name" to "My custom name"
+    And I press "Save and display"
+    And I navigate to "Settings" in current page administration
+    And I expand all fieldsets
+    Then I should see "Name and description are filled in from Skilland when you pick a topic. You can edit them."
+    And I press "Save and display"
+    And I navigate to "Settings" in current page administration
+    And the field "Name" matches value "My custom name"

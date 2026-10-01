@@ -173,7 +173,7 @@ class form_lesson_selection_test extends TestCase {
     }
 
     public function test_change_handler_stashes_only_a_rendered_topic_and_resets_the_hidden_value(): void {
-        $handler = $this->change_handler_body();
+        $handler = $this->js_function_body('selectTopic');
         $this->assertMatchesRegularExpression(
             '/if \(renderedTopicId !== null\) \{\s*updateSelectedState\(\);\s*\}\s*selectedLessonsInput\.value = \'\{\}\';\s*renderedTopicId = null;\s*activeTopicId = topicId;/',
             $handler
@@ -182,7 +182,7 @@ class form_lesson_selection_test extends TestCase {
     }
 
     public function test_clearing_the_topic_invalidates_pending_requests(): void {
-        $handler = $this->change_handler_body();
+        $handler = $this->js_function_body('selectTopic');
         $else = substr($handler, strrpos($handler, '} else {'));
         $this->assertStringContainsString('lessonsRequestSeq++;', $else);
         $this->assertStringContainsString("selectedLessonsInput.value = '{}';", $else);
@@ -290,8 +290,8 @@ class form_lesson_selection_test extends TestCase {
         $handler = $this->change_handler_body();
         $guard = strpos($handler, 'if (hasScorm && activeTopicId !== null');
         $this->assertNotFalse($guard);
-        $this->assertLessThan(strpos($handler, 'savedTopicInput.value = topicId;'), $guard);
-        $this->assertLessThan(strpos($handler, 'fetchLessons(topicId)'), $guard);
+        // SKL-678: the state changes live in selectTopic(), which the handler reaches only past the guard.
+        $this->assertLessThan(strpos($handler, 'selectTopic(topicId, {userChange: true});'), $guard);
         $this->assertStringContainsString('String(activeTopicId) === String(currentTopicId)', $handler);
         $this->assertStringContainsString('String(topicId) !== String(currentTopicId)', $handler);
     }
@@ -400,21 +400,28 @@ class form_lesson_selection_test extends TestCase {
         }
     }
 
-    public function test_general_section_hidden_by_toggled_class_not_unconditional_css(): void {
-        // SKL-681: the rule lives in the plugin stylesheet, no longer in an inline <style>.
-        $this->assertStringNotContainsString('#id_general { display: none; }', self::$css);
-        $this->assertStringNotContainsString('#id_general { display: none; }', self::$form);
-        $this->assertStringContainsString('#id_general.skilland-hide-general { display: none; }', self::$css);
+    public function test_general_section_is_visible_with_an_autofill_note(): void {
+        // SKL-678: the section is no longer hidden; it is collapsed on existing activities and says it is auto-filled.
+        $this->assertStringNotContainsString('skilland-hide-general', self::$css);
+        $this->assertStringNotContainsString('skilland-hide-general', self::$js);
+        $this->assertStringNotContainsString('applyGeneralSectionVisibility', self::$js);
+        $this->assertStringContainsString('setExpanded(\'general\', empty($this->_instance))', self::$form);
+        $this->assertStringContainsString("'general_autofill_note'", self::$form);
+        foreach (['en', 'es'] as $lang) {
+            $string = [];
+            include realpath(__DIR__ . '/../../src') . "/lang/$lang/skilland.php";
+            $this->assertArrayHasKey('general_autofill_note', $string, "Missing in $lang");
+        }
     }
 
-    public function test_general_section_visibility_skips_hiding_on_a_name_error(): void {
-        $fn = $this->js_function_body('applyGeneralSectionVisibility');
-        $this->assertStringContainsString("getElementById('id_error_name')", $fn);
-        $this->assertStringContainsString('hasNameError', $fn);
-        $this->assertMatchesRegularExpression('/if \(hasNameError\) \{\s*return;\s*\}/', $fn);
-        $this->assertStringContainsString("classList.add('skilland-hide-general')", $fn);
-        // Only hides once the name has a value; an empty new-activity name stays visible.
-        $this->assertMatchesRegularExpression('/if \(nameField && nameField\.value\) \{\s*generalHeader\.classList\.add/', $fn);
+    public function test_restoring_the_saved_topic_never_rewrites_name_or_description(): void {
+        $restore = $this->js_function_body('selectTopic');
+        $this->assertMatchesRegularExpression('/if \(userChange\) \{\s*updateFormFields\(topic\);/', $restore);
+        $this->assertStringContainsString("selectTopic(String(currentTopicId), {userChange: false});", self::$js);
+        $fields = $this->js_function_body('updateFormFields');
+        $this->assertStringContainsString('nameField.value === lastAutoName', $fields);
+        $this->assertStringNotContainsString("' (' + topic.id + ')'", self::$js);
+        $this->assertStringContainsString('option.title = topic.id;', self::$js);
     }
 
     public function test_topic_fetch_is_a_named_retryable_function(): void {

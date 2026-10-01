@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100201;   // YYYYMMDDHH - local Moodle-core test runner (SKL-984).
+$plugin->version   = 2026100202;   // YYYYMMDDHH - activity name kept on edit, score and status display (SKL-989).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.43-beta';
+$plugin->release   = '0.9.44-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
