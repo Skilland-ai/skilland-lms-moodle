@@ -35,6 +35,12 @@ if (!function_exists('debugging')) {
     }
 }
 
+if (!function_exists('format_float')) {
+    function format_float($float, $decimalpoints = 1, $localize = true, $stripzeros = false) {
+        return number_format((float) $float, (int) $decimalpoints, '.', '');
+    }
+}
+
 if (!function_exists('get_config')) {
     function get_config(string $plugin, ?string $name = null) {
         $config = $GLOBALS['_test_plugin_config'][$plugin] ?? new \stdClass();

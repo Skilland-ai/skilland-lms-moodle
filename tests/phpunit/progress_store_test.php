@@ -153,6 +153,42 @@ class progress_store_test extends TestCase {
         $this->assertStringContainsString('{scorm_scoes_value}', $call['sql']);
     }
 
+    public function test_read_normalises_scorm_12_scores_and_2004_success_status(): void {
+        $this->track(50, 11, 'cmi.core.score.raw', '7');
+        $this->track(50, 11, 'cmi.core.score.max', '10');
+        $this->track(50, 11, 'cmi.core.lesson_status', 'completed');
+        $this->track(50, 12, 'cmi.score.scaled', '0.85');
+        $this->track(50, 12, 'cmi.completion_status', 'completed');
+        $this->track(50, 12, 'cmi.success_status', 'failed');
+        $this->track(51, 11, 'cmi.completion_status', 'completed');
+        $this->track(51, 11, 'cmi.success_status', 'passed');
+        $this->track(51, 12, 'cmi.completion_status', 'completed');
+        $this->track(51, 12, 'cmi.success_status', 'unknown');
+
+        $progress = skilland_read_scorm_progress($this->skilland());
+
+        $this->assertEquals(['status' => 'completed', 'score' => 70.0], $progress[50][1]);
+        $this->assertEquals(['status' => 'failed', 'score' => 85.0], $progress[50][2]);
+        $this->assertSame('passed', $progress[51][1]['status']);
+        $this->assertSame('completed', $progress[51][2]['status']);
+    }
+
+    public function test_normalise_scorm_score_cases(): void {
+        $this->assertEquals(70.0, skilland_normalise_scorm_score(
+            ['cmi.core.score.raw' => '7', 'cmi.core.score.max' => '10'])['score']);
+        $this->assertEquals(85.0, skilland_normalise_scorm_score(['cmi.score.scaled' => '0.85'])['score']);
+        $this->assertEquals(50.0, skilland_normalise_scorm_score(
+            ['cmi.score.raw' => '15', 'cmi.score.min' => '10', 'cmi.score.max' => '20'])['score']);
+        $this->assertEquals(100.0, skilland_normalise_scorm_score(
+            ['cmi.score.raw' => '12', 'cmi.score.max' => '10'])['score']);
+        $this->assertEquals(250.0, skilland_normalise_scorm_score(['cmi.score.raw' => '250'])['score']);
+        $this->assertEquals(7.0, skilland_normalise_scorm_score(
+            ['cmi.score.raw' => '7', 'cmi.score.min' => '10', 'cmi.score.max' => '10'])['score']);
+        $this->assertEquals(7.0, skilland_normalise_scorm_score(
+            ['cmi.score.raw' => '7', 'cmi.score.min' => '10', 'cmi.score.max' => '5'])['score']);
+        $this->assertNull(skilland_normalise_scorm_score(['cmi.score.max' => '10'])['score']);
+    }
+
     public function test_read_filters_on_the_requested_users(): void {
         $this->track(50, 11, 'cmi.core.lesson_status', 'completed');
         $this->track(51, 11, 'cmi.core.lesson_status', 'completed');

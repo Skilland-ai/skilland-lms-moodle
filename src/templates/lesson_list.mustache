@@ -38,6 +38,7 @@
       * completionclass - The card's progress class.
       * icon - The Font Awesome icon of the progress status.
       * statustext - The progress status.
+      * helptext - Why the card is unavailable, empty for a playable lesson.
 
     Example context (json):
     {
@@ -65,7 +66,8 @@
                 "scomissing": true,
                 "completionclass": "skilland-lesson-pending",
                 "icon": "fa-circle-o",
-                "statustext": "Not started"
+                "statustext": "Not yet available",
+                "helptext": "This lesson hasn't been published or synced to Moodle yet."
             }
         ]
     }
@@ -84,7 +86,7 @@
         </a>
         {{/playable}}
         {{^playable}}
-        <div class="skilland-lesson-card skilland-lesson-disabled {{completionclass}}">
+        <div class="skilland-lesson-card skilland-lesson-disabled {{completionclass}}" aria-disabled="true"{{#helptext}} title="{{helptext}}"{{/helptext}}>
             {{> mod_skilland/lesson_card}}
         </div>
         {{/playable}}

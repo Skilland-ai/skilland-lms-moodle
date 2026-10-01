@@ -101,7 +101,9 @@ class lesson_list implements renderable, templatable {
                 userdate($lesson->updatedat, get_string('strftimedateshort'));
         }
         if ($score !== null && $score !== '') {
-            $meta[] = get_string('score', 'mod_skilland') . ': ' . $score . '%';
+            $scorevalue = (float) $score;
+            $meta[] = get_string('score', 'mod_skilland') . ': ' . format_float($scorevalue, 0) .
+                (($scorevalue >= 0 && $scorevalue <= 100) ? '%' : '');
         }
 
         return array_merge(self::status_display($status, $canplay), [
@@ -135,7 +137,10 @@ class lesson_list implements renderable, templatable {
             default:
                 return $canplay
                     ? self::status('skilland-lesson-available', 'fa-play-circle', 'ready_to_start')
-                    : self::status('skilland-lesson-pending', 'fa-circle-o', 'not_started');
+                    : array_merge(
+                        self::status('skilland-lesson-pending', 'fa-circle-o', 'not_yet_available'),
+                        ['helptext' => get_string('not_yet_available_help', 'mod_skilland')]
+                    );
         }
     }
 

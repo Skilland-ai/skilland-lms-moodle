@@ -69,6 +69,26 @@ final class lesson_list_test extends \advanced_testcase {
         $this->assertFalse($second['playable']);
         $this->assertSame('skilland-lesson-pending', $second['completionclass']);
         $this->assertTrue($second['scomissing']);
+        $this->assertSame(get_string('not_yet_available', 'mod_skilland'), $second['statustext']);
+        $this->assertSame(get_string('not_yet_available_help', 'mod_skilland'), $second['helptext']);
+    }
+
+    public function test_score_has_a_percent_sign_only_inside_0_to_100(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $lessons = [10 => (object) ['id' => 10, 'title' => 'First', 'scoid' => 110, 'updatedat' => 0]];
+        foreach ([[70.0, '70%'], [250.0, '250']] as [$score, $text]) {
+            $list = new lesson_list(
+                (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0],
+                $lessons,
+                (object) ['id' => 2],
+                3,
+                [10 => ['status' => 'completed', 'score' => $score]],
+                true
+            );
+            $data = $list->export_for_template($PAGE->get_renderer('mod_skilland'));
+            $this->assertSame(get_string('score', 'mod_skilland') . ': ' . $text, $data['lessons'][0]['meta']);
+        }
     }
 
     public function test_renderer_renders_the_lesson_list_template(): void {
@@ -83,6 +103,7 @@ final class lesson_list_test extends \advanced_testcase {
             'class="skilland-lesson-card skilland-lesson-disabled skilland-lesson-pending"',
             $html
         );
+        $this->assertStringContainsString('aria-disabled="true"', $html);
         $this->assertStringContainsString('<div class="skilland-lesson-number">L3.2</div>', $html);
         $this->assertStringContainsString(get_string('lessons', 'mod_skilland'), $html);
         $this->assertStringContainsString(get_string('lesson_sco_missing', 'mod_skilland'), $html);
