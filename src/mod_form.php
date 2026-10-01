@@ -187,14 +187,17 @@ class mod_skilland_mod_form extends moodleform_mod {
 
         // 2. General settings: collapsed on an existing activity, with a note that the values are auto-filled.
         $mform->addElement('header', 'general', get_string('general', 'form'));
-        if (!empty($this->_instance)) {
-            $mform->setExpanded('general', false);
-        }
+        // Moodle collapses every header but the first, and Skilland's comes first, so new activities opt in.
+        $mform->setExpanded('general', empty($this->_instance));
         $mform->addElement(
             'static',
             'general_autofill_note',
             '',
-            html_writer::div(get_string('general_autofill_note', 'mod_skilland'), 'text-muted', ['data-skilland-general-note' => '1'])
+            html_writer::div(
+                get_string('general_autofill_note', 'mod_skilland'),
+                'text-muted',
+                ['data-skilland-general-note' => '1']
+            )
         );
 
         // Adding the standard "name" field.

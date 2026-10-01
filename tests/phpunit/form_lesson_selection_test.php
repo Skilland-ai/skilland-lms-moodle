@@ -405,7 +405,7 @@ class form_lesson_selection_test extends TestCase {
         $this->assertStringNotContainsString('skilland-hide-general', self::$css);
         $this->assertStringNotContainsString('skilland-hide-general', self::$js);
         $this->assertStringNotContainsString('applyGeneralSectionVisibility', self::$js);
-        $this->assertStringContainsString("setExpanded('general', false)", self::$form);
+        $this->assertStringContainsString('setExpanded(\'general\', empty($this->_instance))', self::$form);
         $this->assertStringContainsString("'general_autofill_note'", self::$form);
         foreach (['en', 'es'] as $lang) {
             $string = [];
