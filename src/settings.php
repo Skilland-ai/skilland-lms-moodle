@@ -64,15 +64,16 @@ if ($ADMIN->fulltree) {
         PARAM_ALPHANUMEXT
     ));
 
-    // Legacy GraphQL endpoint setting (fallback for the REST API).
+    // Skilland URL: the address of the Skilland site, base of the REST API (config key kept from the
+    // GraphQL era; a stored /graphql or /api/moodle suffix is ignored).
     $settings->add(new \mod_skilland\admin_setting_https_url(
         'mod_skilland/graphql_endpoint',
         get_string('settings_graphql_endpoint', 'mod_skilland'),
         get_string('settings_graphql_endpoint_desc', 'mod_skilland'),
-        'https://api.skilland.ai/graphql'
+        'https://app.skilland.ai'
     ));
 
-    // Hosts SCORM packages may be downloaded from, besides the frontend URL and GraphQL endpoint hosts.
+    // Hosts SCORM packages may be downloaded from, besides the Skilland URL and frontend URL hosts.
     $settings->add(new admin_setting_configtext(
         'mod_skilland/package_hosts',
         get_string('settings_package_hosts', 'mod_skilland'),
@@ -101,7 +102,7 @@ if ($ADMIN->fulltree) {
         4
     ));
 
-    // Frontend URL setting (SSO redirects and the base of the REST API).
+    // Optional override of the Skilland URL for SSO redirects, Studio links and the REST API.
     $settings->add(new \mod_skilland\admin_setting_https_url(
         'mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),

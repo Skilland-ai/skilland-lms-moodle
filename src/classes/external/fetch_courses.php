@@ -46,7 +46,7 @@ class fetch_courses extends base {
     }
 
     /**
-     * Fetch courses from Skilland via GraphQL.
+     * Fetch courses (skills of every status) from the Skilland REST API.
      * Non-admin users will only see courses where they are enrolled with editing capability.
      *
      * @param int $moodlecourseid Moodle course ID

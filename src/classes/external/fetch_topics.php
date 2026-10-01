@@ -47,7 +47,7 @@ class fetch_topics extends base {
     }
 
     /**
-     * Fetch topics from Skilland via GraphQL for a given course.
+     * Fetch topics from the Skilland REST API for a given course.
      *
      * @param string $courseid Skilland course ID
      * @param int $moodlecourseid Moodle course ID
@@ -93,9 +93,11 @@ class fetch_topics extends base {
                 ];
             }
 
+            // The topics route carries no skill: the name comes from the skill list, '' when that fails.
             $coursedetails = [
                 'id' => $coursedata['id'],
-                'name' => $coursedata['name'] ?? '',
+                'name' => (string) ($coursedata['name'] ?? '') !== '' ? $coursedata['name'] :
+                    mod_skilland_skill_name((string) $coursedata['id']),
                 'code' => $coursedata['code'] ?? $coursedata['id'], // Fallback to ID if code is missing.
             ];
 

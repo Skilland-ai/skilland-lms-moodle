@@ -38,22 +38,22 @@ class http_api_client implements api_client {
     /**
      * {@inheritDoc}
      *
-     * @param string $query The GraphQL document.
-     * @param array $variables Query variables; an empty array is sent as an empty JSON object.
-     * @return array The decoded `data` member of the response (an empty array when absent).
-     */
-    public function graphql(string $query, array $variables = []): array {
-        return mod_skilland_graphql_http($query, $variables);
-    }
-
-    /**
-     * {@inheritDoc}
-     *
      * @param string $path Route path, e.g. /api/moodle/topics/{id}/scorm-hash.
      * @return array The decoded JSON body.
      */
     public function rest_get(string $path): array {
         return mod_skilland_rest_get_http($path);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @param string $path Route path, e.g. /api/moodle/skills.
+     * @param array $body The JSON body.
+     * @return array The decoded JSON answer.
+     */
+    public function rest_post(string $path, array $body): array {
+        return mod_skilland_rest_post_http($path, $body);
     }
 
     /**

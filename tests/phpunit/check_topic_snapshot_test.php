@@ -154,24 +154,22 @@ class check_topic_snapshot_test extends TestCase {
         $this->assertSame('old-hash', $result['contenthash']);
     }
 
-    public function test_rest_404_falls_back_to_the_graphql_endpoint(): void {
+    public function test_rest_404_reports_unreachable_with_one_request(): void {
         $this->db->get_manager()->set_table_exists('scorm_attempt', false);
         $GLOBALS['_test_curl_responses'] = [
             self::rest(404),
-            ['body' => json_encode(['data' => ['topicScormHash' => self::hash_body('gql-hash')]]), 'http_code' => 200,
-                'errno' => 0, 'error' => ''],
+            ['body' => json_encode(self::hash_body('never-read')), 'http_code' => 200, 'errno' => 0, 'error' => ''],
         ];
 
         $result = $this->execute_clean();
 
-        $this->assertSame('gql-hash', $result['contenthash']);
-        $this->assertSame([
-            'https://localhost:8000/api/moodle/topics/topic-a1/scorm-hash',
-            'https://localhost:8000/graphql',
-        ], $GLOBALS['_test_curl_requests']);
+        $this->assertSame('', $result['contenthash']);
+        $this->assertSame('Could not reach Skilland API', $result['error']);
+        $this->assertSame(['https://localhost:8000/api/moodle/topics/topic-a1/scorm-hash'],
+            $GLOBALS['_test_curl_requests']);
     }
 
-    public function test_rest_401_without_graphql_endpoint_reports_unreachable(): void {
+    public function test_rest_401_with_only_a_frontend_url_reports_unreachable(): void {
         $this->db->get_manager()->set_table_exists('scorm_attempt', false);
         $GLOBALS['_test_plugin_config']['mod_skilland']->graphql_endpoint = '';
         $GLOBALS['_test_plugin_config']['mod_skilland']->frontend_url = 'https://app.skilland.test';

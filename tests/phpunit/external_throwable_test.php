@@ -71,15 +71,17 @@ class external_throwable_test extends TestCase {
     }
 
     /**
-     * Queue $good valid GraphQL answers, then answers whose `data` is a string, so
-     * mod_skilland_graphql() fails its array return type with a TypeError.
+     * Make the API calls inside the try throw an \Error, after a valid topic check when
+     * $topicchecked (fetch_lessons checks the topic belongs to the course before its try).
      */
-    private function forceTypeErrorFromApi(int $good): void {
-        $valid = ['body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill', 'topics' => [
-            ['id' => 'topic-a1', 'name' => 'Topic', 'code' => '', 'description' => ''],
-        ]]]]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
-        $broken = ['body' => '{"data":"not-an-object"}', 'http_code' => 200, 'errno' => 0, 'error' => ''];
-        $GLOBALS['_test_curl_responses'] = array_merge(array_fill(0, $good, $valid), array_fill(0, 3, $broken));
+    private function forceErrorFromApi(bool $topicchecked): void {
+        $fake = \fake_api_client::install()
+            ->respond_rest('skills', new \Error('forced error'))
+            ->respond_rest('contents', new \Error('forced error'))
+            ->respond_post('skills', new \Error('forced error'));
+        $fake->respond_rest('topics', $topicchecked
+            ? ['topics' => [['id' => 'topic-a1', 'name' => 'Topic', 'description' => '']]]
+            : new \Error('forced error'));
     }
 
     /** Make reading the skilland record inside the try throw an \Error. */
@@ -102,11 +104,11 @@ class external_throwable_test extends TestCase {
     private function force(string $force): void {
         switch ($force) {
             case 'api':
-                $this->forceTypeErrorFromApi(0);
+                $this->forceErrorFromApi(false);
                 break;
             case 'api_after_topic_check':
                 // fetch_lessons checks the topic belongs to the course (one API call) before its try.
-                $this->forceTypeErrorFromApi(1);
+                $this->forceErrorFromApi(true);
                 break;
             case 'rest':
                 // The REST transport is type-safe, so the \Error comes from the bound api_client.

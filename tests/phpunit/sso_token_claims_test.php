@@ -53,7 +53,7 @@ class sso_token_claims_test extends TestCase {
         $this->assertSame('https://app.example.com', $claims->aud);
     }
 
-    public function test_audience_from_graphql_endpoint_fallback(): void {
+    public function test_audience_from_the_skilland_url(): void {
         $claims = $this->mint(['frontend_url' => '', 'graphql_endpoint' => 'https://app.example.com/graphql']);
 
         $this->assertSame('https://app.example.com', $claims->aud);

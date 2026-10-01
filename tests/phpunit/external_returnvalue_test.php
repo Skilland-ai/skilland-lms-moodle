@@ -82,15 +82,15 @@ class external_returnvalue_test extends TestCase {
             'error' => 'Failed to connect to localhost port 8000: Connection refused'];
     }
 
-    private static function graphql_errors(): array {
-        return ['body' => json_encode(['errors' => [['message' => 'upstream detail at http://internal:8000',
-            'extensions' => ['code' => 'SOMETHING_ELSE']]]]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+    private static function server_error(): array {
+        return ['body' => json_encode(['error' => 'upstream detail at http://internal:8000']), 'http_code' => 400,
+            'errno' => 0, 'error' => ''];
     }
 
     private static function course_payload(): array {
-        return ['body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill', 'code' => 'SK',
-            'topics' => [['id' => 'topic-a1', 'name' => 'Topic', 'code' => 'T1', 'description' => '<p>Intro</p>']],
-        ]]]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+        return ['body' => json_encode([
+            'topics' => [['id' => 'topic-a1', 'name' => 'Topic', 'description' => '<p>Intro</p>', 'sortOrder' => 0]],
+        ]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 
     private static function returns(string $class): external_description {
@@ -144,7 +144,7 @@ class external_returnvalue_test extends TestCase {
     public static function fetch_topics_failures(): array {
         return [
             'connection failure' => [self::connection_failure()],
-            'graphql errors' => [self::graphql_errors()],
+            'server error' => [self::server_error()],
         ];
     }
 
@@ -169,7 +169,7 @@ class external_returnvalue_test extends TestCase {
         $clean = external_api::clean_returnvalue(self::returns('fetch_topics'), $result);
 
         $this->assertSame('skill-a', $clean['course']['id']);
-        $this->assertSame('SK', $clean['course']['code']);
+        $this->assertSame('skill-a', $clean['course']['code'], 'A skill has no code: the id stands in');
         $this->assertCount(1, $clean['topics']);
         $this->assertSame('topic-a1', $clean['topics'][0]['id']);
         $this->assertNull($clean['error']);

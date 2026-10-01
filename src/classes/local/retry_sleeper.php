@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Injectable pause between GraphQL retries.
+ * Injectable pause between REST retries.
  *
  * @package    mod_skilland
  * @copyright  2024 SkilLand <https://skilland.ai>

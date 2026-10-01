@@ -37,7 +37,7 @@ class course_updated_observer_test extends TestCase {
     }
 
     public function test_pending_path_queues_one_info_notification_and_stays_pending(): void {
-        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills-studio/create/step/skill-1');
+        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills/new?draft=skill-1');
 
         \mod_skilland\observer::course_updated($this->event());
 
@@ -51,11 +51,11 @@ class course_updated_observer_test extends TestCase {
         $this->assertStringContainsString('sesskey=abc123', $notification['message']);
         $this->assertStringNotContainsString('token=', $notification['message']);
 
-        $this->assertSame('/skills-studio/create/step/skill-1', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
+        $this->assertSame('/skills/new?draft=skill-1', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
     }
 
     public function test_no_pending_path_no_notification(): void {
-        mod_skilland_set_pending_studio_path(11, '/skills-studio/create/step/other');
+        mod_skilland_set_pending_studio_path(11, '/skills/new?draft=other');
 
         \mod_skilland\observer::course_updated($this->event());
 
@@ -64,12 +64,12 @@ class course_updated_observer_test extends TestCase {
 
     public function test_plugin_disabled_does_nothing(): void {
         $this->setEnabled(false);
-        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills-studio/create/step/skill-1');
+        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills/new?draft=skill-1');
 
         \mod_skilland\observer::course_updated($this->event());
 
         $this->assertSame([], $GLOBALS['_test_notifications']);
-        $this->assertSame('/skills-studio/create/step/skill-1', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
+        $this->assertSame('/skills/new?draft=skill-1', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
     }
 
     public function test_sso_redirect_consumes_the_pending_path_only_with_pending(): void {

@@ -57,11 +57,12 @@ class di_seams_test extends TestCase {
         $this->assertInstanceOf(class_exists($fixture) ? $fixture : http_api_client::class, $client);
     }
 
-    public function test_graphql_goes_through_the_bound_api_client(): void {
-        $fake = \fake_api_client::install()->respond('Ping', ['pong' => true]);
+    public function test_rest_post_goes_through_the_bound_api_client(): void {
+        $fake = \fake_api_client::install()->respond_post('skills', ['id' => 's1']);
 
-        $this->assertSame(['pong' => true], mod_skilland_graphql('query Ping { pong }', ['a' => 1]));
-        $this->assertSame([['operation' => 'Ping', 'variables' => ['a' => 1]]], $fake->calls);
+        $this->assertSame(['id' => 's1'], mod_skilland_rest_post('/api/moodle/skills', ['name' => 'N']));
+        $this->assertSame([['path' => '/api/moodle/skills', 'body' => ['name' => 'N']]], $fake->restposts);
+        $this->assertSame([], $fake->restcalls);
     }
 
     public function test_download_package_goes_through_the_bound_api_client(): void {
@@ -76,7 +77,7 @@ class di_seams_test extends TestCase {
 
         $this->assertSame(['contentHash' => 'h1', 'hasPackage' => true], mod_skilland_check_topic_snapshot('t1'));
         $this->assertSame(['/api/moodle/topics/t1/scorm-hash'], $fake->restcalls);
-        $this->assertSame([], $fake->calls);
+        $this->assertSame([], $fake->restposts);
     }
 
     public function test_rest_get_goes_through_the_bound_api_client(): void {
@@ -86,7 +87,7 @@ class di_seams_test extends TestCase {
         $this->assertSame(['/api/moodle/topics/t1/scorm'], $fake->restcalls);
     }
 
-    public function test_fixture_client_answers_rest_routes_from_the_graphql_fixtures(): void {
+    public function test_fixture_client_answers_rest_routes_from_the_fixtures(): void {
         $client = new \mod_skilland\local\testing\fixture_api_client();
         // Signing zips the fixture package, which the stub suite cannot do; the real suite covers it.
         $client->sign_with(null);
@@ -97,7 +98,7 @@ class di_seams_test extends TestCase {
 
         $this->assertSame('hash-v1', $hash['contentHash']);
         $this->assertSame(['lesson-1' => 'sco-lesson-1', 'lesson-2' => 'sco-lesson-2'], $scorm['mappings']);
-        $this->assertSame(['TopicScormHash', 'GetTopicScorm'], $client->operations());
+        $this->assertSame(['GET topics/{id}/scorm-hash', 'GET topics/{id}/scorm'], $client->operations());
         $this->assertSame(['/api/moodle/topics/topic%201/scorm-hash', '/api/moodle/topics/topic%201/scorm'],
             array_column($client->calls, 'path'));
         $this->assertSame(['topicId' => 'topic 1'], $client->calls[0]['variables']);
@@ -105,7 +106,7 @@ class di_seams_test extends TestCase {
 
     public function test_fixture_client_null_scorm_is_not_available(): void {
         $client = new \mod_skilland\local\testing\fixture_api_client();
-        $client->set_response('GetTopicScorm', ['topicScorm' => null]);
+        $client->set_response('GET topics/{id}/scorm', []);
         \core\di::set(api_client::class, $client);
 
         try {
@@ -117,7 +118,7 @@ class di_seams_test extends TestCase {
     }
 
     public function test_check_topic_snapshot_returns_null_when_the_api_client_throws(): void {
-        \fake_api_client::install()->respond_rest('scorm-hash', new \moodle_exception('error_graphql_http'));
+        \fake_api_client::install()->respond_rest('scorm-hash', new \mod_skilland\rest_exception('error_graphql_http', 503));
 
         $this->assertNull(mod_skilland_check_topic_snapshot('t1'));
     }

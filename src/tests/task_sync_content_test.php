@@ -81,7 +81,7 @@ final class task_sync_content_test extends skilland_testcase {
         [$course, $skilland, $oldcmid] = $this->provisioned_activity();
         $teacher = $this->enrol($course, 'editingteacher');
         $this->enrol($course, 'student');
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $messages = $this->run_task_collecting_messages();
 
@@ -92,7 +92,7 @@ final class task_sync_content_test extends skilland_testcase {
         $this->assertSame('hash-v2', $record->updateavailable);
         $this->assertNotEmpty($record->lastsynced);
         $this->assertSame([], $this->client->downloads, 'The cron downloads nothing');
-        $this->assertSame(0, $this->client->count_calls('GetTopicScorm'));
+        $this->assertSame(0, $this->client->count_calls('GET topics/{id}/scorm'));
 
         // Only the course's teacher is told; the student is not.
         $this->assertCount(1, $messages);
@@ -108,7 +108,7 @@ final class task_sync_content_test extends skilland_testcase {
 
         [$course, $skilland] = $this->provisioned_activity();
         $this->enrol($course, 'editingteacher');
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $first = $this->run_task_collecting_messages();
         $DB->set_field('skilland', 'lastsynced', 0, ['id' => $skilland->id]);
@@ -119,7 +119,7 @@ final class task_sync_content_test extends skilland_testcase {
 
         // A newer version is announced again.
         $DB->set_field('skilland', 'lastsynced', 0, ['id' => $skilland->id]);
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v3']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v3']);
         $this->assertCount(1, $this->run_task_collecting_messages());
         $this->assertSame('hash-v3', $DB->get_field('skilland', 'updateavailable', ['id' => $skilland->id]));
     }
@@ -128,7 +128,7 @@ final class task_sync_content_test extends skilland_testcase {
         global $DB;
 
         [$course, $skilland, $oldcmid] = $this->provisioned_activity();
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
         $this->run_task();
 
         $newcmid = $this->update($DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST));
@@ -144,7 +144,7 @@ final class task_sync_content_test extends skilland_testcase {
         global $DB;
 
         [$course, $skilland, $cmid] = $this->provisioned_activity(['autoupdate' => 0]);
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $this->run_task();
 
@@ -163,7 +163,7 @@ final class task_sync_content_test extends skilland_testcase {
 
         $this->run_task();
 
-        $this->assertSame(['TopicScormHash'], $this->client->operations());
+        $this->assertSame(['GET topics/{id}/scorm-hash'], $this->client->operations());
         $this->assertSame([], $this->client->downloads);
         $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
         $this->assertEquals($cmid, $record->scormcmid);
@@ -175,7 +175,7 @@ final class task_sync_content_test extends skilland_testcase {
         global $DB;
 
         [$course, $skilland, $cmid] = $this->provisioned_activity();
-        $this->client->set_response('TopicScormHash', new \moodle_exception('error_api_unavailable', 'mod_skilland'));
+        $this->client->set_response('GET topics/{id}/scorm-hash', new \moodle_exception('error_api_unavailable', 'mod_skilland'));
 
         $this->run_task();
 
@@ -203,13 +203,13 @@ final class task_sync_content_test extends skilland_testcase {
      * A topic without a ready SCORM package is skipped by the sync task.
      *
      * @dataProvider unbuildable_snapshot_provider
-     * @param array $snapshot TopicScormHash fields.
+     * @param array $snapshot scorm-hash fields.
      */
     public function test_a_topic_without_a_ready_package_is_skipped(array $snapshot): void {
         global $DB;
 
         [, $skilland, $cmid] = $this->provisioned_activity();
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', $snapshot);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', $snapshot);
 
         $this->run_task();
 
@@ -222,7 +222,7 @@ final class task_sync_content_test extends skilland_testcase {
 
         [, $skilland] = $this->provisioned_activity();
         $DB->set_field('skilland', 'lastsynced', time() - 60, ['id' => $skilland->id]);
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $this->run_task();
 
@@ -243,7 +243,7 @@ final class task_sync_content_test extends skilland_testcase {
         );
         scorm_insert_track($student->id, $scormid, $scoid, 1, 'cmi.core.lesson_status', 'incomplete');
         $this->take_debugging();
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $this->run_task();
 
@@ -254,7 +254,7 @@ final class task_sync_content_test extends skilland_testcase {
     public function test_an_unconfigured_plugin_never_calls_the_api(): void {
         [, , $cmid] = $this->provisioned_activity();
         set_config('apikey', '', 'mod_skilland');
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $this->run_task();
 

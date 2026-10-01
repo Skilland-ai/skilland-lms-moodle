@@ -250,15 +250,22 @@ class privacy_provider_test extends TestCase {
         }
     }
 
-    public function test_every_graphql_user_email_variable_is_declared_as_email(): void {
+    public function test_every_rest_user_email_field_is_declared_as_email(): void {
         $src = realpath(__DIR__ . '/../../src');
         $files = array_merge(glob("$src/*.php"), glob("$src/classes/*.php"), glob("$src/classes/*/*.php"));
         $found = 0;
         foreach ($files as $file) {
             $found += preg_match_all("/'userEmail'\s*=>/", file_get_contents($file));
         }
-        $this->assertGreaterThan(0, $found, 'Expected the userEmail GraphQL variable to be sent');
+        $this->assertGreaterThan(0, $found, 'Expected the userEmail REST field to be sent');
         $this->assertContains('email', array_keys($this->metadata()['external_location:skilland']['fields']));
+    }
+
+    public function test_the_moodle_user_id_sent_on_course_creation_is_declared_as_userid(): void {
+        $source = file_get_contents(__DIR__ . '/../../src/locallib.php');
+        $this->assertMatchesRegularExpression("/\\\$body\\['moodleUserId'\\]\\s*=/", $source,
+            'Expected mod_skilland_create_course() to send moodleUserId');
+        $this->assertContains('userid', array_keys($this->metadata()['external_location:skilland']['fields']));
     }
 
     // ---------------------------------------------------------------

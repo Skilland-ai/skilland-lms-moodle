@@ -33,16 +33,28 @@ class locallib_sso_test extends TestCase {
         $this->assertSame('https://app.skilland.com', skilland_get_frontend_url());
     }
 
-    public function test_frontend_url_falls_back_to_graphql_endpoint_minus_graphql(): void {
+    public function test_frontend_url_falls_back_to_the_skilland_url(): void {
+        $this->config(['frontend_url' => '', 'graphql_endpoint' => 'https://app.example.com:8000/']);
+
+        $this->assertSame('https://app.example.com:8000', skilland_get_frontend_url());
+    }
+
+    public function test_frontend_url_falls_back_to_a_legacy_skilland_url_minus_graphql(): void {
         $this->config(['frontend_url' => '', 'graphql_endpoint' => 'https://api.example.com:8000/graphql']);
 
         $this->assertSame('https://api.example.com:8000', skilland_get_frontend_url());
     }
 
+    public function test_frontend_url_override_is_normalised_too(): void {
+        $this->config(['frontend_url' => ' https://app.example.com/api/moodle/ ', 'graphql_endpoint' => 'https://x.test']);
+
+        $this->assertSame('https://app.example.com', skilland_get_frontend_url());
+    }
+
     public function test_frontend_url_falls_back_to_hardcoded_default(): void {
         $this->config(['frontend_url' => '', 'graphql_endpoint' => '']);
 
-        $this->assertSame('https://api.skilland.com', skilland_get_frontend_url());
+        $this->assertSame('https://app.skilland.ai', skilland_get_frontend_url());
     }
 
     // ---------------------------------------------------------------
@@ -58,7 +70,7 @@ class locallib_sso_test extends TestCase {
         $this->assertStringNotContainsString('?', $endpoint);
     }
 
-    public function test_sso_endpoint_from_graphql_fallback(): void {
+    public function test_sso_endpoint_from_the_skilland_url(): void {
         $this->config(['frontend_url' => '', 'graphql_endpoint' => 'https://api.example.com/graphql']);
 
         $this->assertSame('https://api.example.com/sso-login', skilland_get_sso_endpoint());
@@ -86,7 +98,7 @@ class locallib_sso_test extends TestCase {
         $this->assertSame('https://app.example.com:8443', skilland_get_sso_audience());
     }
 
-    public function test_audience_from_graphql_fallback(): void {
+    public function test_audience_from_the_skilland_url(): void {
         $this->config(['frontend_url' => '', 'graphql_endpoint' => 'https://api.example.com/graphql']);
 
         $this->assertSame('https://api.example.com', skilland_get_sso_audience());
@@ -110,11 +122,11 @@ class locallib_sso_test extends TestCase {
     public function test_form_carries_token_and_redirect_as_hidden_fields(): void {
         $this->config(['frontend_url' => 'https://app.skilland.com']);
 
-        $html = skilland_render_sso_post_form('abc123', '/skills-studio/s1/topics/t1');
+        $html = skilland_render_sso_post_form('abc123', '/skills/s1?topic=t1');
 
         $this->assertStringContainsString('<input type="hidden" name="token" value="abc123">', $html);
         $this->assertStringContainsString(
-            '<input type="hidden" name="redirect" value="/skills-studio/s1/topics/t1">', $html);
+            '<input type="hidden" name="redirect" value="/skills/s1?topic=t1">', $html);
     }
 
     public function test_form_escapes_token_and_redirect(): void {

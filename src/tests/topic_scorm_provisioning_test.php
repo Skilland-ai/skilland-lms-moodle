@@ -66,9 +66,9 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
             $this->assertEquals($scoes['sco-' . $lessonid], $lesson->scoid);
         }
 
-        $this->assertSame(1, $this->client->count_calls('GetTopicScorm'));
-        $this->assertSame(1, $this->client->count_calls('TopicScormHash'));
-        // Both lookups went through the REST routes, not the legacy GraphQL queries.
+        $this->assertSame(1, $this->client->count_calls('GET topics/{id}/scorm'));
+        $this->assertSame(1, $this->client->count_calls('GET topics/{id}/scorm-hash'));
+        // Both lookups went through the topic REST routes.
         $paths = array_column($this->client->calls, 'path');
         $this->assertCount(2, $paths);
         foreach ($paths as $path) {
@@ -115,7 +115,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
 
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
-        $this->client->merge_response('GetTopicScorm', 'topicScorm', ['mappings' => [
+        $this->client->merge_response('GET topics/{id}/scorm', ['mappings' => [
             ['lessonId' => 'lesson-1', 'scoId' => 'sco-lesson-1'],
             ['lessonId' => 'lesson-2', 'scoId' => 'sco-not-in-package'],
         ]]);
@@ -159,7 +159,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
     public function test_provision_rejects_a_package_whose_hash_does_not_match(): void {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
-        $this->client->merge_response('GetTopicScorm', 'topicScorm', ['packageHash' => 'sha256:' . str_repeat('0', 64)]);
+        $this->client->merge_response('GET topics/{id}/scorm', ['packageHash' => 'sha256:' . str_repeat('0', 64)]);
 
         try {
             $this->provision($skilland);
@@ -233,7 +233,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $path = fixture_api_client::build_package(fixture_api_client::fixtures_dir() . '/scorm');
         $tamperedhash = hash('sha256', $tamper((string) file_get_contents($path)));
         @unlink($path);
-        $this->client->merge_response('GetTopicScorm', 'topicScorm', ['packageHash' => $tamperedhash]);
+        $this->client->merge_response('GET topics/{id}/scorm', ['packageHash' => $tamperedhash]);
 
         $this->assert_provision_refused($skilland, 'error_scorm_signature_invalid');
     }
@@ -283,7 +283,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
     public function test_a_malformed_signature_is_refused(): void {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
-        $this->client->merge_response('GetTopicScorm', 'topicScorm', ['signature' => 'not*base64',
+        $this->client->merge_response('GET topics/{id}/scorm', ['signature' => 'not*base64',
             'keyId' => fixture_api_client::FIXTURE_KEY_ID]);
 
         $this->assert_provision_refused($skilland, 'error_scorm_signature_malformed');
@@ -293,46 +293,30 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course, ['skilland_topicid' => 'topic-2']);
         $client = $this->client;
-        $client->set_response('GetTopicScorm', function () use ($client): array {
-            $body = fixture_api_client::default_responses()['GetTopicScorm']['topicScorm'];
+        $client->set_response('GET topics/{id}/scorm', function () use ($client): array {
+            $body = fixture_api_client::default_responses()['GET topics/{id}/scorm'];
             // A genuine signature, but for topic-1's package.
-            return ['topicScorm' => fixture_api_client::sign_scorm(
+            return fixture_api_client::sign_scorm(
                 'topic-1',
                 $body,
                 $client->package_hash(),
                 fixture_api_client::FIXTURE_KEY_ID,
                 sodium_crypto_sign_secretkey(fixture_api_client::fixture_keypair())
-            )];
+            );
         });
 
         $this->assert_provision_refused($skilland, 'error_scorm_signature_invalid');
     }
 
-    public function test_a_package_reached_through_the_graphql_fallback_is_refused(): void {
+    public function test_a_missing_scorm_route_fails_without_any_second_lookup(): void {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
-        // The REST route is gone (404), so the legacy GraphQL topicScorm answers: it is never signed.
-        $client = new class extends fixture_api_client {
-            /**
-             * Fail the scorm route with a 404, answer the others from the fixtures.
-             *
-             * @param string $path Route path.
-             * @return array
-             */
-            public function rest_get(string $path): array {
-                if (str_ends_with($path, '/scorm')) {
-                    $this->calls[] = ['operation' => 'rest-scorm', 'variables' => [], 'path' => $path];
-                    throw new rest_exception('error_scorm_fetch_failed', 404);
-                }
-                return parent::rest_get($path);
-            }
-        };
-        \core\di::set(local\api_client::class, $client);
-        $this->client = $client;
+        // A SkilLand server without the topic scorm route answers 404: nothing else is asked.
+        $this->client->set_response('GET topics/{id}/scorm', new rest_exception('error_graphql_http', 404));
 
-        $this->assert_provision_refused($skilland, 'error_scorm_signature_missing');
-        $this->assertSame(1, $client->count_calls('GetTopicScorm'), 'The GraphQL fallback answered');
-        $this->assertSame([], $client->downloads);
+        $this->assert_provision_refused($skilland, 'error_config_missing_topicid');
+        $this->assertSame(1, $this->client->count_calls('GET topics/{id}/scorm'));
+        $this->assertSame([], $this->client->downloads);
     }
 
     public function test_a_successful_update_clears_the_update_notice(): void {
@@ -342,7 +326,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $skilland = $this->create_activity($course);
         $this->provision($skilland);
         $DB->set_field('skilland', 'updateavailable', 'hash-v2', ['id' => $skilland->id]);
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $this->update($skilland);
 
@@ -358,7 +342,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $skilland = $this->create_activity($course);
         $oldcmid = $this->provision($skilland);
         $oldscormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $oldcmid]);
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
 
         $sink = $this->redirectEvents();
         $newcmid = $this->update($skilland);
@@ -448,7 +432,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         );
         $this->take_debugging();
 
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
         if ($failure === 'download') {
             $this->client->fail_download(new \moodle_exception('error_scorm_download_failed', 'mod_skilland'));
         } else if ($failure === 'tamper') {
@@ -456,11 +440,11 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         } else if ($failure === 'unsigned') {
             $this->client->sign_with(null);
         } else if ($failure === 'mapping') {
-            $this->client->merge_response('GetTopicScorm', 'topicScorm', ['mappings' => [
+            $this->client->merge_response('GET topics/{id}/scorm', ['mappings' => [
                 ['lessonId' => 'lesson-1', 'scoId' => 'sco-gone'],
             ]]);
         } else {
-            $this->client->set_response('GetTopicScorm', ['topicScorm' => null]);
+            $this->client->set_response('GET topics/{id}/scorm', []);
         }
 
         try {

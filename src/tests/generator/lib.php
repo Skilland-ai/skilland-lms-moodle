@@ -226,9 +226,12 @@ class mod_skilland_generator extends testing_module_generator {
      * @return string JSON lesson map.
      */
     public static function fixture_lessons_json(): string {
-        $lessons = fixture_api_client::default_responses()['GetTopicLessons']['topic']['lessons'];
+        $contents = fixture_api_client::default_responses()['GET topics/{id}/contents']['contents'];
         $selected = [];
-        foreach ($lessons as $lesson) {
+        foreach ($contents as $lesson) {
+            if ($lesson['type'] !== 'lesson') {
+                continue;
+            }
             $selected[$lesson['id']] = ['name' => $lesson['name'], 'updatedAt' => $lesson['updatedAt']];
         }
         return json_encode($selected);

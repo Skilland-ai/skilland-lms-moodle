@@ -67,8 +67,8 @@ class package_signature {
     /**
      * Refuse a package response that carries no signature, before anything is downloaded.
      *
-     * The legacy GraphQL topicScorm answer never carries one, so a package reached through it
-     * always stops here.
+     * A SkilLand server that predates package signing never sends one, so its packages always
+     * stop here.
      *
      * @param array $response The normalised topic SCORM response.
      * @throws \moodle_exception error_scorm_signature_missing

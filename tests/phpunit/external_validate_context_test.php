@@ -82,11 +82,12 @@ class external_validate_context_test extends TestCase {
             'section' => 12];
     }
 
-    /** A GraphQL answer that serves as the course/topics payload for every query. */
+    /** A REST answer that serves as the skills/topics payload for every query. */
     private function queueResponses(int $count = 3): void {
-        $body = json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill', 'topics' => [
-            ['id' => 'topic-a1', 'name' => 'Topic', 'code' => '', 'description' => ''],
-        ]]]]);
+        $body = json_encode([
+            'skills' => [['id' => 'skill-a', 'name' => 'Skill', 'status' => 'Published']],
+            'topics' => [['id' => 'topic-a1', 'name' => 'Topic', 'description' => '']],
+        ]);
         $GLOBALS['_test_curl_responses'] = array_fill(0, $count,
             ['body' => $body, 'http_code' => 200, 'errno' => 0, 'error' => '']);
     }

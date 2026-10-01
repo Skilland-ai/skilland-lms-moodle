@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-use mod_skilland\graphql_exception;
 use mod_skilland\local\package_signature;
 use mod_skilland\logger;
 use mod_skilland\rest_exception;
@@ -421,175 +420,22 @@ function skilland_lessons_outside_topic(string $json, array $topiclessons): arra
     return $outside;
 }
 
-/**
- * Execute a GraphQL query against Skilland through the injectable api_client (\core\di).
- *
- * @param string $query The GraphQL query string
- * @param array $variables Optional variables for the query
- * @return array The decoded JSON response data
- * @throws moodle_exception If configuration is missing or API call fails
- */
-function mod_skilland_graphql(string $query, array $variables = []): array {
-    return \core\di::get(\mod_skilland\local\api_client::class)->graphql($query, $variables);
-}
+/** Address used when neither the Skilland URL nor the frontend URL setting is set. */
+const MOD_SKILLAND_DEFAULT_URL = 'https://app.skilland.ai';
 
 /**
- * Execute a GraphQL query against Skilland's GraphQL endpoint over HTTPS (http_api_client).
+ * The Skilland URL setting (mod_skilland/graphql_endpoint), normalised to the site's base URL.
  *
- * @param string $query The GraphQL query string
- * @param array $variables Optional variables for the query
- * @return array The decoded JSON response data
- * @throws moodle_exception If configuration is missing or API call fails
+ * @return string Base URL without a trailing slash, '' when the setting is empty.
  */
-function mod_skilland_graphql_http(string $query, array $variables = []): array {
-    global $CFG;
-
-    // Ensure curl class is available.
-    require_once($CFG->libdir . '/filelib.php');
-
-    // Get configuration.
-    $config = get_config('mod_skilland');
-    $orgid = $config->orgid ?? '';
-    $apikey = $config->apikey ?? '';
-    $endpoint = $config->graphql_endpoint ?? '';
-
-    logger::debug('GraphQL', 'Starting request to ' . mod_skilland_redact_url($endpoint));
-    logger::debug('GraphQL', 'Org ID: ' . ($orgid ? 'SET' : 'MISSING'));
-    logger::debug('GraphQL', 'API Key: ' . ($apikey ? 'SET' : 'MISSING'));
-
-    // Validate configuration.
-    if (empty($orgid)) {
-        logger::error('GraphQL', 'Missing orgid');
-        throw new moodle_exception('error_config_missing_orgid', 'mod_skilland');
-    }
-    if (empty($apikey)) {
-        logger::error('GraphQL', 'Missing apikey');
-        throw new moodle_exception('error_config_missing_apikey', 'mod_skilland');
-    }
-    if (empty($endpoint)) {
-        logger::error('GraphQL', 'Missing endpoint');
-        throw new moodle_exception('error_config_missing_endpoint', 'mod_skilland');
-    }
-
-    mod_skilland_require_https($endpoint, 'endpoint');
-
-    // Build JSON payload.
-    // Ensure variables is always an object (associative array in PHP), not an array.
-    // If variables is an empty array, convert to empty object for JSON encoding.
-    if (empty($variables)) {
-        $variables = new \stdClass(); // Empty object.
-    }
-    $payload = [
-        'query' => $query,
-        'variables' => $variables,
-    ];
-    $jsonpayload = json_encode($payload);
-    logger::debug('GraphQL', 'Variables: ' . implode(', ', array_keys((array) $variables)));
-
-    $headers = [
-        'Content-Type: application/json',
-        'X-Skilland-Org-Id: ' . $orgid,
-        'X-Skilland-Api-Key: ' . $apikey,
-    ];
-    logger::debug('GraphQL', 'Payload length: ' . strlen($jsonpayload));
-
-    // Read queries are retried on transient failures; mutations never are, so a write that
-    // may have reached the server is not repeated.
-    $retryable = !mod_skilland_graphql_is_mutation($query);
-    $operation = mod_skilland_graphql_operation_name($query);
-    $started = microtime(true);
-
-    for ($attempt = 1;; $attempt++) {
-        $curl = mod_skilland_make_curl($endpoint);
-        $curl->setopt([
-            'CURLOPT_CONNECTTIMEOUT' => 10,
-            'CURLOPT_TIMEOUT' => 30,
-        ]);
-        $curl->setHeader($headers);
-        logger::debug('GraphQL', 'Making POST request to ' . mod_skilland_redact_url($endpoint) .
-            ' (attempt ' . $attempt . '/' . MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS . ')');
-
-        try {
-            $response = (string) $curl->post($endpoint, $jsonpayload);
-            logger::debug('GraphQL', 'Response received, length: ' . strlen($response));
-        } catch (Exception $e) {
-            logger::error('GraphQL', 'Exception during POST: ' . $e->getMessage());
-            throw $e;
-        }
-
-        $info = $curl->get_info();
-        $httpcode = isset($info['http_code']) ? (int)$info['http_code'] : 0;
-        $errno = (int) $curl->get_errno();
-        // Try both property and method access for error message.
-        $curlerror = method_exists($curl, 'error') ? $curl->error() : ($curl->error ?? 'Unknown error');
-
-        logger::debug('GraphQL', 'HTTP code: ' . $httpcode);
-        logger::debug('GraphQL', 'CURL errno: ' . $errno);
-        logger::debug('GraphQL', 'CURL error: ' . $curlerror);
-
-        if ($httpcode >= 300 && $httpcode < 400) {
-            logger::error('GraphQL', 'Refusing redirect (HTTP ' . $httpcode . ') from ' .
-                mod_skilland_redact_url($endpoint));
-            throw new moodle_exception('error_http_redirect', 'mod_skilland', '', $httpcode);
-        }
-
-        if ($httpcode >= 200 && $httpcode < 300) {
-            break;
-        }
-
-        $decoded = null;
-        if ($httpcode >= 400 && trim($response) !== '') {
-            $decoded = json_decode($response, true);
-            if (!is_array($decoded)) {
-                $decoded = null;
-            }
-        }
-
-        if (
-            $retryable && $attempt < MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS &&
-                mod_skilland_is_transient($httpcode, $errno, $decoded)
-        ) {
-            $retryafter = null;
-            if ($httpcode === 429 || $httpcode === 503) {
-                $retryafter = mod_skilland_response_header($curl, 'Retry-After');
-            }
-            $delay = mod_skilland_retry_delay_ms($attempt, $retryafter);
-            $elapsedms = (int) round((microtime(true) - $started) * 1000);
-            if ($elapsedms + $delay < MOD_SKILLAND_GRAPHQL_RETRY_BUDGET_MS) {
-                $reason = $httpcode === 0 ? 'connection error ' . $errno : 'HTTP ' . $httpcode;
-                logger::warn('GraphQL', 'Retrying ' . $operation . ' after ' . $reason . ' (attempt ' .
-                    ($attempt + 1) . '/' . MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS . ')');
-                mod_skilland_retry_sleep($delay);
-                continue;
-            }
-        }
-
-        mod_skilland_graphql_http_failure($endpoint, $httpcode, $errno, (string) $curlerror, $response, $decoded);
-    }
-
-    // Decode JSON response.
-    $data = json_decode($response, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new moodle_exception('error_graphql_invalid_json', 'mod_skilland');
-    }
-
-    // Check for GraphQL errors.
-    $error = mod_skilland_first_graphql_error(is_array($data) ? ($data['errors'] ?? null) : null);
-    if ($error !== null) {
-        mod_skilland_map_graphql_error($error);
-    }
-
-    // Return data.
-    return $data['data'] ?? [];
+function mod_skilland_get_skilland_url(): string {
+    return \mod_skilland\local\skilland_url::normalise((string) get_config('mod_skilland', 'graphql_endpoint'));
 }
-
-/** HTTP statuses of a failed REST call after which a legacy GraphQL fallback is tried (0 = no response). */
-const MOD_SKILLAND_REST_FALLBACK_STATUSES = [0, 401, 403, 404];
 
 /**
  * GET a SkilLand REST route through the injectable api_client (\core\di).
  *
- * @param string $path Route path below the frontend URL, e.g. /api/moodle/topics/{id}/scorm-hash.
+ * @param string $path Route path below the Skilland URL, e.g. /api/moodle/topics/{id}/scorm-hash.
  * @return array The decoded JSON body.
  * @throws moodle_exception If configuration is missing or the call fails.
  * @throws rest_exception When the server answers a non-2xx status or cannot be reached.
@@ -599,36 +445,61 @@ function mod_skilland_rest_get(string $path): array {
 }
 
 /**
- * GET a SkilLand REST route over HTTPS (http_api_client).
+ * POST a JSON body to a SkilLand REST route through the injectable api_client (\core\di).
  *
- * The base URL is the frontend URL (skilland_get_frontend_url()) and the API key travels as a
- * Bearer token. Transient failures are retried like GraphQL read queries; redirects are refused.
- * Neither the API key nor a query string ever reaches the log.
- *
- * @param string $path Route path below the frontend URL, e.g. /api/moodle/topics/{id}/scorm-hash.
- * @return array The decoded JSON body.
- * @throws moodle_exception error_config_missing_apikey, error_insecure_url or error_http_redirect.
- * @throws rest_exception error_graphql_http on a non-2xx status or a transport failure (httpcode 0),
- *     error_graphql_invalid_json when a 2xx body is not a JSON object or array.
+ * @param string $path Route path below the Skilland URL, e.g. /api/moodle/skills.
+ * @param array $body The JSON body.
+ * @return array The decoded JSON answer.
+ * @throws moodle_exception If configuration is missing or the call fails.
+ * @throws rest_exception When the server answers a non-2xx status or cannot be reached.
  */
-function mod_skilland_rest_get_http(string $path): array {
+function mod_skilland_rest_post(string $path, array $body): array {
+    return \core\di::get(\mod_skilland\local\api_client::class)->rest_post($path, $body);
+}
+
+/**
+ * Check the API key and build the absolute URL of a REST route (http_api_client).
+ *
+ * @param string $path Route path below the Skilland URL.
+ * @return array{0: string, 1: string} The URL and the API key.
+ * @throws moodle_exception error_config_missing_apikey or error_insecure_url.
+ */
+function mod_skilland_rest_prepare(string $path): array {
     global $CFG;
 
     require_once($CFG->libdir . '/filelib.php');
 
     $apikey = (string) (get_config('mod_skilland', 'apikey') ?? '');
     $url = skilland_get_frontend_url() . '/' . ltrim($path, '/');
-    $safeurl = mod_skilland_redact_url($url);
 
-    logger::debug('REST', 'Starting GET ' . $safeurl);
     logger::debug('REST', 'API Key: ' . ($apikey !== '' ? 'SET' : 'MISSING'));
-
     if ($apikey === '') {
         logger::error('REST', 'Missing apikey');
         throw new moodle_exception('error_config_missing_apikey', 'mod_skilland');
     }
 
     mod_skilland_require_https($url, 'frontend');
+
+    return [$url, $apikey];
+}
+
+/**
+ * GET a SkilLand REST route over HTTPS (http_api_client).
+ *
+ * The base URL is the frontend URL (skilland_get_frontend_url()) and the API key travels as a
+ * Bearer token. Transient failures are retried; redirects are refused. Neither the API key nor a
+ * query string (which may carry an email) ever reaches the log.
+ *
+ * @param string $path Route path below the Skilland URL, e.g. /api/moodle/topics/{id}/scorm-hash.
+ * @return array The decoded JSON body.
+ * @throws moodle_exception error_config_missing_apikey, error_insecure_url or error_http_redirect.
+ * @throws rest_exception error_graphql_http on a non-2xx status or a transport failure (httpcode 0),
+ *     error_graphql_invalid_json when a 2xx body is not a JSON object or array.
+ */
+function mod_skilland_rest_get_http(string $path): array {
+    [$url, $apikey] = mod_skilland_rest_prepare($path);
+    $safeurl = mod_skilland_redact_url($url);
+    logger::debug('REST', 'Starting GET ' . $safeurl);
 
     $headers = [
         'Accept: application/json',
@@ -644,7 +515,7 @@ function mod_skilland_rest_get_http(string $path): array {
         ]);
         $curl->setHeader($headers);
         logger::debug('REST', 'Making GET request to ' . $safeurl . ' (attempt ' . $attempt . '/' .
-            MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS . ')');
+            MOD_SKILLAND_REST_MAX_ATTEMPTS . ')');
 
         try {
             $response = (string) $curl->get($url);
@@ -669,68 +540,159 @@ function mod_skilland_rest_get_http(string $path): array {
             break;
         }
 
-        if ($attempt < MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS && mod_skilland_is_transient($httpcode, $errno, null)) {
+        if ($attempt < MOD_SKILLAND_REST_MAX_ATTEMPTS && mod_skilland_is_transient($httpcode, $errno)) {
             $retryafter = null;
             if ($httpcode === 429 || $httpcode === 503) {
                 $retryafter = mod_skilland_response_header($curl, 'Retry-After');
             }
             $delay = mod_skilland_retry_delay_ms($attempt, $retryafter);
             $elapsedms = (int) round((microtime(true) - $started) * 1000);
-            if ($elapsedms + $delay < MOD_SKILLAND_GRAPHQL_RETRY_BUDGET_MS) {
+            if ($elapsedms + $delay < MOD_SKILLAND_REST_RETRY_BUDGET_MS) {
                 $reason = $httpcode === 0 ? 'connection error ' . $errno : 'HTTP ' . $httpcode;
                 logger::warn('REST', 'Retrying GET ' . $safeurl . ' after ' . $reason . ' (attempt ' .
-                    ($attempt + 1) . '/' . MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS . ')');
+                    ($attempt + 1) . '/' . MOD_SKILLAND_REST_MAX_ATTEMPTS . ')');
                 mod_skilland_retry_sleep($delay);
                 continue;
             }
         }
 
-        if ($httpcode === 0 || $errno) {
-            $details = $errno ? ' (errno: ' . $errno . ')' : '';
-            if ($curlerror !== '' && $curlerror !== 'Unknown error') {
-                $details .= ' ' . $curlerror;
-            }
-            logger::error('REST', 'Connection to SkilLand at ' . $safeurl . ' failed: HTTP ' . $httpcode . $details);
-            throw new rest_exception('error_graphql_http', 0, 'HTTP 0');
-        }
-
-        logger::error('REST', 'HTTP error ' . $httpcode . ' from SkilLand at ' . $safeurl);
-        if (trim($response) !== '') {
-            logger::debug('REST', 'Response body: ' . substr($response, 0, 200));
-        }
-        throw new rest_exception('error_graphql_http', $httpcode, 'HTTP ' . $httpcode);
+        mod_skilland_rest_failure('GET', $url, $httpcode, $errno, $curlerror, $response);
     }
 
+    return mod_skilland_rest_decode($response, $httpcode, $safeurl);
+}
+
+/**
+ * POST a JSON body to a SkilLand REST route over HTTPS (http_api_client).
+ *
+ * Same base URL, Bearer key and redirect refusal as mod_skilland_rest_get_http(), but a POST is
+ * sent exactly once: a write that may have reached the server is never repeated.
+ *
+ * @param string $path Route path below the Skilland URL, e.g. /api/moodle/skills.
+ * @param array $body The JSON body; an empty array is sent as an empty object.
+ * @return array The decoded JSON answer.
+ * @throws moodle_exception error_config_missing_apikey, error_insecure_url or error_http_redirect.
+ * @throws rest_exception error_graphql_http on a non-2xx status or a transport failure (httpcode 0),
+ *     carrying the answer's `error` code in $apierror; error_graphql_invalid_json when a 2xx body
+ *     is not a JSON object or array.
+ */
+function mod_skilland_rest_post_http(string $path, array $body): array {
+    [$url, $apikey] = mod_skilland_rest_prepare($path);
+    $safeurl = mod_skilland_redact_url($url);
+    logger::debug('REST', 'Starting POST ' . $safeurl . ' with fields ' . implode(', ', array_keys($body)));
+
+    $curl = mod_skilland_make_curl($url);
+    $curl->setopt([
+        'CURLOPT_CONNECTTIMEOUT' => 10,
+        'CURLOPT_TIMEOUT' => 30,
+    ]);
+    $curl->setHeader([
+        'Accept: application/json',
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $apikey,
+    ]);
+
+    try {
+        $response = (string) $curl->post($url, json_encode($body === [] ? new \stdClass() : $body));
+    } catch (Exception $e) {
+        logger::error('REST', 'Exception during POST ' . $safeurl . ': ' . get_class($e));
+        throw $e;
+    }
+
+    $info = $curl->get_info();
+    $httpcode = isset($info['http_code']) ? (int) $info['http_code'] : 0;
+    $errno = (int) $curl->get_errno();
+    $curlerror = method_exists($curl, 'error') ? (string) $curl->error() : '';
+
+    logger::debug('REST', 'HTTP code: ' . $httpcode . ', CURL errno: ' . $errno);
+
+    if ($httpcode >= 300 && $httpcode < 400) {
+        logger::error('REST', 'Refusing redirect (HTTP ' . $httpcode . ') from ' . $safeurl);
+        throw new moodle_exception('error_http_redirect', 'mod_skilland', '', $httpcode);
+    }
+
+    if ($httpcode < 200 || $httpcode >= 300 || $errno) {
+        mod_skilland_rest_failure('POST', $url, $httpcode, $errno, $curlerror, $response);
+    }
+
+    return mod_skilland_rest_decode($response, $httpcode, $safeurl);
+}
+
+/**
+ * Log a failed REST call and throw its rest_exception.
+ *
+ * The URL (without its query string), curl details and a body snippet go to the log, never into
+ * the exception, which carries only the status in $a and the answer's `error` code, if any.
+ *
+ * @param string $method HTTP method, for the log.
+ * @param string $url The requested URL.
+ * @param int $httpcode HTTP status, 0 when no response arrived.
+ * @param int $errno curl errno.
+ * @param string $curlerror curl error message.
+ * @param string $response Raw response body.
+ * @throws rest_exception Always.
+ */
+function mod_skilland_rest_failure(
+    string $method,
+    string $url,
+    int $httpcode,
+    int $errno,
+    string $curlerror,
+    string $response
+): never {
+    $safeurl = mod_skilland_redact_url($url);
+    if ($httpcode === 0 || $errno) {
+        $details = $errno ? ' (errno: ' . $errno . ')' : '';
+        if ($curlerror !== '' && $curlerror !== 'Unknown error') {
+            $details .= ' ' . $curlerror;
+        }
+        logger::error('REST', 'Connection to SkilLand at ' . $safeurl . ' failed: HTTP ' . $httpcode . $details);
+
+        $refused = $errno === 7 || strpos($curlerror, 'Connection refused') !== false ||
+            strpos($curlerror, 'Could not connect') !== false;
+        $host = (string) parse_url($url, PHP_URL_HOST);
+        if ($refused && ($host === 'localhost' || $host === '127.0.0.1')) {
+            logger::debug('REST', 'If Moodle is running in Docker, use "host.docker.internal" instead of "' .
+                $host . '" in the Skilland URL setting.');
+        }
+        throw new rest_exception('error_graphql_http', 0, 'HTTP 0');
+    }
+
+    logger::error('REST', 'HTTP error ' . $httpcode . ' from SkilLand at ' . $method . ' ' . $safeurl);
+    $apierror = '';
+    if (trim($response) !== '') {
+        logger::debug('REST', 'Response body: ' . substr($response, 0, 200));
+        $decoded = json_decode($response, true);
+        if (is_array($decoded) && is_string($decoded['error'] ?? null)) {
+            $apierror = $decoded['error'];
+        }
+    }
+    throw new rest_exception('error_graphql_http', $httpcode, 'HTTP ' . $httpcode, $apierror);
+}
+
+/**
+ * Decode a 2xx REST body.
+ *
+ * @param string $response Raw response body.
+ * @param int $httpcode HTTP status.
+ * @param string $safeurl The URL without its query string, for the log.
+ * @return array
+ * @throws rest_exception error_graphql_invalid_json when the body is not a JSON object or array.
+ */
+function mod_skilland_rest_decode(string $response, int $httpcode, string $safeurl): array {
     $data = json_decode($response, true);
     if (!is_array($data)) {
         logger::error('REST', 'Invalid JSON from ' . $safeurl . ' (HTTP ' . $httpcode . ')');
         throw new rest_exception('error_graphql_invalid_json', $httpcode);
     }
-
     return $data;
-}
-
-/**
- * Whether a failed REST call should be retried against the legacy GraphQL endpoint.
- *
- * Only a transport failure or HTTP 401/403/404 qualify (a SkilLand server that predates the
- * route, or a key it does not know), and only while a graphql_endpoint is configured.
- *
- * @param \Throwable $e The REST failure.
- * @return bool
- */
-function mod_skilland_rest_fallback_allowed(\Throwable $e): bool {
-    if (!($e instanceof rest_exception) || !in_array($e->httpcode, MOD_SKILLAND_REST_FALLBACK_STATUSES, true)) {
-        return false;
-    }
-    return trim((string) get_config('mod_skilland', 'graphql_endpoint')) !== '';
 }
 
 /**
  * Path of a topic's SkilLand REST route.
  *
  * @param string $topicid Skilland topic ID.
- * @param string $route Last path segment: scorm-hash or scorm.
+ * @param string $route Last path segment: scorm-hash, scorm or contents.
  * @return string
  */
 function mod_skilland_topic_route(string $topicid, string $route): string {
@@ -740,9 +702,8 @@ function mod_skilland_topic_route(string $topicid, string $route): string {
 /**
  * Check if a topic's SCORM content has changed by querying the lightweight hash endpoint.
  *
- * Asks the REST route GET /api/moodle/topics/{id}/scorm-hash first; after a transport failure or
- * HTTP 401/403/404, and only while a graphql_endpoint is configured, the legacy GraphQL
- * topicScormHash query answers instead. Returns null if the lookup fails (non-fatal for polling).
+ * Asks the REST route GET /api/moodle/topics/{id}/scorm-hash. Returns null if the lookup fails
+ * (non-fatal for polling) or answers an empty body.
  *
  * @param string $topicid The Skilland topic ID.
  * @return array|null Hash info array with contentHash, packageHash, generatedAt, hasPackage, isStale — or null on failure.
@@ -752,126 +713,99 @@ function mod_skilland_check_topic_snapshot(string $topicid): ?array {
         $result = mod_skilland_rest_get(mod_skilland_topic_route($topicid, 'scorm-hash'));
         return $result === [] ? null : $result;
     } catch (\Exception $e) {
-        if (!mod_skilland_rest_fallback_allowed($e)) {
-            logger::warn('SnapshotCheck', 'Failed to check topic snapshot for ' . $topicid . ': ' . $e->getMessage());
-            return null;
-        }
-        logger::warn('SnapshotCheck', 'REST scorm-hash for topic ' . $topicid . ' failed (HTTP ' . $e->httpcode .
-            '); falling back to the legacy GraphQL endpoint');
-    }
-
-    return mod_skilland_check_topic_snapshot_graphql($topicid);
-}
-
-/**
- * The legacy GraphQL topicScormHash lookup behind mod_skilland_check_topic_snapshot().
- *
- * @param string $topicid The Skilland topic ID.
- * @return array|null Hash info array, or null on failure.
- */
-function mod_skilland_check_topic_snapshot_graphql(string $topicid): ?array {
-    $query = <<<'GRAPHQL'
-query TopicScormHash($topicId: ID!) {
-  topicScormHash(topicId: $topicId) {
-    contentHash
-    packageHash
-    generatedAt
-    hasPackage
-    isStale
-  }
-}
-GRAPHQL;
-
-    try {
-        $result = mod_skilland_graphql($query, ['topicId' => $topicid]);
-        return $result['topicScormHash'] ?? null;
-    } catch (\Exception $e) {
         logger::warn('SnapshotCheck', 'Failed to check topic snapshot for ' . $topicid . ': ' . $e->getMessage());
         return null;
     }
 }
 
 /**
- * Fetch the list of courses from Skilland for the configured organization.
+ * Adapt the skill rows of a REST listing ({skills: [...]}) to the course shape callers read.
  *
- * @return array Array of course objects with id, name, code, and status
- * @throws moodle_exception If API call fails
+ * Skilland skills have no code, so `code` is the skill id.
+ *
+ * @param array $body The decoded REST body.
+ * @return array[] Each ['id', 'name', 'code', 'status', 'description', 'language', 'category'].
  */
-function mod_skilland_fetch_courses(): array {
-    $config = get_config('mod_skilland');
-    $orgid = $config->orgid ?? '';
-
-    if (empty($orgid)) {
-        throw new moodle_exception('error_config_missing_orgid', 'mod_skilland');
-    }
-
-    $query = <<<'GRAPHQL'
-query MoodleListCourses($orgId: ID!) {
-  organization(id: $orgId) {
-    id
-    name
-    courses {
-      id
-      name
-      code
-      status
-    }
-  }
-}
-GRAPHQL;
-
-    try {
-        $data = mod_skilland_graphql($query, ['orgId' => $orgid]);
-
-        if (!isset($data['organization']['courses'])) {
-            return [];
+function mod_skilland_skill_rows(array $body): array {
+    $rows = [];
+    foreach (is_array($body['skills'] ?? null) ? $body['skills'] : [] as $skill) {
+        if (!is_array($skill) || !isset($skill['id']) || !is_scalar($skill['id']) || (string) $skill['id'] === '') {
+            continue;
         }
-
-        return $data['organization']['courses'];
-    } catch (moodle_exception $e) {
-        // Re-throw with context.
-        throw $e;
+        $id = (string) $skill['id'];
+        $rows[] = [
+            'id' => $id,
+            'name' => is_scalar($skill['name'] ?? null) ? (string) $skill['name'] : '',
+            'code' => $id,
+            'status' => is_scalar($skill['status'] ?? null) ? (string) $skill['status'] : '',
+            'description' => is_scalar($skill['description'] ?? null) ? (string) $skill['description'] : '',
+            'language' => is_scalar($skill['language'] ?? null) ? (string) $skill['language'] : '',
+            'category' => is_scalar($skill['category'] ?? null) ? (string) $skill['category'] : '',
+        ];
     }
+    return $rows;
 }
 
 /**
- * Fetch the list of Skilland courses that a user can edit (owner or collaborator).
+ * Fetch every course (skill) of the configured organization, whatever its status.
  *
- * @param string $useremail Email of the user
- * @return array Array of course objects with id, name, code, and status
+ * GET /api/moodle/skills?status=all.
+ *
+ * @return array Array of course arrays with id, name, code (the id) and status
  * @throws moodle_exception If API call fails
  */
-function mod_skilland_fetch_user_courses(string $useremail): array {
-    $config = get_config('mod_skilland');
-    $orgid = $config->orgid ?? '';
-
-    if (empty($orgid)) {
+function mod_skilland_fetch_courses(): array {
+    $orgid = (string) (get_config('mod_skilland', 'orgid') ?? '');
+    if ($orgid === '') {
         throw new moodle_exception('error_config_missing_orgid', 'mod_skilland');
     }
 
-    if (empty($useremail)) {
+    return mod_skilland_skill_rows(mod_skilland_rest_get('/api/moodle/skills?status=all'));
+}
+
+/**
+ * Name of a Skilland course (skill) of the organization, for display only.
+ *
+ * One GET /api/moodle/skills?status=all; any failure, or a skill missing from the list, yields ''.
+ *
+ * @param string $skillid Skilland course ID
+ * @return string
+ */
+function mod_skilland_skill_name(string $skillid): string {
+    try {
+        foreach (mod_skilland_fetch_courses() as $course) {
+            if ($course['id'] === $skillid) {
+                return $course['name'];
+            }
+        }
+    } catch (\Throwable $e) {
+        logger::warn('locallib', 'Could not look up the name of skill ' . $skillid . ': ' . get_class($e));
+    }
+    return '';
+}
+
+/**
+ * Fetch the Skilland courses that a user can edit, by their email.
+ *
+ * GET /api/moodle/users/courses?email=<lower-cased email>. Any failure yields an empty list.
+ *
+ * @param string $useremail Email of the user
+ * @return array Array of course arrays with id, name, code (the id) and status
+ * @throws moodle_exception error_config_missing_orgid
+ */
+function mod_skilland_fetch_user_courses(string $useremail): array {
+    $orgid = (string) (get_config('mod_skilland', 'orgid') ?? '');
+    if ($orgid === '') {
+        throw new moodle_exception('error_config_missing_orgid', 'mod_skilland');
+    }
+
+    $email = strtolower(trim($useremail));
+    if ($email === '') {
         return [];
     }
 
-    $query = <<<'GRAPHQL'
-query MoodleUserCourses($orgId: ID!, $userEmail: String!) {
-  moodleUserCourses(orgId: $orgId, userEmail: $userEmail) {
-    id
-    name
-    code
-    status
-  }
-}
-GRAPHQL;
-
     try {
-        $data = mod_skilland_graphql($query, ['orgId' => $orgid, 'userEmail' => $useremail]);
-
-        if (!isset($data['moodleUserCourses'])) {
-            return [];
-        }
-
-        return $data['moodleUserCourses'];
+        return mod_skilland_skill_rows(mod_skilland_rest_get('/api/moodle/users/courses?email=' . rawurlencode($email)));
     } catch (moodle_exception $e) {
         logger::warn('locallib', 'Failed to fetch user courses: ' . $e->getMessage());
         return [];
@@ -879,52 +813,116 @@ GRAPHQL;
 }
 
 /**
- * Create a new course (skill) in Skilland using the Moodle course name.
+ * Whether a path is a SkilLand Studio path the plugin may send a user to after SSO.
  *
- * Uses the createSkillFromMoodle mutation which handles user auto-provisioning.
+ * A strict allow-list of same-origin relative paths: /skills, /skills/<id>,
+ * /skills/<id>?topic=<id> and /skills/new?draft=<id>, where every id only uses unreserved or
+ * percent-encoded characters. Anything with a scheme, a host, "//", "..", a fragment or other
+ * query parameters is refused.
  *
- * @param string $name Course name
- * @param string $useremail Email of the user creating the course
- * @return array Array with id, name, status, creationStep
- * @throws moodle_exception If API call fails
+ * @param string $path
+ * @return bool
  */
-function mod_skilland_create_course(string $name, string $useremail): array {
-    if (empty($name)) {
-        throw new moodle_exception('error', 'mod_skilland', '', null, 'Course name is required');
-    }
-    if (empty($useremail)) {
-        throw new moodle_exception('error', 'mod_skilland', '', null, 'User email is required');
-    }
-
-    $query = <<<'GRAPHQL'
-mutation MoodleCreateCourse($name: String!, $userEmail: String!) {
-  createSkillFromMoodle(name: $name, userEmail: $userEmail) {
-    id
-    name
-    status
-    creationStep
-  }
-}
-GRAPHQL;
-
-    try {
-        $data = mod_skilland_graphql($query, ['name' => $name, 'userEmail' => $useremail]);
-
-        if (!isset($data['createSkillFromMoodle'])) {
-            throw new moodle_exception('error', 'mod_skilland', '', null, 'Failed to create course in Skilland');
-        }
-
-        return $data['createSkillFromMoodle'];
-    } catch (moodle_exception $e) {
-        throw $e;
-    }
+function mod_skilland_is_studio_path(string $path): bool {
+    $id = '(?:[A-Za-z0-9_~-]|%[0-9A-Fa-f]{2})+';
+    return preg_match('#^/skills(?:/new\?draft=' . $id . '|/' . $id . '(?:\?topic=' . $id . ')?)?$#D', $path) === 1;
 }
 
 /**
- * Fetch the list of topics from Skilland for a given course.
+ * Create a new course (skill) in Skilland using the Moodle course name.
+ *
+ * POST /api/moodle/skills with { name, userEmail, moodleUserId, issuer }. moodleUserId and issuer
+ * are the `sub` and `iss` the SSO token carries, so a user Skilland creates here is linked for SSO.
+ * The POST is sent once and never retried.
+ *
+ * @param string $name Course name
+ * @param string $useremail Email of the user creating the course
+ * @param string $moodleuserid Moodle user id of that user, '' to leave it out
+ * @return array Array with id, name and path (the Studio path of the new course)
+ * @throws moodle_exception If API call fails
+ */
+function mod_skilland_create_course(string $name, string $useremail, string $moodleuserid = ''): array {
+    global $CFG;
+
+    if (trim($name) === '') {
+        throw new moodle_exception('error', 'mod_skilland', '', null, 'Course name is required');
+    }
+    $email = strtolower(trim($useremail));
+    if ($email === '') {
+        throw new moodle_exception('error', 'mod_skilland', '', null, 'User email is required');
+    }
+
+    $body = ['name' => $name, 'userEmail' => $email];
+    if ($moodleuserid !== '') {
+        $body['moodleUserId'] = $moodleuserid;
+        $body['issuer'] = (string) $CFG->wwwroot;
+    }
+
+    try {
+        $created = mod_skilland_rest_post('/api/moodle/skills', $body);
+    } catch (rest_exception $e) {
+        mod_skilland_create_course_failure($e);
+    }
+
+    $id = $created['id'] ?? null;
+    if (!is_scalar($id) || (string) $id === '') {
+        logger::error('REST', 'Create course answer carries no id');
+        throw new rest_exception('error_graphql_invalid_json', 201);
+    }
+    $id = (string) $id;
+
+    $path = is_string($created['path'] ?? null) ? $created['path'] : '';
+    if (!mod_skilland_is_studio_path($path)) {
+        $path = '/skills/new?draft=' . rawurlencode($id);
+    }
+
+    return [
+        'id' => $id,
+        'name' => is_scalar($created['name'] ?? null) ? (string) $created['name'] : $name,
+        'path' => $path,
+    ];
+}
+
+/**
+ * Throw the exception a failed course creation surfaces.
+ *
+ * The answer's `error` code picks a message the teacher can act on: 403 insufficient_role and
+ * inactive_member, 409 name_taken and not_a_member, and 429 (rate limited). A 401/403 without one
+ * of those codes is error_config_invalid_credentials; anything else keeps the rest_exception.
+ *
+ * @param rest_exception $e The REST failure.
+ * @throws moodle_exception Always.
+ */
+function mod_skilland_create_course_failure(rest_exception $e): never {
+    $byerror = [
+        'insufficient_role' => 'error_create_insufficient_role',
+        'inactive_member' => 'error_create_inactive_member',
+        'name_taken' => 'error_create_name_taken',
+        'not_a_member' => 'error_create_not_a_member',
+    ];
+    logger::warn('REST', 'Create course failed: HTTP ' . $e->httpcode .
+        ($e->apierror !== '' ? ' (' . $e->apierror . ')' : ''));
+    if (isset($byerror[$e->apierror]) && in_array($e->httpcode, [403, 409], true)) {
+        throw new moodle_exception($byerror[$e->apierror], 'mod_skilland');
+    }
+    if ($e->httpcode === 429) {
+        throw new moodle_exception('error_create_rate_limited', 'mod_skilland');
+    }
+    if ($e->httpcode === 401 || $e->httpcode === 403) {
+        throw new moodle_exception('error_config_invalid_credentials', 'mod_skilland');
+    }
+    throw $e;
+}
+
+/**
+ * Fetch the topics of a Skilland course (skill).
+ *
+ * GET /api/moodle/skills/{id}/topics, adapted to the shape callers read: the course id, an empty
+ * name (the route returns no skill) and code (the id), and topics with id, name, code (the id) and
+ * description. A skill outside the organization (HTTP 404) has no topics.
  *
  * @param string $courseid Skilland course ID
- * @return array Array of topic objects with id, name, and code
+ * @return array ['id' => string, 'name' => string, 'code' => string, 'topics' => array[]]
  * @throws moodle_exception If API call fails
  */
 function mod_skilland_fetch_topics(string $courseid): array {
@@ -932,45 +930,40 @@ function mod_skilland_fetch_topics(string $courseid): array {
         throw new moodle_exception('error_config_missing_courseid', 'mod_skilland');
     }
 
-    $query = <<<'GRAPHQL'
-query MoodleListTopics($courseId: ID!) {
-  course(id: $courseId) {
-    id
-    name
-    topics {
-      id
-      name
-      code
-      description
-    }
-  }
-}
-GRAPHQL;
-
+    $course = ['id' => $courseid, 'name' => '', 'code' => $courseid, 'topics' => []];
     try {
-        $data = mod_skilland_graphql($query, ['courseId' => $courseid]);
-
-        if (!isset($data['course']) || empty($data['course'])) {
-            // Return a proper structure with empty topics array.
-            return [
-                'id' => $courseid,
-                'name' => '',
-                'topics' => [],
-            ];
+        $body = mod_skilland_rest_get('/api/moodle/skills/' . rawurlencode($courseid) . '/topics');
+    } catch (rest_exception $e) {
+        if ($e->httpcode === 404) {
+            return $course;
         }
-
-        return $data['course'];
-    } catch (moodle_exception $e) {
-        // Re-throw with context.
         throw $e;
     }
+
+    foreach (is_array($body['topics'] ?? null) ? $body['topics'] : [] as $topic) {
+        if (!is_array($topic) || !isset($topic['id']) || !is_scalar($topic['id']) || (string) $topic['id'] === '') {
+            continue;
+        }
+        $id = (string) $topic['id'];
+        $course['topics'][] = [
+            'id' => $id,
+            'name' => is_scalar($topic['name'] ?? null) ? (string) $topic['name'] : '',
+            'code' => $id,
+            'description' => is_scalar($topic['description'] ?? null) ? (string) $topic['description'] : '',
+        ];
+    }
+    return $course;
 }
 
 /**
- * Fetch the list of lessons from Skilland for a given topic.
+ * Fetch the lessons of a Skilland topic.
+ *
+ * GET /api/moodle/topics/{id}/contents, keeping the lessons (type "lesson") with a body, in the
+ * route's order: the same lessons the topic's SCORM package turns into SCOs. updatedAt stays the
+ * ISO 8601 string the route returns. A topic outside the organization (HTTP 404) has no lessons.
  *
  * @param string $topicid Skilland topic ID
- * @return array Array of lesson objects with id, name, and updatedAt
+ * @return array Array of lesson arrays with id, name, and updatedAt
  * @throws moodle_exception If API call fails
  */
 function mod_skilland_fetch_lessons(string $topicid): array {
@@ -978,46 +971,39 @@ function mod_skilland_fetch_lessons(string $topicid): array {
         throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
     }
 
-    $query = <<<'GRAPHQL'
-query GetTopicLessons($topicId: ID!) {
-  topic(id: $topicId) {
-    id
-    name
-    lessons {
-      id
-      name
-      updatedAt
-    }
-  }
-}
-GRAPHQL;
-
     try {
-        $data = mod_skilland_graphql($query, ['topicId' => $topicid]);
-
-        if (!isset($data['topic']['lessons'])) {
+        $body = mod_skilland_rest_get(mod_skilland_topic_route($topicid, 'contents'));
+    } catch (rest_exception $e) {
+        if ($e->httpcode === 404) {
             return [];
         }
-
-        return $data['topic']['lessons'];
-    } catch (moodle_exception $e) {
-        // Re-throw with context.
         throw $e;
     }
+
+    $lessons = [];
+    foreach (is_array($body['contents'] ?? null) ? $body['contents'] : [] as $content) {
+        if (!is_array($content) || !isset($content['id']) || !is_scalar($content['id']) || (string) $content['id'] === '') {
+            continue;
+        }
+        if (($content['type'] ?? 'lesson') !== 'lesson') {
+            continue;
+        }
+        if (array_key_exists('content', $content) && ($content['content'] === null || $content['content'] === '')) {
+            continue;
+        }
+        $lessons[] = [
+            'id' => (string) $content['id'],
+            'name' => is_scalar($content['name'] ?? null) ? (string) $content['name'] : '',
+            'updatedAt' => is_scalar($content['updatedAt'] ?? null) ? (string) $content['updatedAt'] : '',
+        ];
+    }
+    return $lessons;
 }
-
-/** GraphQL extensions.code the API returns when a topic has no SCORM package. */
-const MOD_SKILLAND_GQL_SCORM_NOT_AVAILABLE = 'SCORM_NOT_AVAILABLE';
-
-/** GraphQL extensions.code the API returns when a topic does not exist. */
-const MOD_SKILLAND_GQL_TOPIC_NOT_FOUND = 'TOPIC_NOT_FOUND';
 
 /**
  * Fetch SCORM package information from Skilland for a topic (multi-SCO package).
  *
- * Asks the REST route GET /api/moodle/topics/{id}/scorm first; after a transport failure or
- * HTTP 401/403/404, and only while a graphql_endpoint is configured, the legacy GraphQL
- * topicScorm query answers instead. HTTP 409 (topic without lessons) never falls back.
+ * Asks the REST route GET /api/moodle/topics/{id}/scorm.
  *
  * @param string $topicid Skilland topic ID
  * @return array Array with packageUrl, packageSize, packageHash, generatedAt, expiresAt, mappings
@@ -1031,12 +1017,7 @@ function mod_skilland_fetch_topic_scorm(string $topicid): array {
     try {
         $scorm = mod_skilland_rest_get(mod_skilland_topic_route($topicid, 'scorm'));
     } catch (\Throwable $e) {
-        if (!mod_skilland_rest_fallback_allowed($e)) {
-            mod_skilland_topic_scorm_rest_failure($topicid, $e);
-        }
-        logger::warn('SCORM', 'REST scorm for topic ' . $topicid . ' failed (HTTP ' . $e->httpcode .
-            '); falling back to the legacy GraphQL endpoint');
-        return mod_skilland_fetch_topic_scorm_graphql($topicid, $e);
+        mod_skilland_topic_scorm_rest_failure($topicid, $e);
     }
 
     if ($scorm === []) {
@@ -1080,70 +1061,7 @@ function mod_skilland_topic_scorm_rest_failure(string $topicid, \Throwable $e): 
 }
 
 /**
- * The legacy GraphQL topicScorm fetch behind mod_skilland_fetch_topic_scorm().
- *
- * When it was reached through a REST fallback and the GraphQL endpoint fails without answering a
- * GraphQL error (unreachable, HTTP error, missing orgid), the REST failure is what is reported.
- *
- * @param string $topicid Skilland topic ID
- * @param \Throwable|null $resterror The REST failure that led here, null when called directly.
- * @return array Array with packageUrl, packageSize, packageHash, generatedAt, expiresAt, mappings
- * @throws moodle_exception If API call fails or SCORM is not available
- */
-function mod_skilland_fetch_topic_scorm_graphql(string $topicid, ?\Throwable $resterror = null): array {
-    $query = <<<'GRAPHQL'
-query GetTopicScorm($topicId: ID!) {
-  topicScorm(topicId: $topicId) {
-    packageUrl
-    packageSize
-    packageHash
-    generatedAt
-    expiresAt
-    mappings
-  }
-}
-GRAPHQL;
-
-    try {
-        $data = mod_skilland_graphql($query, ['topicId' => $topicid]);
-    } catch (\Throwable $e) {
-        if ($resterror !== null && !($e instanceof graphql_exception)) {
-            logger::warn('SCORM', 'Legacy GraphQL fallback for topic ' . $topicid . ' failed too (' . get_class($e) .
-                '); reporting the REST failure');
-            mod_skilland_topic_scorm_rest_failure($topicid, $resterror);
-        }
-        $graphqlcode = $e instanceof graphql_exception ? $e->graphqlcode : '';
-        if ($graphqlcode === MOD_SKILLAND_GQL_SCORM_NOT_AVAILABLE) {
-            throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
-        }
-        if ($graphqlcode === MOD_SKILLAND_GQL_TOPIC_NOT_FOUND) {
-            throw new moodle_exception('error_config_missing_topicid', 'mod_skilland');
-        }
-        // Configuration and other user-facing errors (error_http_redirect, ...) keep their own code.
-        if (
-            mod_skilland_is_client_error($e) ||
-                ($e instanceof moodle_exception && str_starts_with((string) $e->errorcode, 'error_config_'))
-        ) {
-            throw $e;
-        }
-        logger::error('SCORM', 'Fetching the SCORM package of topic ' . $topicid . ' failed: ' . get_class($e) .
-            ': ' . $e->getMessage());
-        throw new moodle_exception('error_scorm_fetch_failed', 'mod_skilland');
-    }
-
-    if (!isset($data['topicScorm']) || !is_array($data['topicScorm'])) {
-        throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
-    }
-
-    // The legacy query carries no signature, so package_signature refuses whatever it points at (SKL-650).
-    $scorm = mod_skilland_normalise_topic_scorm($data['topicScorm']);
-    $scorm['signature'] = null;
-    $scorm['keyId'] = null;
-    return $scorm;
-}
-
-/**
- * Normalise a topic SCORM answer (REST body or GraphQL topicScorm) to the shape callers use.
+ * Normalise a topic SCORM REST answer to the shape callers use.
  *
  * @param array $scorm The raw package info.
  * @return array Array with packageUrl, packageSize, packageHash, generatedAt, expiresAt,
@@ -1152,7 +1070,7 @@ GRAPHQL;
  */
 function mod_skilland_normalise_topic_scorm(array $scorm): array {
     // Build mappings array: lessonId => scoId.
-    // The mappings field is a [JSON] scalar, so it comes as an array of objects.
+    // The mappings field comes as an array of objects.
     $mappings = [];
     if (!empty($scorm['mappings']) && is_array($scorm['mappings'])) {
         foreach ($scorm['mappings'] as $mapping) {
@@ -1247,7 +1165,7 @@ function skilland_download_topic_scorm_package(string $topicid): array {
         throw new moodle_exception('error_scorm_not_available', 'mod_skilland');
     }
 
-    // An unsigned answer (the legacy GraphQL fallback) is refused before anything is downloaded.
+    // An unsigned answer is refused before anything is downloaded.
     try {
         package_signature::require_signed($scorminfo);
     } catch (moodle_exception $e) {
@@ -2479,23 +2397,19 @@ function skilland_generate_sso_token($user, $orgid, string $role) {
 }
 
 /**
- * Get the SkilLand frontend base URL, without a trailing slash.
+ * Get the SkilLand base URL the plugin talks to (REST API, SSO, Studio links), without a trailing slash.
  *
- * Uses the frontend_url setting, falling back to the GraphQL endpoint minus its /graphql suffix.
+ * Uses the optional frontend_url override, else the Skilland URL setting (graphql_endpoint), both
+ * normalised by \mod_skilland\local\skilland_url::normalise(), else MOD_SKILLAND_DEFAULT_URL.
  *
  * @return string
  */
 function skilland_get_frontend_url(): string {
-    $frontendurl = (string) get_config('mod_skilland', 'frontend_url');
+    $frontendurl = \mod_skilland\local\skilland_url::normalise((string) get_config('mod_skilland', 'frontend_url'));
     if ($frontendurl === '') {
-        $graphqlendpoint = (string) get_config('mod_skilland', 'graphql_endpoint');
-        if ($graphqlendpoint === '') {
-            $graphqlendpoint = 'https://api.skilland.com/graphql';
-        }
-        $frontendurl = preg_replace('/\/graphql$/', '', $graphqlendpoint);
+        $frontendurl = mod_skilland_get_skilland_url();
     }
-
-    return rtrim($frontendurl, '/');
+    return $frontendurl !== '' ? $frontendurl : MOD_SKILLAND_DEFAULT_URL;
 }
 
 /**
@@ -2665,8 +2579,8 @@ function mod_skilland_require_https(string $url, string $what): void {
 /**
  * Whether a SCORM package may be downloaded from this URL's host.
  *
- * Allowed hosts are the host of $endpoint (the caller passes the frontend URL and the GraphQL
- * endpoint) and the patterns in the package_hosts setting (comma-separated, case-insensitive;
+ * Allowed hosts are the host of $endpoint (the caller passes the frontend URL and the Skilland
+ * URL) and the patterns in the package_hosts setting (comma-separated, case-insensitive;
  * "*.example.com" matches subdomains of example.com only; the default "*.skilland.ai,
  * *.amazonaws.com" covers presigned S3 URLs, virtual-hosted and path-style).
  * IP literals and local hosts (see mod_skilland_is_local_host()) are refused unless the
@@ -2751,8 +2665,8 @@ function mod_skilland_download_package_http(string $packageurl, int $expectedsiz
     mod_skilland_require_https($packageurl, 'package');
 
     // The REST routes hand out presigned storage URLs (matched by package_hosts) or, in
-    // development, URLs on the frontend host itself; the legacy GraphQL endpoint host stays trusted.
-    $endpoint = (string) (get_config('mod_skilland', 'graphql_endpoint') ?? '');
+    // development, URLs on the frontend host or the Skilland URL host itself.
+    $endpoint = mod_skilland_get_skilland_url();
     if (
         !mod_skilland_package_host_allowed($packageurl, skilland_get_frontend_url()) &&
             !mod_skilland_package_host_allowed($packageurl, $endpoint)
@@ -2825,11 +2739,11 @@ function mod_skilland_download_package_http(string $packageurl, int $expectedsiz
     return $tempfile;
 }
 
-/** Maximum number of attempts mod_skilland_graphql() makes for a read query. */
-const MOD_SKILLAND_GRAPHQL_MAX_ATTEMPTS = 3;
+/** Maximum number of attempts mod_skilland_rest_get_http() makes. */
+const MOD_SKILLAND_REST_MAX_ATTEMPTS = 3;
 
 /** No new attempt starts once this many milliseconds have passed since the first one. */
-const MOD_SKILLAND_GRAPHQL_RETRY_BUDGET_MS = 20000;
+const MOD_SKILLAND_REST_RETRY_BUDGET_MS = 20000;
 
 /** Upper bound of a Retry-After delay the plugin honours, in milliseconds. */
 const MOD_SKILLAND_RETRY_AFTER_CAP_MS = 5000;
@@ -2838,58 +2752,17 @@ const MOD_SKILLAND_RETRY_AFTER_CAP_MS = 5000;
 const MOD_SKILLAND_TRANSIENT_CURL_ERRNOS = [6, 7, 28, 35, 52, 56];
 
 /**
- * Whether a GraphQL document is a mutation.
- *
- * Leading whitespace and "#" comment lines are skipped before looking for the keyword.
- *
- * @param string $query
- * @return bool
- */
-function mod_skilland_graphql_is_mutation(string $query): bool {
-    $rest = $query;
-    while (true) {
-        $rest = ltrim($rest);
-        if ($rest === '' || $rest[0] !== '#') {
-            break;
-        }
-        $newline = strpos($rest, "\n");
-        $rest = $newline === false ? '' : substr($rest, $newline + 1);
-    }
-    return (bool) preg_match('/^mutation\b/', $rest);
-}
-
-/**
- * Operation name of a GraphQL document for log lines, "query" when it has none.
- *
- * @param string $query
- * @return string
- */
-function mod_skilland_graphql_operation_name(string $query): string {
-    if (preg_match('/\b(?:query|mutation)\s+([A-Za-z_][A-Za-z0-9_]*)/', $query, $m)) {
-        return $m[1];
-    }
-    return mod_skilland_graphql_is_mutation($query) ? 'mutation' : 'query';
-}
-
-/**
- * Whether a failed GraphQL response is worth retrying.
+ * Whether a failed REST GET is worth retrying.
  *
  * @param int $httpcode HTTP status, 0 when no response arrived.
  * @param int $errno curl errno.
- * @param array|null $decodedbody The decoded JSON body, null when absent or not JSON.
  * @return bool
  */
-function mod_skilland_is_transient(int $httpcode, int $errno, ?array $decodedbody): bool {
+function mod_skilland_is_transient(int $httpcode, int $errno): bool {
     if ($httpcode === 0) {
         return in_array($errno, MOD_SKILLAND_TRANSIENT_CURL_ERRNOS, true);
     }
-    if (in_array($httpcode, [429, 502, 503, 504], true)) {
-        return true;
-    }
-    if ($httpcode === 500) {
-        return empty($decodedbody['errors']);
-    }
-    return false;
+    return in_array($httpcode, [429, 500, 502, 503, 504], true);
 }
 
 /**
@@ -2948,150 +2821,6 @@ function mod_skilland_response_header(\curl $curl, string $name): ?string {
     return null;
 }
 
-/**
- * Log a failed (non-2xx, non-3xx) GraphQL response and throw the matching exception.
- *
- * A 4xx/5xx body carrying GraphQL errors is mapped like a 2xx one; anything else becomes
- * error_graphql_http with only the status in $a. The endpoint, curl details and a body
- * snippet go to the log, never into the exception.
- *
- * @param string $endpoint
- * @param int $httpcode
- * @param int $errno
- * @param string $curlerror
- * @param string $response Raw response body.
- * @param array|null $decoded The decoded JSON body (4xx/5xx with a non-empty body only).
- * @throws moodle_exception Always.
- */
-function mod_skilland_graphql_http_failure(
-    string $endpoint,
-    int $httpcode,
-    int $errno,
-    string $curlerror,
-    string $response,
-    ?array $decoded
-): never {
-    $safeendpoint = mod_skilland_redact_url($endpoint);
-    if ($errno || $httpcode == 0) {
-        $details = '';
-        if ($errno) {
-            $details .= ' (errno: ' . $errno . ')';
-        }
-        if ($curlerror && $curlerror !== 'Unknown error') {
-            $details .= ' ' . $curlerror;
-        }
-        logger::error('GraphQL', 'Connection to Skilland API at ' . $safeendpoint . ' failed: HTTP ' . $httpcode .
-            $details);
-
-        $refused = $errno == 7 || strpos($curlerror, 'Connection refused') !== false ||
-            strpos($curlerror, 'Could not connect') !== false;
-        $host = (string) parse_url($endpoint, PHP_URL_HOST);
-        if ($refused && ($host === 'localhost' || $host === '127.0.0.1')) {
-            logger::debug('GraphQL', 'If Moodle is running in Docker, use "host.docker.internal" instead of "' .
-                $host . '" in the GraphQL endpoint setting.');
-        }
-    } else {
-        logger::error('GraphQL', 'HTTP error ' . $httpcode . ' from Skilland API at ' . $safeendpoint);
-    }
-
-    if ($httpcode >= 400 && trim($response) !== '') {
-        logger::debug('GraphQL', 'Response body: ' . substr($response, 0, 200));
-    }
-
-    if ($decoded !== null && array_key_exists('errors', $decoded)) {
-        $error = null;
-        try {
-            $error = mod_skilland_first_graphql_error($decoded['errors']);
-        } catch (graphql_exception $e) {
-            // Malformed errors member: fall back to the plain HTTP error below.
-            $error = null;
-        }
-        if ($error !== null) {
-            mod_skilland_map_graphql_error($error);
-        }
-    }
-
-    throw new moodle_exception('error_graphql_http', 'mod_skilland', '', 'HTTP ' . $httpcode);
-}
-
-/**
- * Normalise the errors member of a GraphQL response to its first error.
- *
- * @param mixed $errors The decoded "errors" member, null when absent.
- * @return array|null The first error as an array, or null when the response carries no errors.
- * @throws graphql_exception error_graphql_unknown when errors is present but malformed.
- */
-function mod_skilland_first_graphql_error(mixed $errors): ?array {
-    if ($errors === null) {
-        return null;
-    }
-    if (!is_array($errors) || $errors === [] || array_keys($errors) !== range(0, count($errors) - 1)) {
-        logger::error('GraphQL', 'Malformed errors member in response (' . get_debug_type($errors) . ')');
-        throw new graphql_exception('error_graphql_unknown');
-    }
-    $first = $errors[0];
-    if (is_array($first)) {
-        return $first;
-    }
-    if (is_scalar($first)) {
-        return ['message' => (string) $first];
-    }
-    logger::error('GraphQL', 'Malformed first error in response (' . get_debug_type($first) . ')');
-    throw new graphql_exception('error_graphql_unknown');
-}
-
-/**
- * Map a GraphQL error response to the appropriate graphql_exception.
- *
- * Extracted from mod_skilland_graphql() for testability. Every field is read defensively: a
- * non-array extensions or a non-string code, message or details is treated as absent.
- *
- * @param array $error The first error from a GraphQL errors array.
- * @throws graphql_exception Always throws, carrying extensions.code as $graphqlcode.
- */
-function mod_skilland_map_graphql_error(array $error): never {
-    $extensions = is_array($error['extensions'] ?? null) ? $error['extensions'] : [];
-    $errorcode = is_string($extensions['code'] ?? null) ? $extensions['code'] : '';
-    $errormessage = is_string($error['message'] ?? null) ? $error['message'] :
-        get_string('error_graphql_unknown', 'mod_skilland');
-    $errordetails = is_string($extensions['details'] ?? null) ? $extensions['details'] : '';
-
-    logger::error('GraphQL', 'Error received - Code: ' . $errorcode . ', Message: ' . $errormessage);
-
-    switch ($errorcode) {
-        case 'SKILLAND_MISSING_ORG_ID':
-            throw new graphql_exception('error_config_missing_orgid', $errorcode);
-
-        case 'SKILLAND_MISSING_API_KEY':
-            throw new graphql_exception('error_config_missing_apikey', $errorcode);
-
-        case 'SKILLAND_INVALID_ORG_ID_FORMAT':
-            $detailedmsg = $errordetails ?: get_string('error_graphql_invalid_orgid_format', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
-
-        case 'SKILLAND_ORG_NOT_FOUND':
-            $detailedmsg = $errordetails ?: get_string('error_graphql_org_not_found', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
-
-        case 'SKILLAND_API_KEY_NOT_FOUND':
-            $detailedmsg = $errordetails ?: get_string('error_graphql_apikey_not_found', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
-
-        case 'SKILLAND_API_KEY_INACTIVE':
-            $detailedmsg = $errordetails ?: get_string('error_graphql_apikey_inactive', 'mod_skilland');
-            throw new graphql_exception('error_graphql', $errorcode, $detailedmsg);
-
-        case 'SKILLAND_INVALID_API_KEY':
-        case 'SKILLAND_ORG_MISMATCH':
-            $detailedmsg = $errordetails ?: get_string('error_graphql_invalid_apikey', 'mod_skilland');
-            throw new graphql_exception('error_config_invalid_credentials', $errorcode, $detailedmsg);
-
-        default:
-            $finalmessage = $errordetails ?: $errormessage;
-            throw new graphql_exception('error_graphql', $errorcode, $finalmessage);
-    }
-}
-
 /** Error codes whose language string is safe and useful to show a client as is. */
 const MOD_SKILLAND_CLIENT_ERROR_CODES = [
     'error_config_missing_orgid',
@@ -3113,6 +2842,11 @@ const MOD_SKILLAND_CLIENT_ERROR_CODES = [
     'error_scorm_signature_malformed',
     'error_scorm_signature_invalid',
     'error_scorm_hash_mismatch',
+    'error_create_insufficient_role',
+    'error_create_inactive_member',
+    'error_create_name_taken',
+    'error_create_not_a_member',
+    'error_create_rate_limited',
 ];
 
 /**
@@ -3131,7 +2865,7 @@ function mod_skilland_is_client_error(\Throwable $e): bool {
  *
  * Only mod_skilland errors that tell the user what to fix pass through, as their language
  * string without $a or debuginfo (error_http_redirect keeps its numeric status). Anything else
- * (error_graphql, error_graphql_http, error_graphql_invalid_json, error_scorm_fetch_failed,
+ * (error_graphql_http, error_graphql_invalid_json, error_scorm_fetch_failed,
  * dml_exception, plain exceptions) becomes error_api_unavailable, so endpoints, curl errors and
  * SQL never reach the client. With devmode on, the raw message is appended for debugging.
  *
@@ -3141,7 +2875,9 @@ function mod_skilland_is_client_error(\Throwable $e): bool {
  * error_scorm_not_available, error_plugin_disabled, error_course_not_mapped,
  * error_course_not_mapped_to_skill, error_lessons_not_in_topic, error_provision_in_progress,
  * error_scorm_signature_missing, error_scorm_signature_unknown_key, error_scorm_signature_malformed,
- * error_scorm_signature_invalid, error_scorm_hash_mismatch.
+ * error_scorm_signature_invalid, error_scorm_hash_mismatch, error_create_insufficient_role,
+ * error_create_inactive_member, error_create_name_taken, error_create_not_a_member,
+ * error_create_rate_limited.
  * Add any future user-facing error code to MOD_SKILLAND_CLIENT_ERROR_CODES.
  *
  * @param \Throwable $e The caught exception.
@@ -3167,15 +2903,15 @@ function mod_skilland_client_error_message(\Throwable $e): string {
  * has saved (SKL-664). The SSO token is minted at click time by sso_redirect.php, never here.
  *
  * @param int $courseid Moodle course ID.
- * @param string $path SkilLand Studio path; must start with /skills-studio/.
+ * @param string $path SkilLand Studio path accepted by mod_skilland_is_studio_path().
  * @return void
  * @throws coding_exception When the path is not a SkilLand Studio path.
  */
 function mod_skilland_set_pending_studio_path(int $courseid, string $path): void {
     global $SESSION;
 
-    if (strpos($path, '/skills-studio/') !== 0) {
-        throw new coding_exception('Pending SkilLand path must start with /skills-studio/');
+    if (!mod_skilland_is_studio_path($path)) {
+        throw new coding_exception('Pending SkilLand path must be a SkilLand Studio path (/skills/...)');
     }
     if (!is_object($SESSION)) {
         $SESSION = new stdClass();
@@ -3199,7 +2935,7 @@ function mod_skilland_peek_pending_studio_path(int $courseid): ?string {
         return null;
     }
     $path = $SESSION->mod_skilland_pending_studio[$courseid];
-    if (!is_string($path) || strpos($path, '/skills-studio/') !== 0) {
+    if (!is_string($path) || !mod_skilland_is_studio_path($path)) {
         return null;
     }
     return $path;

@@ -95,16 +95,12 @@ class locallib_provision_scorm_test extends TestCase {
         return glob(make_temp_directory('skilland_scorm') . '/skl*') ?: [];
     }
 
-    private function response(array $data): array {
-        return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
-    }
-
-    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    /** A 200 answer of a REST route carrying $body as JSON. */
     private function rest_response(array $body): array {
         return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 
-    /** Queue the topicScorm GraphQL answer and the package download. */
+    /** Queue the topic scorm REST answer and the package download. */
     private function queue_package(array $mappings = ['L1' => 'sco_1', 'L2' => 'sco_2'], string $hash = '',
             ?int $size = null): void {
         $list = [];
@@ -403,8 +399,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
             ['scormcmid' => 50, 'scorm_provisioned' => 1]));
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => [['id' => 'L1', 'name' => 'One', 'updatedAt' => '2026-01-03T00:00:00Z']]]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => [['id' => 'L1', 'name' => 'One', 'updatedAt' => '2026-01-03T00:00:00Z']]]);
         $this->queue_package();
         $skilland = $this->skilland();
 
@@ -431,12 +426,11 @@ class locallib_provision_scorm_test extends TestCase {
         foreach ([1, 2, 3] as $id) {
             $this->db->set_field('skilland_lesson', 'updatedat', 1600000000, ['id' => $id]);
         }
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => [
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => [
                 ['id' => 'L1', 'name' => 'One', 'updatedAt' => '2026-01-03T00:00:00Z'],
                 ['id' => 'L2', 'name' => 'Two', 'updatedAt' => '2026-01-04T00:00:00Z'],
                 ['id' => 'L3', 'name' => 'Three', 'updatedAt' => '2026-01-05T00:00:00Z'],
-            ]]]);
+            ]]);
     }
 
     public function test_successful_update_stamps_visible_and_hidden_lessons_after_the_build(): void {
@@ -737,8 +731,7 @@ class locallib_provision_scorm_test extends TestCase {
     }
 
     public function test_update_without_an_existing_module_just_provisions(): void {
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         $this->queue_package();
 
         $cmid = skilland_update_topic_scorm($this->skilland(), $this->course());
@@ -758,8 +751,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->db->update_record('skilland', (object) ['id' => 7, 'scormcmid' => 50, 'scorm_provisioned' => 1]);
         $stale = $this->skilland();
         $stale->scormcmid = 51;
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         $this->queue_package();
 
         skilland_update_topic_scorm($stale, $this->course(), 0);
@@ -771,8 +763,7 @@ class locallib_provision_scorm_test extends TestCase {
     public function test_update_failure_keeps_the_old_module_rolls_back_the_new_one_and_releases(): void {
         $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) ['id' => 7, 'scormcmid' => 50, 'scorm_provisioned' => 1]);
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         $this->queue_package(['L1' => 'sco_missing']);
         $skilland = $this->skilland();
 
@@ -865,8 +856,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
             ['scormcmid' => 50, 'scorm_provisioned' => 1, 'scomappings' => json_encode(['L1' => 'old'])]));
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         $this->queue_package(['L1' => 'sco_1']);
 
         skilland_update_topic_scorm($this->skilland(), $this->course(), 0);
@@ -887,8 +877,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->db->seed('course_modules', [(object) ['id' => 50, 'instance' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
             ['scormcmid' => 50, 'scorm_provisioned' => 1, 'scomappings' => json_encode(['L1' => 'old'])]));
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         $GLOBALS['_test_curl_responses'][] = ['body' => 'down', 'http_code' => 500, 'errno' => 0, 'error' => ''];
 
         try {
@@ -986,8 +975,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
             ['scormcmid' => 50, 'scorm_provisioned' => 1, 'snapshotid' => 'oldhash']));
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         \fake_api_client::topic_snapshot(['contentHash' => 'freshhash', 'generatedAt' => '2026-02-01T00:00:00Z']);
         $this->queue_package();
 
@@ -1002,8 +990,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->db->seed('scorm', [(object) ['id' => 60, 'course' => 3]]);
         $this->db->update_record('skilland', (object) array_merge((array) $this->skilland(),
             ['scormcmid' => 50, 'scorm_provisioned' => 1, 'snapshotid' => 'oldhash']));
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         // setUp defaults the topic snapshot to null (no hash); passing $contenthash explicitly
         // must win over that default, proving the caller's pre-fetched hash is used as-is instead
         // of being re-fetched (and instead of falling back to the default's empty string).

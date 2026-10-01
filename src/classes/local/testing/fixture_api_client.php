@@ -21,11 +21,11 @@ use mod_skilland\local\api_client;
 /**
  * SkilLand API client answering from canned fixtures, for PHPUnit and Behat.
  *
- * GraphQL responses are keyed by operation name (the name after `query` / `mutation`) and read
- * from tests/fixtures/api_responses.json; the REST routes that replaced an operation answer from
- * its fixture (see REST_ROUTES). download_package() returns a fresh copy of the SCORM 1.2
- * package zipped from tests/fixtures/scorm/. Every call is recorded, and a test can replace any
- * response, make an operation or the download throw, or build the package from another directory.
+ * REST answers are keyed by route (see REST_ROUTES, e.g. "GET topics/{id}/scorm") and read from
+ * tests/fixtures/api_responses.json, each the JSON body SkilLand returns. download_package()
+ * returns a fresh copy of the SCORM 1.2 package zipped from tests/fixtures/scorm/. Every call is
+ * recorded, and a test can replace any answer, make a route or the download throw, or build the
+ * package from another directory.
  *
  * The scorm route answers like SkilLand does since SKL-650: packageHash, contentHash, keyId and an
  * Ed25519 signature over the package it serves, made with a test-only key derived from a fixed
@@ -41,10 +41,10 @@ use mod_skilland\local\api_client;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class fixture_api_client implements api_client {
-    /** @var array Operation name => response data, \Throwable to throw, or \Closure(array $variables): array. */
+    /** @var array Route key => response body, \Throwable to throw, or \Closure(array $variables): array. */
     protected array $responses;
 
-    /** @var array[] GraphQL and REST calls made, each ['operation' => string, 'variables' => array], plus 'path' for REST. */
+    /** @var array[] REST calls made, each ['operation' => route key, 'variables' => array, 'path' => string]. */
     public array $calls = [];
 
     /** @var array[] Downloads made, each ['url' => string, 'expectedsize' => int]. */
@@ -197,7 +197,7 @@ class fixture_api_client implements api_client {
     }
 
     /**
-     * The canned GraphQL responses, keyed by operation name.
+     * The canned REST answers, keyed by route key.
      *
      * @return array
      */
@@ -211,33 +211,31 @@ class fixture_api_client implements api_client {
     }
 
     /**
-     * Replace the response to a GraphQL operation.
+     * Replace the answer of a route.
      *
-     * @param string $operation Operation name, e.g. TopicScormHash.
-     * @param array|\Throwable|\Closure $response Data to return, an exception to throw, or a closure
-     *     receiving the variables and returning the data.
+     * @param string $route Route key, e.g. "GET topics/{id}/scorm-hash".
+     * @param array|\Throwable|\Closure $response Body to return ([] for an empty body), an exception to
+     *     throw, or a closure receiving the call's variables and returning the body.
      * @return self
      */
-    public function set_response(string $operation, array|\Throwable|\Closure $response): self {
-        $this->responses[$operation] = $response;
+    public function set_response(string $route, array|\Throwable|\Closure $response): self {
+        $this->responses[$route] = $response;
         return $this;
     }
 
     /**
-     * Merge fields into the default response of an operation's root field.
+     * Merge top-level fields into the default answer of a route.
      *
-     * @param string $operation Operation name, e.g. TopicScormHash.
-     * @param string $field Root field, e.g. topicScormHash.
+     * @param string $route Route key, e.g. "GET topics/{id}/scorm-hash".
      * @param array $values Fields to override.
      * @return self
      */
-    public function merge_response(string $operation, string $field, array $values): self {
-        $current = $this->responses[$operation] ?? [];
+    public function merge_response(string $route, array $values): self {
+        $current = $this->responses[$route] ?? [];
         if (!is_array($current)) {
-            $current = self::default_responses()[$operation] ?? [];
+            $current = self::default_responses()[$route] ?? [];
         }
-        $current[$field] = array_merge($current[$field] ?? [], $values);
-        $this->responses[$operation] = $current;
+        $this->responses[$route] = array_merge($current, $values);
         return $this;
     }
 
@@ -264,7 +262,7 @@ class fixture_api_client implements api_client {
     }
 
     /**
-     * Names of the GraphQL operations called so far, in order.
+     * Route keys called so far, in order.
      *
      * @return string[]
      */
@@ -273,92 +271,112 @@ class fixture_api_client implements api_client {
     }
 
     /**
-     * How many times an operation was called.
+     * How many times a route was called.
      *
-     * @param string $operation
+     * @param string $route Route key.
      * @return int
      */
-    public function count_calls(string $operation): int {
-        return count(array_keys($this->operations(), $operation, true));
+    public function count_calls(string $route): int {
+        return count(array_keys($this->operations(), $route, true));
     }
 
     /**
-     * Answer a GraphQL operation from the fixtures.
-     *
-     * @param string $query The GraphQL document.
-     * @param array $variables Query variables.
-     * @return array
-     * @throws \moodle_exception error_api_unavailable for an operation without a fixture.
-     */
-    public function graphql(string $query, array $variables = []): array {
-        $operation = self::operation_name($query);
-        $this->calls[] = ['operation' => $operation, 'variables' => $variables];
-
-        $response = $this->responses[$operation] ?? null;
-        if ($response instanceof \Throwable) {
-            throw $response;
-        }
-        if ($response instanceof \Closure) {
-            return $response($variables);
-        }
-        if ($response === null) {
-            throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
-        }
-        return $response;
-    }
-
-    /**
-     * REST routes answered from the fixture of the GraphQL operation they replace: last path
-     * segment => [operation name, root field].
+     * REST routes the plugin calls: pattern on "METHOD path" (query string excluded) => [route key,
+     * name of the path parameter, or null].
      */
     public const REST_ROUTES = [
-        'scorm-hash' => ['TopicScormHash', 'topicScormHash'],
-        'scorm' => ['GetTopicScorm', 'topicScorm'],
+        '#^GET /api/moodle/skills$#' => ['GET skills', null],
+        '#^POST /api/moodle/skills$#' => ['POST skills', null],
+        '#^GET /api/moodle/users/courses$#' => ['GET users/courses', null],
+        '#^GET /api/moodle/skills/([^/]+)/topics$#' => ['GET skills/{id}/topics', 'skillId'],
+        '#^GET /api/moodle/topics/([^/]+)/contents$#' => ['GET topics/{id}/contents', 'topicId'],
+        '#^GET /api/moodle/topics/([^/]+)/scorm$#' => ['GET topics/{id}/scorm', 'topicId'],
+        '#^GET /api/moodle/topics/([^/]+)/scorm-hash$#' => ['GET topics/{id}/scorm-hash', 'topicId'],
     ];
 
     /**
-     * Answer a REST route from the fixture of the GraphQL operation it replaces.
+     * Answer a REST GET from the fixtures.
      *
-     * The call is recorded under that operation name (with the path), so count_calls() and
-     * set_response() keep working for either transport. A null root field answers an empty body.
+     * The call is recorded under its route key with the path, the path parameter and the query
+     * parameters as variables.
      *
      * @param string $path Route path, e.g. /api/moodle/topics/{id}/scorm-hash.
      * @return array
      * @throws \moodle_exception error_api_unavailable for a route without a fixture.
      */
     public function rest_get(string $path): array {
-        $segments = explode('/', trim($path, '/'));
-        $route = self::REST_ROUTES[end($segments)] ?? null;
-        $topicid = count($segments) >= 2 ? rawurldecode($segments[count($segments) - 2]) : '';
-        if ($route === null) {
-            $this->calls[] = ['operation' => $path, 'variables' => [], 'path' => $path];
+        return $this->answer('GET', $path, []);
+    }
+
+    /**
+     * Answer a REST POST from the fixtures; the JSON body is recorded as the variables.
+     *
+     * @param string $path Route path, e.g. /api/moodle/skills.
+     * @param array $body The JSON body.
+     * @return array
+     * @throws \moodle_exception error_api_unavailable for a route without a fixture.
+     */
+    public function rest_post(string $path, array $body): array {
+        return $this->answer('POST', $path, $body);
+    }
+
+    /**
+     * Resolve, record and answer a REST call.
+     *
+     * @param string $method GET or POST.
+     * @param string $path Route path, with its query string.
+     * @param array $body JSON body of a POST.
+     * @return array
+     * @throws \moodle_exception error_api_unavailable for a route without a fixture.
+     */
+    protected function answer(string $method, string $path, array $body): array {
+        $route = parse_url($path, PHP_URL_PATH) ?: $path;
+        $query = [];
+        parse_str((string) parse_url($path, PHP_URL_QUERY), $query);
+
+        $key = null;
+        $variables = $query;
+        foreach (self::REST_ROUTES as $pattern => [$routekey, $param]) {
+            if (preg_match($pattern, $method . ' ' . $route, $m)) {
+                $key = $routekey;
+                if ($param !== null) {
+                    $variables = [$param => rawurldecode($m[1])] + $variables;
+                }
+                break;
+            }
+        }
+        if ($method === 'POST') {
+            $variables = $body;
+        }
+        if ($key === null) {
+            $this->calls[] = ['operation' => $method . ' ' . $path, 'variables' => $variables, 'path' => $path];
             throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
         }
-        [$operation, $field] = $route;
-        $variables = ['topicId' => $topicid];
-        $this->calls[] = ['operation' => $operation, 'variables' => $variables, 'path' => $path];
+        $this->calls[] = ['operation' => $key, 'variables' => $variables, 'path' => $path];
 
-        $response = $this->responses[$operation] ?? null;
+        $response = $this->responses[$key] ?? null;
         if ($response instanceof \Throwable) {
             throw $response;
         }
         if ($response instanceof \Closure) {
             $response = $response($variables);
         }
-        if ($response === null) {
+        if (!is_array($response)) {
             throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
         }
-        $body = $response[$field] ?? null;
-        if (!is_array($body)) {
-            return [];
-        }
         if (
-            $field === 'topicScorm' && !empty($body['packageUrl']) && !array_key_exists('signature', $body) &&
+            $key === 'GET topics/{id}/scorm' && !empty($response['packageUrl']) && !array_key_exists('signature', $response) &&
                 $this->signingkeyid !== null && $this->signingsecret !== null
         ) {
-            $body = self::sign_scorm($topicid, $body, $this->package_hash(), $this->signingkeyid, $this->signingsecret);
+            $response = self::sign_scorm(
+                (string) $variables['topicId'],
+                $response,
+                $this->package_hash(),
+                $this->signingkeyid,
+                $this->signingsecret
+            );
         }
-        return $body;
+        return $response;
     }
 
     /**
@@ -408,15 +426,5 @@ class fixture_api_client implements api_client {
         }
         $zip->close();
         return $path;
-    }
-
-    /**
-     * Operation name of a GraphQL document, or '' when it is anonymous.
-     *
-     * @param string $query
-     * @return string
-     */
-    public static function operation_name(string $query): string {
-        return preg_match('/^\s*(?:query|mutation)\s+([A-Za-z_][A-Za-z0-9_]*)/', $query, $matches) ? $matches[1] : '';
     }
 }

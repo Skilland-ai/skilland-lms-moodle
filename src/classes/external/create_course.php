@@ -73,11 +73,10 @@ class create_course extends base {
             $course = get_course($moodlecourseid);
             $coursename = $course->fullname;
 
-            // Create course in Skilland.
-            $skill = mod_skilland_create_course($coursename, $USER->email);
+            // Create course in Skilland; the Moodle user id lets Skilland link a user it creates for SSO.
+            $skill = mod_skilland_create_course($coursename, $USER->email, (string) $USER->id);
             $skillid = $skill['id'];
             $skillname = $skill['name'] ?? $coursename;
-            $creationstep = $skill['creationStep'] ?? 'microcredential-upload';
 
             logger::debug('AJAX', 'Created Skilland course: ' . $skillid . ' (' . $skillname . ')');
 
@@ -86,10 +85,7 @@ class create_course extends base {
 
             // The Studio link is offered after the course form saves (observer::course_updated);
             // sso_redirect.php mints the SSO token when the teacher clicks it.
-            mod_skilland_set_pending_studio_path(
-                $moodlecourseid,
-                '/skills-studio/create/' . rawurlencode((string) $creationstep) . '/' . rawurlencode((string) $skillid)
-            );
+            mod_skilland_set_pending_studio_path($moodlecourseid, $skill['path']);
 
             return [
                 'skillid' => $skillid,

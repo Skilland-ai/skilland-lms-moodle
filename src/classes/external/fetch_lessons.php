@@ -47,7 +47,7 @@ class fetch_lessons extends base {
     }
 
     /**
-     * Fetch lessons from Skilland via GraphQL for a given topic.
+     * Fetch lessons from the Skilland REST API for a given topic.
      *
      * @param string $topicid Skilland topic ID
      * @param int $moodlecourseid Moodle course ID

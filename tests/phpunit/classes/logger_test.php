@@ -123,9 +123,9 @@ class logger_test extends TestCase {
     }
 
     public function test_error_includes_component_prefix(): void {
-        logger::error('GraphQL', 'HTTP 500');
+        logger::error('REST', 'HTTP 500');
 
-        $this->assertStringContainsString('[Skilland] [GraphQL]', $GLOBALS['_test_debug_messages'][0]['message']);
+        $this->assertStringContainsString('[Skilland] [REST]', $GLOBALS['_test_debug_messages'][0]['message']);
     }
 
     // ---------------------------------------------------------------

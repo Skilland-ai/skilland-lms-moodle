@@ -56,14 +56,31 @@ class locallib_http_security_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // mod_skilland_graphql()
+    // mod_skilland_rest_get() / mod_skilland_rest_post()
     // ---------------------------------------------------------------
 
-    public function test_graphql_keeps_curl_security_and_does_not_follow_redirects(): void {
-        $this->config('https://api.skilland.ai/graphql');
-        $this->respond(200, json_encode(['data' => ['ok' => true]]));
+    /** Both REST transports: GET a listing, POST a new course. */
+    public static function transports(): array {
+        return [
+            'GET' => ['GET'],
+            'POST' => ['POST'],
+        ];
+    }
 
-        mod_skilland_graphql('{ ok }');
+    private function call(string $method): array {
+        return $method === 'GET'
+            ? mod_skilland_rest_get('/api/moodle/skills')
+            : mod_skilland_rest_post('/api/moodle/skills', ['name' => 'N', 'userEmail' => 'u@example.com']);
+    }
+
+    /**
+     * @dataProvider transports
+     */
+    public function test_rest_keeps_curl_security_and_does_not_follow_redirects(string $method): void {
+        $this->config('https://app.skilland.ai');
+        $this->respond(200, json_encode(['ok' => true]));
+
+        $this->call($method);
 
         $last = $GLOBALS['_test_curl_last'];
         $this->assertArrayNotHasKey('ignoresecurity', $last['settings']);
@@ -73,29 +90,38 @@ class locallib_http_security_test extends TestCase {
         $this->assertArrayNotHasKey('CURLOPT_NOPROXY', $last['options']);
     }
 
-    public function test_graphql_http_endpoint_throws_before_any_request(): void {
-        $this->config('http://api.skilland.ai/graphql');
-        $this->respond(200, json_encode(['data' => []]));
+    /**
+     * @dataProvider transports
+     */
+    public function test_rest_http_url_throws_before_any_request(string $method): void {
+        $this->config('http://app.skilland.ai');
+        $this->respond(200, json_encode([]));
 
-        $this->expect_code(fn() => mod_skilland_graphql('{ ok }'), 'error_insecure_url');
+        $this->expect_code(fn() => $this->call($method), 'error_insecure_url');
         $this->assertArrayNotHasKey('_test_curl_last', $GLOBALS);
         $this->assertArrayNotHasKey('_test_curl_requests', $GLOBALS);
     }
 
-    public function test_graphql_redirect_is_rejected_and_not_followed(): void {
-        $this->config('https://api.skilland.ai/graphql');
+    /**
+     * @dataProvider transports
+     */
+    public function test_rest_redirect_is_rejected_and_not_followed(string $method): void {
+        $this->config('https://app.skilland.ai/graphql');
         $this->respond(302);
 
-        $this->expect_code(fn() => mod_skilland_graphql('{ ok }'), 'error_http_redirect');
-        $this->assertSame(['https://api.skilland.ai/graphql'], $GLOBALS['_test_curl_requests']);
+        $this->expect_code(fn() => $this->call($method), 'error_http_redirect');
+        $this->assertSame(['https://app.skilland.ai/api/moodle/skills'], $GLOBALS['_test_curl_requests']);
     }
 
-    public function test_graphql_dev_local_endpoint_bypasses_security_and_proxy(): void {
+    /**
+     * @dataProvider transports
+     */
+    public function test_rest_dev_local_url_bypasses_security_and_proxy(string $method): void {
         $GLOBALS['CFG']->mod_skilland_allow_http = true;
-        $this->config('http://host.docker.internal:8000/graphql');
-        $this->respond(200, json_encode(['data' => []]));
+        $this->config('http://host.docker.internal:3100');
+        $this->respond(200, json_encode([]));
 
-        mod_skilland_graphql('{ ok }');
+        $this->call($method);
 
         $last = $GLOBALS['_test_curl_last'];
         $this->assertTrue($last['settings']['ignoresecurity']);
@@ -104,12 +130,15 @@ class locallib_http_security_test extends TestCase {
         $this->assertFalse($last['options']['CURLOPT_FOLLOWLOCATION']);
     }
 
-    public function test_graphql_dev_public_endpoint_keeps_security(): void {
+    /**
+     * @dataProvider transports
+     */
+    public function test_rest_dev_public_url_keeps_security(string $method): void {
         $GLOBALS['CFG']->mod_skilland_allow_http = true;
-        $this->config('https://api.skilland.ai/graphql');
-        $this->respond(200, json_encode(['data' => []]));
+        $this->config('https://app.skilland.ai');
+        $this->respond(200, json_encode([]));
 
-        mod_skilland_graphql('{ ok }');
+        $this->call($method);
 
         $last = $GLOBALS['_test_curl_last'];
         $this->assertArrayNotHasKey('ignoresecurity', $last['settings']);
@@ -405,25 +434,31 @@ class locallib_http_security_test extends TestCase {
     /**
      * @dataProvider redirect_codes
      */
-    public function test_graphql_redirects_make_exactly_one_request(int $code): void {
-        $this->config('https://api.skilland.ai/graphql');
+    public function test_rest_redirects_make_exactly_one_request(int $code, string $method): void {
+        $this->config('https://app.skilland.ai');
         $this->respond($code);
 
-        $e = $this->expect_code(fn() => mod_skilland_graphql('{ ok }'), 'error_http_redirect');
+        $e = $this->expect_code(fn() => $this->call($method), 'error_http_redirect');
         $this->assertSame($code, $e->a);
-        $this->assertSame(['https://api.skilland.ai/graphql'], $GLOBALS['_test_curl_requests']);
+        $this->assertSame(['https://app.skilland.ai/api/moodle/skills'], $GLOBALS['_test_curl_requests']);
     }
 
     public static function redirect_codes(): array {
-        return ['301' => [301], '307' => [307], '308' => [308]];
+        return [
+            '301 GET' => [301, 'GET'], '307 GET' => [307, 'GET'], '308 GET' => [308, 'GET'],
+            '301 POST' => [301, 'POST'], '307 POST' => [307, 'POST'], '308 POST' => [308, 'POST'],
+        ];
     }
 
-    public function test_graphql_curl_error_surfaces_as_exception(): void {
-        $this->config('https://api.skilland.ai/graphql');
+    /**
+     * @dataProvider transports
+     */
+    public function test_rest_curl_error_surfaces_as_exception(string $method): void {
+        $this->config('https://app.skilland.ai');
         $GLOBALS['_test_curl_response'] = ['body' => '', 'http_code' => 0, 'errno' => 60, 'error' => 'SSL certificate problem'];
         $GLOBALS['_test_debug_messages'] = [];
 
-        $e = $this->expect_code(fn() => mod_skilland_graphql('{ ok }'), 'error_graphql_http');
+        $e = $this->expect_code(fn() => $this->call($method), 'error_graphql_http');
         // SKL-670: the exception carries only the status; the curl details go to the log.
         $this->assertSame('HTTP 0', $e->a);
         $log = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
