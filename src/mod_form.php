@@ -201,7 +201,8 @@ class mod_skilland_mod_form extends moodleform_mod {
         );
 
         // Adding the standard "name" field.
-        $mform->addElement('text', 'name', get_string('modulename', 'mod_skilland'), ['size' => '64']);
+        // Core's "Name" label, as every standard activity uses; "modulename" is the activity type's name.
+        $mform->addElement('text', 'name', get_string('name'), ['size' => '64']);
         if (!empty($CFG->formatstringstriptags)) {
             $mform->setType('name', PARAM_TEXT);
         } else {
