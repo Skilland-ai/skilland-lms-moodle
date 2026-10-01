@@ -271,6 +271,11 @@ final class task_sync_content_test extends skilland_testcase {
         scorm_insert_track($user->id, $scormid, $scoid, 1, 'cmi.core.lesson_status', 'incomplete');
     }
 
+    /**
+     * Staff roles whose attempts must never lock auto-update.
+     *
+     * @return array[]
+     */
     public static function staff_role_provider(): array {
         return [
             'editing teacher' => ['editingteacher'],
@@ -279,7 +284,10 @@ final class task_sync_content_test extends skilland_testcase {
     }
 
     /**
+     * An attempt by staff alone leaves the activity unlocked.
+     *
      * @dataProvider staff_role_provider
+     * @param string $role The staff role the user is enrolled with.
      */
     public function test_lock_after_first_access_ignores_staff_attempts(string $role): void {
         [$course, $skilland, $cmid] = $this->provisioned_activity(['lockafterfirstaccess' => 1]);
