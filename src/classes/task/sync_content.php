@@ -183,8 +183,10 @@ class sync_content extends \core\task\scheduled_task {
 
         // Check lockafterfirstaccess: if enabled and students have accessed, skip.
         if (!empty($skilland->lockafterfirstaccess) && !empty($skilland->scormcmid)) {
-            $hasstudentaccess = $this->has_student_access($skilland);
-            if ($hasstudentaccess) {
+            $learnerids = skilland_learner_attempt_userids($skilland, true);
+            if ($learnerids) {
+                logger::debug('SyncContent', 'Activity ' . $skilland->id . ' locked by the attempt of user ' .
+                    $learnerids[0]);
                 logger::info('SyncContent', 'Activity ' . $skilland->id . ' locked (students have accessed) — skipping');
                 return 'skipped';
             }
@@ -264,38 +266,5 @@ class sync_content extends \core\task\scheduled_task {
         logger::info('SyncContent', 'Activity ' . $skilland->id . ': update available, ' . $sent . ' teacher(s) notified');
 
         return 'notified';
-    }
-
-    /**
-     * Check if any student has accessed this activity's SCORM content.
-     *
-     * @param \stdClass $skilland
-     * @return bool
-     */
-    private function has_student_access($skilland) {
-        global $DB;
-
-        if (empty($skilland->scormcmid)) {
-            return false;
-        }
-
-        $scormcm = get_coursemodule_from_id('scorm', $skilland->scormcmid, 0, false, IGNORE_MISSING);
-        if (!$scormcm) {
-            return false;
-        }
-
-        $scorm = $DB->get_record('scorm', ['id' => $scormcm->instance]);
-        if (!$scorm) {
-            return false;
-        }
-
-        // Check if the newer Moodle 4.x tables exist.
-        $dbman = $DB->get_manager();
-        if ($dbman->table_exists('scorm_attempt')) {
-            return $DB->record_exists('scorm_attempt', ['scormid' => $scorm->id]);
-        }
-
-        // Fallback for older Moodle versions.
-        return $DB->record_exists('scorm_scoes_track', ['scormid' => $scorm->id]);
     }
 }

@@ -117,6 +117,29 @@ class FakeDatabase {
         return [];
     }
 
+    /**
+     * Answers the "SELECT DISTINCT userid FROM {table} WHERE scormid = :scormid" read of
+     * skilland_learner_attempt_userids() from the seeded rows (the fake does not parse other SQL).
+     */
+    public function get_fieldset_sql(string $sql, array $params = []): array {
+        $this->calls[] = ['method' => 'get_fieldset_sql', 'sql' => $sql, 'params' => $params];
+        if (!preg_match('/SELECT DISTINCT (\w+) FROM \{(\w+)\}/', $sql, $m)) {
+            return [];
+        }
+        [, $field, $table] = $m;
+        $values = [];
+        foreach (($this->tables[$table] ?? []) as $record) {
+            if (isset($params['scormid']) && (int) ($record->scormid ?? 0) !== (int) $params['scormid']) {
+                continue;
+            }
+            if (isset($record->$field)) {
+                $values[(int) $record->$field] = (int) $record->$field;
+            }
+        }
+        ksort($values);
+        return array_values($values);
+    }
+
     public function insert_record(string $table, $dataobject, bool $returnid = true): int {
         $obj = is_object($dataobject) ? clone $dataobject : (object)$dataobject;
         if (!isset($this->auto_increment[$table])) {

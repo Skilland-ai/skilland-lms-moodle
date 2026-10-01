@@ -22,7 +22,7 @@ class check_topic_snapshot_test extends TestCase {
         '_test_capability_course_ids', '_test_curl_response', '_test_curl_responses', '_test_curl_requests',
         '_test_curl_last', '_test_customfield_value', '_test_get_coursemodule_from_id',
         '_test_get_coursemodule_from_instance', '_test_deleted_cmids', '_test_create_module_calls',
-        '_test_lock_calls', '_test_events', '_test_cm_from_db',
+        '_test_lock_calls', '_test_events', '_test_cm_from_db', '_test_staff_userids',
     ];
 
     /** @var \FakeDatabase */
@@ -91,20 +91,19 @@ class check_topic_snapshot_test extends TestCase {
 
     public function test_zero_when_topic_has_no_student_attempts(): void {
         $this->db->get_manager()->set_table_exists('scorm_attempt', true);
-        $this->db->set_records_sql_handler(fn() => []);
 
         $this->assertSame(0, $this->execute_clean()['studentattemptcount']);
     }
 
     public function test_counts_distinct_students_with_attempts(): void {
         $this->db->get_manager()->set_table_exists('scorm_attempt', true);
-        // A real "SELECT DISTINCT userid ..." already dedupes repeat attempts by the same
-        // student; the fake DB does not parse SQL, so the handler returns the already-distinct
-        // rows a real query would produce.
-        $this->db->set_records_sql_handler(fn() => [
-            (object) ['userid' => 50],
-            (object) ['userid' => 51],
+        $this->db->seed('scorm_attempt', [
+            (object) ['id' => 1, 'scormid' => self::SKILLAND_ID, 'userid' => 50],
+            (object) ['id' => 2, 'scormid' => self::SKILLAND_ID, 'userid' => 50],
+            (object) ['id' => 3, 'scormid' => self::SKILLAND_ID, 'userid' => 51],
+            (object) ['id' => 4, 'scormid' => self::SKILLAND_ID, 'userid' => 52],
         ]);
+        $GLOBALS['_test_staff_userids'] = [52];
 
         $this->assertSame(2, $this->execute_clean()['studentattemptcount']);
     }
