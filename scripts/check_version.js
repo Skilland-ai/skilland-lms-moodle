@@ -9,15 +9,30 @@
  *
  * The base is `git show $BASE_REF:src/version.php` (CI passes the PR base sha); without
  * BASE_REF it is HEAD, i.e. the last commit, for local use. SKIP_VERSION_CHECK=1 skips it.
+ * A change that touches nothing the release ZIP is built from (docs, tests, CI) needs no bump:
+ * release.yml then skips the release, since the ZIP would be the same.
  */
 const fs = require('fs')
 const { execFileSync } = require('child_process')
 
 const VERSION_FILE = 'src/version.php'
+// What `npm run build` packs into the release ZIP (Gruntfile.js), and what decides it. Keep in step with release.yml.
+const SHIPPED = ['src/', 'vendor/', 'cli/', 'Gruntfile.js', 'package.json', 'package-lock.json', 'composer.json', 'composer.lock']
 
 if (process.env.SKIP_VERSION_CHECK) {
   console.log('SKIP_VERSION_CHECK set. Skipping version check.')
   process.exit(0)
+}
+
+if (process.env.BASE_REF) {
+  const changed = execFileSync('git', ['diff', '--name-only', process.env.BASE_REF, 'HEAD'], { stdio: ['ignore', 'pipe', 'pipe'] })
+    .toString()
+    .split('\n')
+    .filter(Boolean)
+  if (!changed.some((f) => SHIPPED.some((s) => (s.endsWith('/') ? f.startsWith(s) : f === s)))) {
+    console.log(`Nothing that ships changed (${changed.length} file(s): docs, tests or CI). No version bump needed.`)
+    process.exit(0)
+  }
 }
 
 function parse(content) {

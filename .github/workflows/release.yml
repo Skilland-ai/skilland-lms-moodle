@@ -67,6 +67,14 @@ jobs:
               echo "Release $TAG already exists for $SHA (re-run), skipping."
               exit 0
             fi
+            # Same version and nothing that ships changed since (docs, tests, CI): the ZIP would be the same.
+            # Keep this list in step with SHIPPED in scripts/check_version.js.
+            if [ -n "$TAG_COMMIT" ] && git diff --quiet "$TAG_COMMIT" "$SHA" -- src vendor cli Gruntfile.js package.json package-lock.json composer.json composer.lock; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "reuse_tag=true" >> "$GITHUB_OUTPUT"
+              echo "Release $TAG already ships the same code as $SHA (only docs, tests or CI changed), skipping."
+              exit 0
+            fi
             echo "::error::Release $TAG already exists for commit ${TAG_COMMIT:-<no tag>}, not $SHA. Bump \$plugin->version in src/version.php."
             exit 1
           fi
