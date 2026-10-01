@@ -166,9 +166,9 @@ class capabilities_test extends TestCase {
     }
 
     public function test_readme_documents_every_capability(): void {
-        $readme = file_get_contents(self::$srcDir . '/../README.md');
-        $start = strpos($readme, '### 3. Capabilities');
-        $this->assertNotFalse($start, 'README has no Capabilities section');
+        $readme = file_get_contents(self::$srcDir . '/../docs/admin-guide.md');
+        $start = strpos($readme, '## Capabilities and roles');
+        $this->assertNotFalse($start, 'The admin guide has no Capabilities section');
         $section = substr($readme, $start, 2000);
         foreach (array_keys(self::$capabilities) as $name) {
             $this->assertStringContainsString('`' . $name . '`', $section);

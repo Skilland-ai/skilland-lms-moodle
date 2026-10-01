@@ -15,7 +15,7 @@ async function globalSetup() {
 
   if (!moodleReady) {
     throw new Error(
-      `Moodle is not reachable at ${moodleUrl}. Start it (see DEVELOPMENT.md, "E2E tests") ` +
+      `Moodle is not reachable at ${moodleUrl}. Start it (see docs/development.md, "E2E tests") ` +
       'or point MOODLE_URL at a running instance.'
     )
   }

@@ -1,6 +1,8 @@
-# Skilland Moodle Plugin - Backup and Restore Logic
+# Backup and restore
 
-The Skilland Moodle plugin declares `FEATURE_BACKUP_MOODLE2` in `skilland_supports()`, so Moodle includes its activities in backups and offers them for restore, import, course copy and duplicate:
+How Skilland content activities behave in Moodle backups, restores, imports, course copies and duplicates. The [administrator guide](admin-guide.md#backup-and-restore) has the short version.
+
+The plugin declares `FEATURE_BACKUP_MOODLE2` in `skilland_supports()`, so Moodle includes its activities in backups and offers them for restore, import, course copy and duplicate:
 - **Course Backup/Restore**: Full course backups including Skilland activities and course-level mappings.
 - **Course Copy**: Duplicating courses within the same site.
 - **Import**: Importing activities from one course to another.
@@ -8,7 +10,7 @@ The Skilland Moodle plugin declares `FEATURE_BACKUP_MOODLE2` in `skilland_suppor
 
 ## How it Works
 
-The backup implementation is located in `src/backup/moodle2/` and follows standard Moodle 2.0 backup architecture.
+The backup implementation is located in `src/backup/moodle2/` and follows Moodle's standard backup API (`backup_activity_task` / `restore_activity_task`).
 
 ### Data Structures Backed Up
 1.  **Activity Instance (`skilland` table)**:
@@ -43,7 +45,7 @@ The Skilland activity links a hidden SCORM activity (`scormcmid`) and each lesso
 | Import of the Skilland activity alone | No | A new SCORM is provisioned from the API |
 | Duplicate | No | A new SCORM is provisioned from the API; the original keeps its own |
 
-If provisioning fails (API unreachable, no visible lessons), the restore still completes and the activity has no SCORM; open it and re-provision from its settings.
+If provisioning fails (API unreachable, no visible lessons), the restore still completes and the activity has no SCORM; open it and press **Prepare Topic Content**.
 
 #### Course Mapping
 During restore, the plugin checks if the target course already has an entry in the `skilland_course` table.
