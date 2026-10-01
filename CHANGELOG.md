@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.41-beta]
+
+### Changed
+- Every call to SkilLand now goes to its REST API (`/api/moodle`, Bearer API
+  key): the course list (`GET skills?status=all`, every status), the courses a
+  teacher can edit (`GET users/courses`), topics (`GET skills/{id}/topics`) and
+  lessons (`GET topics/{id}/contents`, lessons with a body only) join the
+  topic SCORM routes. Reads are retried on transient failures; writes are sent
+  once (SKL-963).
+- **Create in SkilLand** uses `POST skills` and sends the Moodle user id and
+  site URL, the same `sub`/`iss` as the SSO token, so a SkilLand account
+  created for the teacher is linked for SSO. A missing Expert role, a
+  deactivated account, an email from another organization, a name already
+  taken and rate limiting each show their own message (SKL-963).
+- Studio links open the native Studio: `/skills/<id>`,
+  `/skills/<id>?topic=<id>` and `/skills/new?draft=<id>` after a create; the
+  stored post-save link only accepts those paths (SKL-963).
+- The **GraphQL Endpoint** setting is now **Skilland URL**, the address of the
+  SkilLand site (default `https://app.skilland.ai`); a stored value ending in
+  `/graphql` or `/api/moodle` keeps working. **Frontend URL** is an optional
+  override (SKL-963).
+
+### Removed
+- The GraphQL client and the legacy GraphQL fallback of the topic SCORM
+  lookups (SKL-963).
+
 ## [0.9.40-beta]
 
 ### Security
