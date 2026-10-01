@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100100;   // YYYYMMDDHH - REST-only API client, native Studio links (SKL-963).
+$plugin->version   = 2026100200;   // YYYYMMDDHH - staff attempts no longer lock auto-update (SKL-677).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.41-beta';
+$plugin->release   = '0.9.42-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

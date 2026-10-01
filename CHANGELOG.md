@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.42-beta]
+
+### Fixed
+- With **Lock after first access** on, only a learner's SCORM attempt locks
+  auto-update. A teacher or admin previewing the activity (anyone holding
+  `moodle/course:manageactivities` in the SCORM) no longer blocks content
+  updates, and the destructive-update confirmation counts learners only
+  (SKL-677).
+
 ## [0.9.41-beta]
 
 ### Changed

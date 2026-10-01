@@ -412,6 +412,10 @@ if (!class_exists('context_system')) {
 // is set and the course context's instance id is not in it (a teacher of those courses only).
 if (!function_exists('has_capability')) {
     function has_capability($capability, $context, $user = null) {
+        // Staff are named per test; everyone else holds no editing right (SKL-677).
+        if ($capability === 'moodle/course:manageactivities' && $user !== null) {
+            return in_array((int) $user, $GLOBALS['_test_staff_userids'] ?? [], true);
+        }
         if (in_array($capability, $GLOBALS['_test_denied_capabilities'] ?? [], true)) {
             return false;
         }

@@ -2048,40 +2048,61 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
 }
 
 /**
- * Count the distinct students who have at least one SCORM attempt on the activity's currently
- * linked topic. Used to size the destructive-confirmation copy shown before an update or a topic
- * change would delete that progress (SKL-697).
+ * The users with a SCORM attempt on the activity's linked SCORM who are learners, not staff.
  *
- * Deliberately a single lightweight query against {scorm_attempt} alone — unlike
- * skilland_read_scorm_progress(), it does not need scorm_scoes_value/scorm_element and must stay
- * cheap enough to run on every page load that renders a confirmation dialog.
+ * Staff are users holding moodle/course:manageactivities in the SCORM's module context (site
+ * admins have every capability), so a teacher previewing the content never counts. Reads
+ * {scorm_attempt} (Moodle 4.3+) and falls back to {scorm_scoes_track}.
  *
  * @param stdClass $skilland The skilland activity record.
- * @return int Number of distinct users with a SCORM attempt, or 0 when the SCORM is gone, the
- *         table is unavailable, or the query fails.
+ * @param bool $stopatfirst Return after the first learner found (enough to know there is one).
+ * @return int[] Learner user ids; empty when the SCORM is gone, nobody attempted it, or the
+ *         query fails.
  */
-function skilland_count_topic_student_attempts(stdClass $skilland): int {
+function skilland_learner_attempt_userids(stdClass $skilland, bool $stopatfirst = false): array {
     global $DB;
-
-    $dbman = $DB->get_manager();
-    if (!$dbman->table_exists('scorm_attempt')) {
-        return 0;
-    }
 
     $scormcm = skilland_get_linked_scorm_cm($skilland);
     if (!$scormcm) {
-        return 0;
+        return [];
     }
 
     try {
-        $sql = "SELECT DISTINCT userid FROM {scorm_attempt} WHERE scormid = :scormid";
-        $rows = $DB->get_records_sql($sql, ['scormid' => (int) $scormcm->instance]);
-        return count($rows);
+        $table = $DB->get_manager()->table_exists('scorm_attempt') ? 'scorm_attempt' : 'scorm_scoes_track';
+        $userids = $DB->get_fieldset_sql(
+            "SELECT DISTINCT userid FROM {{$table}} WHERE scormid = :scormid ORDER BY userid",
+            ['scormid' => (int) $scormcm->instance]
+        );
+        $context = \context_module::instance($scormcm->id);
+        $learners = [];
+        foreach ($userids as $userid) {
+            if (has_capability('moodle/course:manageactivities', $context, (int) $userid)) {
+                continue;
+            }
+            $learners[] = (int) $userid;
+            if ($stopatfirst) {
+                break;
+            }
+        }
+        return $learners;
     } catch (\Throwable $e) {
-        logger::error('Progress', 'Counting SCORM attempts for skilland id ' . $skilland->id . ' failed - ' .
+        logger::error('Progress', 'Reading SCORM attempts for skilland id ' . $skilland->id . ' failed - ' .
             $e->getMessage());
-        return 0;
+        return [];
     }
+}
+
+/**
+ * Count the distinct learners who have at least one SCORM attempt on the activity's currently
+ * linked topic. Used to size the destructive-confirmation copy shown before an update or a topic
+ * change would delete that progress (SKL-697). Staff attempts are not counted (SKL-677).
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @return int Number of distinct learners with a SCORM attempt, or 0 when the SCORM is gone or
+ *         the query fails.
+ */
+function skilland_count_topic_student_attempts(stdClass $skilland): int {
+    return count(skilland_learner_attempt_userids($skilland));
 }
 
 /**

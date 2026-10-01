@@ -21,7 +21,7 @@ class task_sync_content_test extends TestCase {
         // Reset configurable stubs and the \core\di seams (api_client, topic_scorm_updater).
         \core\di::reset_container();
         unset($GLOBALS['_test_lock_available'], $GLOBALS['_test_lock_calls']);
-        unset($GLOBALS['_test_get_coursemodule_from_id']);
+        unset($GLOBALS['_test_get_coursemodule_from_id'], $GLOBALS['_test_staff_userids']);
         unset($GLOBALS['_test_get_coursemodule_from_instance']);
         unset($GLOBALS['_test_get_course']);
         \mod_skilland\logger::reset_cache();
@@ -179,7 +179,7 @@ class task_sync_content_test extends TestCase {
             (object)['id' => 50, 'course' => 1],
         ]);
         $this->db->seed('scorm_attempt', [
-            (object)['id' => 1, 'scormid' => 50],
+            (object)['id' => 1, 'scormid' => 50, 'userid' => 7],
         ]);
 
         $activity = (object)[
@@ -407,84 +407,62 @@ class task_sync_content_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // has_student_access() — all branches
+    // skilland_learner_attempt_userids() — all branches (SKL-677)
     // ---------------------------------------------------------------
 
-    public function test_has_student_access_returns_false_without_scormcmid(): void {
-        $activity = (object)[
-            'id' => 1,
-            'scormcmid' => null,
-        ];
-
-        $task = $this->makeTask();
-        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
-
-        $this->assertFalse($result);
+    private function learner_ids(object $activity, bool $stopatfirst = false): array {
+        return skilland_learner_attempt_userids($activity, $stopatfirst);
     }
 
-    public function test_has_student_access_returns_false_when_cm_not_found(): void {
-        $activity = (object)[
-            'id' => 1,
-            'scormcmid' => 999,
-        ];
+    public function test_learner_attempts_are_empty_without_scormcmid(): void {
+        $this->assertSame([], $this->learner_ids((object)['id' => 1, 'scormcmid' => null]));
+    }
 
+    public function test_learner_attempts_are_empty_when_cm_not_found(): void {
         $GLOBALS['_test_get_coursemodule_from_id'] = false;
 
-        $task = $this->makeTask();
-        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
-
-        $this->assertFalse($result);
+        $this->assertSame([], $this->learner_ids((object)['id' => 1, 'scormcmid' => 999]));
     }
 
-    public function test_has_student_access_returns_false_when_scorm_record_not_found(): void {
-        $activity = (object)[
-            'id' => 1,
-            'scormcmid' => 100,
-        ];
-
+    public function test_learner_attempts_fall_back_to_scorm_scoes_track(): void {
         $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
-        // Don't seed scorm table — get_record will return false.
-
-        $task = $this->makeTask();
-        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
-
-        $this->assertFalse($result);
-    }
-
-    public function test_has_student_access_falls_back_to_scorm_scoes_track(): void {
-        $activity = (object)[
-            'id' => 1,
-            'scormcmid' => 100,
-        ];
-
-        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
-        $this->db->seed('scorm', [(object)['id' => 50, 'course' => 1]]);
-        $this->db->seed('scorm_scoes_track', [(object)['id' => 1, 'scormid' => 50]]);
-
+        $this->db->seed('scorm_scoes_track', [(object)['id' => 1, 'scormid' => 50, 'userid' => 7]]);
         // scorm_attempt table doesn't exist → falls back to scorm_scoes_track.
         $this->db->get_manager()->set_table_exists('scorm_attempt', false);
 
-        $task = $this->makeTask();
-        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
-
-        $this->assertTrue($result);
+        $this->assertSame([7], $this->learner_ids((object)['id' => 1, 'scormcmid' => 100]));
     }
 
-    public function test_has_student_access_returns_false_when_no_attempts(): void {
-        $activity = (object)[
-            'id' => 1,
-            'scormcmid' => 100,
-        ];
-
+    public function test_learner_attempts_are_empty_when_no_attempts(): void {
         $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
-        $this->db->seed('scorm', [(object)['id' => 50, 'course' => 1]]);
-        // scorm_attempt table exists but has no records for this scorm.
         $this->db->get_manager()->set_table_exists('scorm_attempt', true);
 
-        $task = $this->makeTask();
-        $result = $this->invokePrivate($task, 'has_student_access', [$activity]);
+        $this->assertSame([], $this->learner_ids((object)['id' => 1, 'scormcmid' => 100]));
+    }
 
-        $this->assertFalse($result);
+    public function test_learner_attempts_leave_out_staff(): void {
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
+        $this->db->get_manager()->set_table_exists('scorm_attempt', true);
+        $this->db->seed('scorm_attempt', [
+            (object)['id' => 1, 'scormid' => 50, 'userid' => 3],
+            (object)['id' => 2, 'scormid' => 50, 'userid' => 7],
+            (object)['id' => 3, 'scormid' => 50, 'userid' => 8],
+            (object)['id' => 4, 'scormid' => 51, 'userid' => 9],
+        ]);
+        $GLOBALS['_test_staff_userids'] = [3];
+        $activity = (object)['id' => 1, 'scormcmid' => 100];
+
+        $this->assertSame([7, 8], $this->learner_ids($activity));
+        $this->assertSame([7], $this->learner_ids($activity, true));
+    }
+
+    public function test_a_staff_only_attempt_does_not_lock_the_activity(): void {
+        $this->db->seed('scorm_attempt', [(object)['id' => 1, 'scormid' => 50, 'userid' => 3]]);
+        $this->db->get_manager()->set_table_exists('scorm_attempt', true);
+        $GLOBALS['_test_get_coursemodule_from_id'] = (object)['id' => 100, 'instance' => 50, 'course' => 1];
+        $GLOBALS['_test_staff_userids'] = [3];
+
+        $this->assertSame([], $this->learner_ids((object)['id' => 1, 'scormcmid' => 100], true));
     }
 
     // ---------------------------------------------------------------

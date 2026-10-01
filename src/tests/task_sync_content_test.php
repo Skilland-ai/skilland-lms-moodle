@@ -251,6 +251,85 @@ final class task_sync_content_test extends skilland_testcase {
         $this->assertEquals($cmid, $DB->get_field('skilland', 'scormcmid', ['id' => $skilland->id]));
     }
 
+    /**
+     * Record a SCORM attempt of a user on the activity's first lesson.
+     *
+     * @param int $cmid The SCORM course module id.
+     * @param \stdClass $skilland The activity.
+     * @param \stdClass $user The user who opens the lesson.
+     */
+    private function track_attempt(int $cmid, \stdClass $skilland, \stdClass $user): void {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/mod/scorm/locallib.php');
+
+        $scormid = (int) $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
+        $scoid = (int) $DB->get_field(
+            'skilland_lesson',
+            'scoid',
+            ['skillandid' => $skilland->id, 'skilland_lessonid' => 'lesson-1']
+        );
+        scorm_insert_track($user->id, $scormid, $scoid, 1, 'cmi.core.lesson_status', 'incomplete');
+    }
+
+    public static function staff_role_provider(): array {
+        return [
+            'editing teacher' => ['editingteacher'],
+            'manager' => ['manager'],
+        ];
+    }
+
+    /**
+     * @dataProvider staff_role_provider
+     */
+    public function test_lock_after_first_access_ignores_staff_attempts(string $role): void {
+        [$course, $skilland, $cmid] = $this->provisioned_activity(['lockafterfirstaccess' => 1]);
+        $staff = $this->enrol($course, $role);
+        $this->track_attempt($cmid, $skilland, $staff);
+        $this->take_debugging();
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
+
+        $this->run_task();
+
+        $this->assertSame(1, $this->client->count_calls('GET topics/{id}/scorm-hash'));
+    }
+
+    public function test_lock_after_first_access_ignores_a_site_admin_attempt(): void {
+        [, $skilland, $cmid] = $this->provisioned_activity(['lockafterfirstaccess' => 1]);
+        $this->track_attempt($cmid, $skilland, get_admin());
+        $this->take_debugging();
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
+
+        $this->run_task();
+
+        $this->assertSame(1, $this->client->count_calls('GET topics/{id}/scorm-hash'));
+    }
+
+    public function test_lock_after_first_access_holds_when_a_teacher_and_a_student_attempted(): void {
+        global $DB;
+
+        [$course, $skilland, $cmid] = $this->provisioned_activity(['lockafterfirstaccess' => 1]);
+        $this->track_attempt($cmid, $skilland, $this->enrol($course, 'editingteacher'));
+        $this->track_attempt($cmid, $skilland, $this->enrol($course, 'student'));
+        $this->take_debugging();
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
+
+        $this->run_task();
+
+        $this->assertSame(0, $this->client->count_calls('GET topics/{id}/scorm-hash'));
+        $this->assertEquals($cmid, $DB->get_field('skilland', 'scormcmid', ['id' => $skilland->id]));
+    }
+
+    public function test_learner_attempts_are_counted_without_staff(): void {
+        [$course, $skilland, $cmid] = $this->provisioned_activity();
+        $this->track_attempt($cmid, $skilland, $this->enrol($course, 'editingteacher'));
+        $this->track_attempt($cmid, $skilland, $this->enrol($course, 'student'));
+        $this->track_attempt($cmid, $skilland, $this->enrol($course, 'student'));
+        $this->take_debugging();
+
+        $this->assertSame(2, skilland_count_topic_student_attempts($skilland));
+        $this->assertCount(1, skilland_learner_attempt_userids($skilland, true));
+    }
+
     public function test_an_unconfigured_plugin_never_calls_the_api(): void {
         [, , $cmid] = $this->provisioned_activity();
         set_config('apikey', '', 'mod_skilland');
