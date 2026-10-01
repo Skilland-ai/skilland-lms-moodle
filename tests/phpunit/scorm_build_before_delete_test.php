@@ -91,11 +91,7 @@ class scorm_build_before_delete_test extends TestCase {
         ]);
     }
 
-    private function response(array $data): array {
-        return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
-    }
-
-    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    /** A 200 answer of a REST route carrying $body as JSON. */
     private function rest_response(array $body): array {
         return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
@@ -105,8 +101,7 @@ class scorm_build_before_delete_test extends TestCase {
     }
 
     private function queue_lessons(): void {
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic1', 'name' => 'T',
-            'lessons' => [['id' => 'L1', 'updatedAt' => '2026-03-01T00:00:00Z']]]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => [['id' => 'L1', 'updatedAt' => '2026-03-01T00:00:00Z']]]);
     }
 
     private function queue_scorm_answer(array $mappings): void {

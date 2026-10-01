@@ -70,7 +70,9 @@ class sync_content extends \core\task\scheduled_task {
 
         // Check that plugin is configured.
         $config = get_config('mod_skilland');
-        if (empty($config->apikey) || empty($config->orgid) || empty($config->graphql_endpoint)) {
+        $nourl = mod_skilland_get_skilland_url() === '' &&
+            \mod_skilland\local\skilland_url::normalise((string) ($config->frontend_url ?? '')) === '';
+        if (empty($config->apikey) || empty($config->orgid) || $nourl) {
             logger::warn('SyncContent', 'Plugin not fully configured — skipping sync');
             return;
         }

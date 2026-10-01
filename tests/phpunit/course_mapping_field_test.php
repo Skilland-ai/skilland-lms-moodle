@@ -213,33 +213,36 @@ class course_mapping_field_test extends TestCase {
     // ---------------------------------------------------------------
 
     public function test_take_returns_and_clears_the_pending_path(): void {
-        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills-studio/create/step/skill-1');
+        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills/new?draft=skill-1');
 
-        $this->assertSame('/skills-studio/create/step/skill-1', mod_skilland_take_pending_studio_path(self::COURSE_ID));
+        $this->assertSame('/skills/new?draft=skill-1', mod_skilland_take_pending_studio_path(self::COURSE_ID));
         $this->assertNull(mod_skilland_take_pending_studio_path(self::COURSE_ID));
     }
 
     public function test_pending_paths_are_kept_per_course(): void {
-        mod_skilland_set_pending_studio_path(10, '/skills-studio/create/step/a');
-        mod_skilland_set_pending_studio_path(11, '/skills-studio/create/step/b');
+        mod_skilland_set_pending_studio_path(10, '/skills/new?draft=a');
+        mod_skilland_set_pending_studio_path(11, '/skills/new?draft=b');
 
         $this->assertNull(mod_skilland_take_pending_studio_path(12));
-        $this->assertSame('/skills-studio/create/step/b', mod_skilland_take_pending_studio_path(11));
-        $this->assertSame('/skills-studio/create/step/a', mod_skilland_peek_pending_studio_path(10));
-        $this->assertSame('/skills-studio/create/step/a', mod_skilland_take_pending_studio_path(10));
+        $this->assertSame('/skills/new?draft=b', mod_skilland_take_pending_studio_path(11));
+        $this->assertSame('/skills/new?draft=a', mod_skilland_peek_pending_studio_path(10));
+        $this->assertSame('/skills/new?draft=a', mod_skilland_take_pending_studio_path(10));
     }
 
     public function test_peek_does_not_consume(): void {
-        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills-studio/create/step/x');
+        mod_skilland_set_pending_studio_path(self::COURSE_ID, '/skills/x');
 
-        $this->assertSame('/skills-studio/create/step/x', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
-        $this->assertSame('/skills-studio/create/step/x', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
+        $this->assertSame('/skills/x', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
+        $this->assertSame('/skills/x', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
     }
 
-    public function test_a_path_outside_skills_studio_is_rejected(): void {
+    /**
+     * @dataProvider rejected_studio_paths
+     */
+    public function test_a_path_outside_skills_studio_is_rejected(string $path): void {
         try {
-            mod_skilland_set_pending_studio_path(self::COURSE_ID, 'https://evil.example/skills-studio/x');
-            $this->fail('An absolute URL must be rejected');
+            mod_skilland_set_pending_studio_path(self::COURSE_ID, $path);
+            $this->fail('Path must be rejected: ' . $path);
         } catch (\coding_exception $e) {
             $this->assertNull(mod_skilland_peek_pending_studio_path(self::COURSE_ID));
         }
@@ -249,15 +252,48 @@ class course_mapping_field_test extends TestCase {
         $this->assertNull(mod_skilland_take_pending_studio_path(self::COURSE_ID));
     }
 
+    public static function rejected_studio_paths(): array {
+        return [
+            'absolute url' => ['https://evil.example/skills/x'],
+            'protocol-relative' => ['//evil.example/skills/x'],
+            'double slash inside' => ['/skills//evil.example'],
+            'old studio path' => ['/skills-studio/create/step/x'],
+            'parent segment' => ['/skills/../admin'],
+            'other page' => ['/admin/'],
+            'other query' => ['/skills/x?next=https://evil.example'],
+            'fragment' => ['/skills/x#y'],
+            'empty draft' => ['/skills/new?draft='],
+            'backslash' => ['/skills/\\evil.example'],
+            'trailing newline' => ["/skills/x\n"],
+        ];
+    }
+
+    /**
+     * @dataProvider accepted_studio_paths
+     */
+    public function test_native_studio_paths_are_accepted(string $path): void {
+        $this->assertTrue(mod_skilland_is_studio_path($path));
+    }
+
+    public static function accepted_studio_paths(): array {
+        return [
+            'skills list' => ['/skills'],
+            'skill' => ['/skills/3f2a9c1e-0000-4000-8000-000000000001'],
+            'topic' => ['/skills/skill-1?topic=topic-1'],
+            'new course' => ['/skills/new?draft=skill-1'],
+            'encoded id' => ['/skills/a%20b'],
+        ];
+    }
+
     // ---------------------------------------------------------------
     // create_course::execute
     // ---------------------------------------------------------------
 
     public function test_create_course_stores_the_pending_path_and_returns_no_redirect_url(): void {
         $GLOBALS['_test_customfield_value'] = [self::COURSE_ID => ''];
-        $GLOBALS['_test_curl_response'] = ['body' => json_encode(['data' => ['createSkillFromMoodle' => [
-            'id' => 'skill-new', 'name' => 'Test Course', 'status' => 'DRAFT', 'creationStep' => 'microcredential-upload',
-        ]]]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+        $GLOBALS['_test_curl_response'] = ['body' => json_encode([
+            'id' => 'skill-new', 'path' => '/skills/new?draft=skill-new', 'name' => 'Test Course',
+        ]), 'http_code' => 201, 'errno' => 0, 'error' => ''];
 
         $result = \mod_skilland\external\create_course::execute(self::COURSE_ID);
 
@@ -266,8 +302,10 @@ class course_mapping_field_test extends TestCase {
         $this->assertSame('Test Course', $result['name']);
         $this->assertSame('', $result['redirect_url']);
         $this->assertSame(['skill-new'], $GLOBALS['_test_customfield_saved'] ?? []);
-        $this->assertSame('/skills-studio/create/microcredential-upload/skill-new',
-            mod_skilland_peek_pending_studio_path(self::COURSE_ID));
+        $this->assertSame('/skills/new?draft=skill-new', mod_skilland_peek_pending_studio_path(self::COURSE_ID));
+        $sent = json_decode($GLOBALS['_test_curl_last']['body'], true);
+        $this->assertSame((string) $GLOBALS['USER']->id, $sent['moodleUserId']);
+        $this->assertSame($GLOBALS['CFG']->wwwroot, $sent['issuer']);
     }
 
     public function test_create_course_does_not_mint_an_sso_token(): void {

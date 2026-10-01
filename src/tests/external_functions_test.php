@@ -89,25 +89,25 @@ final class external_functions_test extends skilland_testcase {
 
         $this->assertNull($result['error']);
         $this->assertSame(['skill-1', 'skill-2'], array_column($result['courses'], 'id'));
-        $this->assertSame(0, $this->client->count_calls('MoodleUserCourses'));
+        $this->assertSame(0, $this->client->count_calls('GET users/courses'));
     }
 
     public function test_fetch_courses_limits_a_teacher_to_their_mapped_and_editable_skills(): void {
         [$course, $teacher] = $this->mapped_course('skill-2');
-        $this->client->set_response('MoodleUserCourses', ['moodleUserCourses' => []]);
+        $this->client->set_response('GET users/courses', ['skills' => []]);
         $this->setUser($teacher);
 
         $result = external_api::clean_returnvalue(fetch_courses::execute_returns(), fetch_courses::execute($course->id));
 
         $this->assertSame(['skill-2'], array_column($result['courses'], 'id'));
-        $calls = array_values(array_filter($this->client->calls, fn($c) => $c['operation'] === 'MoodleUserCourses'));
-        $this->assertSame($teacher->email, $calls[0]['variables']['userEmail']);
+        $calls = array_values(array_filter($this->client->calls, fn($c) => $c['operation'] === 'GET users/courses'));
+        $this->assertSame(strtolower($teacher->email), $calls[0]['variables']['email']);
     }
 
     public function test_fetch_courses_returns_a_safe_error_when_the_api_fails(): void {
         [$course] = $this->mapped_course();
         $this->client->set_response(
-            'MoodleListCourses',
+            'GET skills',
             new \moodle_exception('error_graphql_http', 'mod_skilland', '', null, 'upstream secret detail')
         );
         $this->setAdminUser();
@@ -166,6 +166,8 @@ final class external_functions_test extends skilland_testcase {
     }
 
     public function test_create_course_creates_the_skill_and_offers_the_studio_link(): void {
+        global $CFG;
+
         $course = $this->getDataGenerator()->create_course(['fullname' => 'Algebra 101']);
         // A course saved through the course form has a (still empty) SkilLand course field.
         $this->generator()->create_course_mapping($course->id, '');
@@ -176,11 +178,14 @@ final class external_functions_test extends skilland_testcase {
 
         $this->assertNull($result['error']);
         $this->assertSame('skill-new', $result['skillid']);
-        $this->assertSame(['name' => 'Algebra 101', 'userEmail' => $teacher->email], $this->client->calls[0]['variables']);
-        $this->assertSame(
-            '/skills-studio/create/microcredential-upload/skill-new',
-            mod_skilland_peek_pending_studio_path((int) $course->id)
-        );
+        $this->assertSame('POST skills', $this->client->calls[0]['operation']);
+        $this->assertSame([
+            'name' => 'Algebra 101',
+            'userEmail' => strtolower($teacher->email),
+            'moodleUserId' => (string) $teacher->id,
+            'issuer' => $CFG->wwwroot,
+        ], $this->client->calls[0]['variables']);
+        $this->assertSame('/skills/new?draft=skill-new', mod_skilland_peek_pending_studio_path((int) $course->id));
         // The mapping is persisted in the text field's own column and reads back.
         $this->assertSame('skill-new', $this->course_mapping_row((int) $course->id)->charvalue);
         $this->assertSame('skill-new', skilland_get_course_customfield_value((int) $course->id));
@@ -216,6 +221,9 @@ final class external_functions_test extends skilland_testcase {
 
         $this->assertNull($result['error']);
         $this->assertSame('skill-1', $result['course']['id']);
+        // The topics route carries no skill: its name comes from the skill list.
+        $this->assertSame('Fixture skill', $result['course']['name']);
+        $this->assertSame(['GET skills/{id}/topics', 'GET skills'], $this->client->operations());
         $this->assertSame(['topic-1', 'topic-2'], array_column($result['topics'], 'id'));
         $this->assertSame('<p>First fixture topic</p>', $result['topics'][0]['description']);
     }
@@ -273,7 +281,7 @@ final class external_functions_test extends skilland_testcase {
 
     public function test_fetch_lessons_hides_an_api_failure_behind_a_generic_error(): void {
         [$course, $teacher] = $this->mapped_course();
-        $this->client->set_response('MoodleListTopics', new \coding_exception('curl said: secret'));
+        $this->client->set_response('GET skills/{id}/topics', new \coding_exception('curl said: secret'));
         $this->setUser($teacher);
 
         try {
@@ -457,7 +465,7 @@ final class external_functions_test extends skilland_testcase {
             scorm_insert_track($user->id, $scormid, $scoid, 1, 'cmi.core.lesson_status', 'incomplete');
         }
         $this->take_debugging();
-        $this->client->merge_response('TopicScormHash', 'topicScormHash', ['contentHash' => 'hash-v2']);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
         $this->setUser($teacher);
 
         $result = external_api::clean_returnvalue(
@@ -475,7 +483,7 @@ final class external_functions_test extends skilland_testcase {
         [$course, $teacher] = $this->mapped_course();
         $skilland = $this->create_activity($course);
         $this->provision($skilland);
-        $this->client->set_response('TopicScormHash', new \moodle_exception('error_api_unavailable', 'mod_skilland'));
+        $this->client->set_response('GET topics/{id}/scorm-hash', new \moodle_exception('error_api_unavailable', 'mod_skilland'));
         $this->setUser($teacher);
 
         $result = external_api::clean_returnvalue(

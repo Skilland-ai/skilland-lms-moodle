@@ -39,9 +39,9 @@ class lib_test extends TestCase {
     }
 
     private function stubSkillTopics(array $topicids): void {
-        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''], $topicids);
+        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'description' => ''], $topicids);
         $GLOBALS['_test_curl_response'] = [
-            'body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill A', 'topics' => $topics]]]),
+            'body' => json_encode(['topics' => $topics]),
             'http_code' => 200,
             'errno' => 0,
             'error' => '',

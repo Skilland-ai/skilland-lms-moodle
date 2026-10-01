@@ -83,11 +83,7 @@ class lib_update_instance_reconcile_test extends TestCase {
         parent::tearDown();
     }
 
-    private function response(array $data): array {
-        return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
-    }
-
-    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    /** A 200 answer of a REST route carrying $body as JSON. */
     private function rest_response(array $body): array {
         return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
@@ -98,19 +94,16 @@ class lib_update_instance_reconcile_test extends TestCase {
 
     /** The course's topics, answered to the topic-in-mapped-course check. */
     private function queue_topics(): void {
-        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''],
-            ['topic1', 'topic2']);
-        $GLOBALS['_test_curl_responses'][] = $this->response(['course' => ['id' => 'skill-a', 'name' => 'Skill A',
-            'topics' => $topics]]);
+        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'description' => ''], ['topic1', 'topic2']);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['topics' => $topics]);
     }
 
-    /** The new topic's lessons, its topicScorm answer and the package download. */
+    /** The new topic's lessons, its scorm REST answer and the package download. */
     private function queue_reprovision(): void {
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic2', 'name' => 'T2',
-            'lessons' => [
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => [
                 ['id' => 'M1', 'name' => 'M one', 'updatedAt' => '2026-01-03T00:00:00Z'],
                 ['id' => 'M2', 'name' => 'M two', 'updatedAt' => '2026-01-03T00:00:00Z'],
-            ]]]);
+            ]]);
         $GLOBALS['_test_curl_responses'][] = $this->rest_response(\test_package_signer::sign('topic2', [
             'packageUrl' => 'https://cdn.skilland.ai/topic2.zip',
             'packageSize' => strlen($this->zipbytes()),
@@ -238,8 +231,7 @@ class lib_update_instance_reconcile_test extends TestCase {
 
     public function test_topic_change_with_a_failing_reprovision_resets_and_warns(): void {
         $this->queue_topics();
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic2', 'name' => 'T2',
-            'lessons' => []]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => []]);
         $GLOBALS['_test_curl_responses'][] = ['body' => 'down', 'http_code' => 500, 'errno' => 0, 'error' => ''];
 
         $this->assertTrue(skilland_update_instance($this->formdata('topic2', ['M1', 'M2'])));
@@ -271,8 +263,7 @@ class lib_update_instance_reconcile_test extends TestCase {
 
     public function test_topic_change_with_a_failing_reprovision_keeps_the_submitted_stamps(): void {
         $this->queue_topics();
-        $GLOBALS['_test_curl_responses'][] = $this->response(['topic' => ['id' => 'topic2', 'name' => 'T2',
-            'lessons' => [['id' => 'M1', 'name' => 'M one', 'updatedAt' => '2026-01-03T00:00:00Z']]]]);
+        $GLOBALS['_test_curl_responses'][] = $this->rest_response(['contents' => [['id' => 'M1', 'name' => 'M one', 'updatedAt' => '2026-01-03T00:00:00Z']]]);
         $GLOBALS['_test_curl_responses'][] = ['body' => 'down', 'http_code' => 500, 'errno' => 0, 'error' => ''];
 
         $this->assertTrue(skilland_update_instance($this->formdata('topic2', ['M1'])));

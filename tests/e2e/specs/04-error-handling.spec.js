@@ -13,6 +13,7 @@ const {
   notification
 } = require('../helpers/moodle-helpers')
 const { extractRedirectPath } = require('../helpers/skilland-helpers')
+const { SKILL_ID } = require('../fixtures/skilland-data')
 
 /**
  * Test suite: Error Handling
@@ -122,7 +123,7 @@ test.describe('Network Error Handling', () => {
     moodleCourse
   }) => {
     const courseId = await moodleCourse.create()
-    skillandMock.fail('mod_skilland_create_course_ajax', 'SkilLand GraphQL error')
+    skillandMock.fail('mod_skilland_create_course_ajax', 'SkilLand API error')
 
     await goToCourseEditPage(authenticatedPage, courseId)
     await waitForSkillandDropdownLoaded(authenticatedPage)
@@ -145,7 +146,7 @@ test.describe('Input Validation', () => {
     const page = authenticatedPage
     const sso = await configureSkillandSso(page)
     skillandMock.stubOrigin(sso.frontendUrl)
-    const courseId = await moodleCourse.create()
+    const courseId = await moodleCourse.create({ skillId: SKILL_ID })
     const maliciousInput = '<script>alert("xss")</script>'
 
     /** @type {string[]} */
@@ -160,8 +161,9 @@ test.describe('Input Validation', () => {
     await expect(page.locator('#skilland-stub')).toBeVisible()
 
     const redirect = extractRedirectPath(skillandMock.ssoRequests()[0]) || ''
-    // PARAM_TEXT strips the tags; what is left is URL-encoded into the path, posted as a form field.
-    expect(decodeURIComponent(redirect)).toBe('/skills-studio/topics/alert("xss")')
+    // PARAM_TEXT strips the tags; what is left is URL-encoded into the ?topic= value, posted as a form field.
+    expect(redirect).not.toContain('"')
+    expect(decodeURIComponent(redirect)).toBe(`/skills/${SKILL_ID}?topic=alert("xss")`)
     expect(dialogs).toEqual([])
   })
 

@@ -27,11 +27,14 @@ namespace mod_skilland;
 /**
  * A moodle_exception that also carries the HTTP status of the failed request.
  *
- * Callers branch on $httpcode (0 when no response arrived) instead of parsing the message.
+ * Callers branch on $httpcode (0 when no response arrived) and $apierror instead of parsing the message.
  */
 class rest_exception extends \moodle_exception {
     /** @var int HTTP status of the response, 0 on a transport failure. Read-only: set by the constructor. */
     public $httpcode;
+
+    /** @var string The `error` code of the JSON error answer, '' when there is none. Read-only. */
+    public $apierror;
 
     /**
      * Constructor.
@@ -39,9 +42,11 @@ class rest_exception extends \moodle_exception {
      * @param string $errorcode Language string identifier in mod_skilland.
      * @param int $httpcode HTTP status, 0 when no response arrived.
      * @param mixed $a Extra data for the language string.
+     * @param string $apierror The `error` code of the JSON error answer, '' when there is none.
      */
-    public function __construct(string $errorcode, int $httpcode, $a = null) {
+    public function __construct(string $errorcode, int $httpcode, $a = null, string $apierror = '') {
         $this->httpcode = $httpcode;
+        $this->apierror = $apierror;
         parent::__construct($errorcode, 'mod_skilland', '', $a);
     }
 }

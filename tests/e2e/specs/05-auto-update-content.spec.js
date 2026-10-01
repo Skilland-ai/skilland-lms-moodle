@@ -13,7 +13,7 @@ const skillandData = require('../fixtures/skilland-data')
  *
  * The "Auto-update content" setting of a Skilland activity and the scheduled task
  * that acts on it. Detecting a changed SkilLand snapshot and re-provisioning the
- * SCORM package run server-side against SkilLand's GraphQL API, so they are
+ * SCORM package run server-side against SkilLand's REST API, so they are
  * covered by PHPUnit (tests/phpunit/task_sync_content_test.php and
  * tests/phpunit/locallib_provision_scorm_test.php), not here.
  */

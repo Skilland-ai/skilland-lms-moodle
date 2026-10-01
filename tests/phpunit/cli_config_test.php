@@ -27,8 +27,15 @@ class cli_config_test extends TestCase {
     }
 
     public function test_https_endpoint_is_written(): void {
-        $writes = cli_config::plan(['endpoint' => 'https://api.skilland.ai/graphql'], null);
-        $this->assertSame('https://api.skilland.ai/graphql', $writes['graphql_endpoint']);
+        $writes = cli_config::plan(['endpoint' => 'https://app.skilland.ai'], null);
+        $this->assertSame('https://app.skilland.ai', $writes['graphql_endpoint']);
+    }
+
+    public function test_a_legacy_graphql_or_api_suffix_is_dropped(): void {
+        $this->assertSame('https://app.skilland.ai',
+            cli_config::plan(['endpoint' => 'https://app.skilland.ai/graphql'], null)['graphql_endpoint']);
+        $this->assertSame('https://app.skilland.ai',
+            cli_config::plan(['endpoint' => 'https://app.skilland.ai/api/moodle/'], null)['graphql_endpoint']);
     }
 
     public function test_http_endpoint_rejected_by_default(): void {
@@ -39,8 +46,8 @@ class cli_config_test extends TestCase {
 
     public function test_http_endpoint_accepted_with_allow_insecure(): void {
         $this->assertNull(cli_config::validate_endpoint('http://host.docker.internal:8000/graphql', true));
-        $writes = cli_config::plan(['endpoint' => 'http://localhost:8000/graphql', 'allow-insecure' => true], null);
-        $this->assertSame('http://localhost:8000/graphql', $writes['graphql_endpoint']);
+        $writes = cli_config::plan(['endpoint' => 'http://localhost:3100', 'allow-insecure' => true], null);
+        $this->assertSame('http://localhost:3100', $writes['graphql_endpoint']);
     }
 
     public function test_http_endpoint_accepted_with_cfg_allow_http(): void {
@@ -63,8 +70,8 @@ class cli_config_test extends TestCase {
 
     public function test_uppercase_https_scheme_accepted(): void {
         $this->assertNull(cli_config::validate_endpoint('HTTPS://api.skilland.ai/graphql', false));
-        $writes = cli_config::plan(['endpoint' => 'HTTPS://api.skilland.ai/graphql'], null);
-        $this->assertSame('HTTPS://api.skilland.ai/graphql', $writes['graphql_endpoint']);
+        $writes = cli_config::plan(['endpoint' => 'HTTPS://app.skilland.ai'], null);
+        $this->assertSame('HTTPS://app.skilland.ai', $writes['graphql_endpoint']);
     }
 
     public function test_uppercase_http_scheme_still_needs_allow_insecure(): void {
@@ -74,10 +81,10 @@ class cli_config_test extends TestCase {
     public function test_surrounding_whitespace_is_trimmed(): void {
         $this->assertNull(cli_config::validate_endpoint("  https://api.skilland.ai/graphql \n", false));
         $writes = cli_config::plan(
-            ['endpoint' => "  https://api.skilland.ai/graphql \n", 'orgid' => ' org_1 '],
+            ['endpoint' => "  https://app.skilland.ai/ \n", 'orgid' => ' org_1 '],
             "  sk_live_abc\n"
         );
-        $this->assertSame('https://api.skilland.ai/graphql', $writes['graphql_endpoint']);
+        $this->assertSame('https://app.skilland.ai', $writes['graphql_endpoint']);
         $this->assertSame('org_1', $writes['orgid']);
         $this->assertSame('sk_live_abc', $writes['apikey']);
     }

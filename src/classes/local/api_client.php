@@ -29,24 +29,10 @@ namespace mod_skilland\local;
  *
  * Production binds it to {@see http_api_client} in {@see \mod_skilland\hooks::di_configuration()}.
  * Tests replace it with \core\di::set(api_client::class, $fake); production code never checks for
- * test hooks. mod_skilland_graphql(), mod_skilland_rest_get() and mod_skilland_download_package() are the
+ * test hooks. mod_skilland_rest_get(), mod_skilland_rest_post() and mod_skilland_download_package() are the
  * public entry points and forward here.
  */
 interface api_client {
-    /**
-     * Execute a GraphQL query or mutation against the configured SkilLand endpoint.
-     *
-     * Read queries are retried on transient failures; mutations are sent once.
-     *
-     * @param string $query The GraphQL document.
-     * @param array $variables Query variables; an empty array is sent as an empty JSON object.
-     * @return array The decoded `data` member of the response (an empty array when absent).
-     * @throws \moodle_exception When the configuration is missing, the endpoint is not HTTPS, the
-     *     server redirects or answers a non-2xx status, or the body is not valid JSON.
-     * @throws \mod_skilland\graphql_exception When the response carries a GraphQL error.
-     */
-    public function graphql(string $query, array $variables = []): array;
-
     /**
      * GET a SkilLand REST route below the frontend URL, authenticated with the API key as a Bearer token.
      *
@@ -59,6 +45,20 @@ interface api_client {
      *     when a 2xx body is not JSON.
      */
     public function rest_get(string $path): array;
+
+    /**
+     * POST a JSON body to a SkilLand REST route below the frontend URL, authenticated like rest_get().
+     *
+     * Sent exactly once: a POST is never retried. Redirects are refused.
+     *
+     * @param string $path Route path, e.g. /api/moodle/skills.
+     * @param array $body The JSON body.
+     * @return array The decoded JSON answer.
+     * @throws \moodle_exception When the API key is missing, the URL is not HTTPS or the server redirects.
+     * @throws \mod_skilland\rest_exception On a non-2xx status (with the answer's `error` code) or a
+     *     transport failure (httpcode 0), or when a 2xx body is not JSON.
+     */
+    public function rest_post(string $path, array $body): array;
 
     /**
      * Download a SCORM package to a temp file after validating its URL, size and format.

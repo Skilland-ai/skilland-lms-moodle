@@ -272,16 +272,12 @@ class backup_restore_test extends TestCase {
             'skilland_lessonid' => $lessonid]);
     }
 
-    private function response(array $data): array {
-        return ['body' => json_encode(['data' => $data]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
-    }
-
-    /** A 200 answer of a REST route (GET /api/moodle/topics/{id}/scorm) carrying $body as JSON. */
+    /** A 200 answer of a REST route carrying $body as JSON. */
     private function rest_response(array $body): array {
         return ['body' => json_encode($body), 'http_code' => 200, 'errno' => 0, 'error' => ''];
     }
 
-    /** Queue the topicScorm GraphQL answer and the package download a re-provision makes. */
+    /** Queue the topic scorm REST answer and the package download a re-provision makes. */
     private function queue_package(): void {
         $zip = base64_decode('UEsDBBQAAAAAAGC1OV3tN8mLCwAAAAsAAAAPAAAAaW1zbWFuaWZlc3QueG1sPG1hbmlmZXN0Lz5QSwECFAMUAAAAAABgtTld7TfJiwsAAAALAAAADwAAAAAAAAAAAAAAgAEAAAAAaW1zbWFuaWZlc3QueG1sUEsFBgAAAAABAAEAPQAAADgAAAAAAA==');
         $GLOBALS['_test_curl_responses'][] = $this->rest_response(\test_package_signer::sign('topic1', [

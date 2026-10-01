@@ -57,8 +57,9 @@ Configure the SkilLand plugin API settings (development only).
 Only the settings you pass are written; everything else is left unchanged.
 
 Options:
-  --endpoint=URL      GraphQL endpoint URL. Must use https:// unless --allow-insecure is passed
-                      or config.php sets \$CFG->mod_skilland_allow_http.
+  --endpoint=URL      Skilland URL, the address of the Skilland site (e.g. https://app.skilland.ai).
+                      A trailing /graphql or /api/moodle is dropped. Must use https:// unless
+                      --allow-insecure is passed or config.php sets \$CFG->mod_skilland_allow_http.
   --orgid=ID          Organization id (letters, digits, "_" and "-" only).
   --allow-insecure    Accept an http:// endpoint (local development stacks only).
   --no-apikey         Do not prompt for the API key.
@@ -71,7 +72,7 @@ API key:
 
 Example:
   SKILLAND_API_KEY=... php mod/skilland/cli/configure_api.php \\
-      --endpoint=https://api.skilland.ai/graphql --orgid=your-org-id
+      --endpoint=https://app.skilland.ai --orgid=your-org-id
 
 EOT;
     echo $help;
@@ -154,7 +155,7 @@ foreach ($writes as $name => $value) {
 }
 
 if (isset($writes['graphql_endpoint'])) {
-    echo 'Endpoint: ' . $writes['graphql_endpoint'] . "\n";
+    echo 'Skilland URL: ' . $writes['graphql_endpoint'] . "\n";
 }
 if (isset($writes['orgid'])) {
     echo 'Organization ID: ' . $writes['orgid'] . "\n";
@@ -165,11 +166,11 @@ echo "\nTesting connection...\n";
 require_once($CFG->dirroot . '/mod/skilland/locallib.php');
 
 try {
-    mod_skilland_graphql('{ __typename }', []);
+    mod_skilland_rest_get('/api/moodle/skills');
     echo "Connection successful\n";
 } catch (\Throwable $e) {
     echo 'Connection failed: ' . $e->getMessage() . "\n";
-    $endpoint = (string) get_config('mod_skilland', 'graphql_endpoint');
+    $endpoint = skilland_get_frontend_url();
     if (strtolower((string) parse_url(trim($endpoint), PHP_URL_SCHEME)) === 'http' &&
             empty($CFG->mod_skilland_allow_http)) {
         echo "Hint: http:// endpoints are also blocked at request time unless config.php sets " .

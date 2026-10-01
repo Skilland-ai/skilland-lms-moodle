@@ -30,7 +30,7 @@ namespace mod_skilland\local;
  */
 class cli_config {
     /**
-     * Validate a GraphQL endpoint URL.
+     * Validate a Skilland URL.
      *
      * @param string $url
      * @param bool $allowinsecure True when --allow-insecure was passed.
@@ -86,7 +86,7 @@ class cli_config {
             if ($error !== null) {
                 $errors[] = $error;
             } else {
-                $writes['graphql_endpoint'] = $endpoint;
+                $writes['graphql_endpoint'] = skilland_url::normalise($endpoint);
             }
         }
 

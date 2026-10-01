@@ -43,9 +43,9 @@ class external_scoping_test extends TestCase {
     }
 
     private function stubCourseTopics(string $courseid, array $topicids): void {
-        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''], $topicids);
+        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'description' => ''], $topicids);
         $GLOBALS['_test_curl_response'] = [
-            'body' => json_encode(['data' => ['course' => ['id' => $courseid, 'name' => 'Skill', 'topics' => $topics]]]),
+            'body' => json_encode(['topics' => $topics]),
             'http_code' => 200,
             'errno' => 0,
             'error' => '',
@@ -211,8 +211,8 @@ class external_scoping_test extends TestCase {
 
     public function test_fetch_lessons_rejects_when_api_returns_no_course(): void {
         $GLOBALS['_test_curl_response'] = [
-            'body' => json_encode(['data' => ['course' => null]]),
-            'http_code' => 200,
+            'body' => json_encode(['error' => 'Skill not found']),
+            'http_code' => 404,
             'errno' => 0,
             'error' => '',
         ];

@@ -78,8 +78,8 @@ class client_errors_test extends TestCase {
     public static function generic_exceptions(): array {
         return [
             'error_graphql_http' => [new \moodle_exception('error_graphql_http', 'mod_skilland', '',
-                'HTTP error when calling Skilland API at http://localhost:8000/graphql')],
-            'error_graphql' => [new \moodle_exception('error_graphql', 'mod_skilland', '', 'Organization not found')],
+                'HTTP error when calling Skilland API at http://localhost:3100/api/moodle/skills')],
+            'rest_exception' => [new \mod_skilland\rest_exception('error_graphql_http', 400, 'HTTP 400', 'invalid_body')],
             'error_graphql_invalid_json' => [new \moodle_exception('error_graphql_invalid_json', 'mod_skilland')],
             'error_scorm_fetch_failed' => [new \moodle_exception('error_scorm_fetch_failed', 'mod_skilland')],
             'dml_exception' => [new \dml_exception('dmlreadexception', null, 'SELECT * FROM mdl_skilland')],
@@ -100,7 +100,9 @@ class client_errors_test extends TestCase {
             'error_config_invalid_credentials', 'error_config_missing_topicid', 'error_config_missing_courseid',
             'error_config_missing_lessonid', 'error_http_redirect', 'error_scorm_not_available',
             'error_plugin_disabled', 'error_course_not_mapped', 'error_course_not_mapped_to_skill',
-            'error_lessons_not_in_topic', 'error_provision_in_progress',
+            'error_lessons_not_in_topic', 'error_provision_in_progress', 'error_create_insufficient_role',
+            'error_create_inactive_member', 'error_create_name_taken', 'error_create_not_a_member',
+            'error_create_rate_limited',
         ];
         return array_combine($codes, array_map(fn($code) => [$code], $codes));
     }
@@ -209,11 +211,10 @@ class client_errors_test extends TestCase {
         $this->assertStringContainsString('Connection refused', $log);
     }
 
-    public function test_fetch_lessons_graphql_error_text_does_not_reach_the_client(): void {
+    public function test_fetch_lessons_api_error_text_does_not_reach_the_client(): void {
         $GLOBALS['_test_curl_response'] = [
-            'body' => json_encode(['errors' => [['message' => 'upstream detail at http://internal:8000',
-                'extensions' => ['code' => 'SOMETHING_ELSE']]]]),
-            'http_code' => 200,
+            'body' => json_encode(['error' => 'upstream detail at http://internal:8000']),
+            'http_code' => 400,
             'errno' => 0,
             'error' => '',
         ];
@@ -229,9 +230,9 @@ class client_errors_test extends TestCase {
 
     public function test_fetch_lessons_foreign_topic_still_throws_access_denial(): void {
         $GLOBALS['_test_curl_response'] = [
-            'body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill', 'topics' => [
-                ['id' => 'topic-a1', 'name' => 'Topic', 'code' => '', 'description' => ''],
-            ]]]]),
+            'body' => json_encode(['topics' => [
+                ['id' => 'topic-a1', 'name' => 'Topic', 'description' => ''],
+            ]]),
             'http_code' => 200,
             'errno' => 0,
             'error' => '',

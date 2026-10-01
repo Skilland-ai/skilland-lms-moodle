@@ -41,6 +41,8 @@ if (!class_exists('curl')) {
 
         public function post(string $url, string $data): string {
             $this->record($url);
+            $GLOBALS['_test_curl_last']['body'] = $data;
+            $GLOBALS['_test_curl_posts'][] = ['url' => $url, 'body' => $data];
             if (isset($GLOBALS['_test_curl_response'])) {
                 return $GLOBALS['_test_curl_response']['body'] ?? '';
             }

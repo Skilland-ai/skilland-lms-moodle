@@ -36,8 +36,7 @@ class grades_test extends TestCase {
         // Moodle course 10 is mapped to skill-a, whose only topic is topic1.
         $GLOBALS['_test_customfield_value'] = [10 => 'skill-a'];
         $GLOBALS['_test_curl_response'] = [
-            'body' => json_encode(['data' => ['course' => ['id' => 'skill-a', 'name' => 'Skill A',
-                'topics' => [['id' => 'topic1', 'name' => 'topic1', 'code' => '', 'description' => '']]]]]),
+            'body' => json_encode(['topics' => [['id' => 'topic1', 'name' => 'topic1', 'description' => '']]]),
             'http_code' => 200,
             'errno' => 0,
             'error' => '',

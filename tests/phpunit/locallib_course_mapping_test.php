@@ -31,9 +31,9 @@ class locallib_course_mapping_test extends TestCase {
             'apikey' => 'key1',
             'graphql_endpoint' => 'https://localhost:8000/graphql',
         ];
-        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'code' => '', 'description' => ''], $topicids);
+        $topics = array_map(fn($id) => ['id' => $id, 'name' => $id, 'description' => ''], $topicids);
         $GLOBALS['_test_curl_response'] = [
-            'body' => json_encode(['data' => ['course' => ['id' => $courseid, 'name' => 'C', 'topics' => $topics]]]),
+            'body' => json_encode(['topics' => $topics]),
             'http_code' => 200,
             'errno' => 0,
             'error' => '',
@@ -329,18 +329,17 @@ class locallib_course_mapping_test extends TestCase {
         $this->assertFalse(skilland_topic_belongs_to_course('topic-1', 'skill-a'));
     }
 
-    public function test_topic_belongs_to_course_false_when_api_returns_no_course(): void {
+    public function test_topic_belongs_to_course_false_when_the_skill_is_not_in_the_organization(): void {
         $this->stubTopics('skill-a', []);
-        $GLOBALS['_test_curl_response']['body'] = json_encode(['data' => ['course' => null]]);
+        $GLOBALS['_test_curl_response']['http_code'] = 404;
+        $GLOBALS['_test_curl_response']['body'] = json_encode(['error' => 'Skill not found']);
 
         $this->assertFalse(skilland_topic_belongs_to_course('topic-1', 'skill-a'));
     }
 
     public function test_topic_belongs_to_course_ignores_topics_without_id(): void {
         $this->stubTopics('skill-a', []);
-        $GLOBALS['_test_curl_response']['body'] = json_encode(['data' => ['course' => [
-            'id' => 'skill-a', 'name' => 'C', 'topics' => [['name' => 'topic-1']],
-        ]]]);
+        $GLOBALS['_test_curl_response']['body'] = json_encode(['topics' => [['name' => 'topic-1']]]);
 
         $this->assertFalse(skilland_topic_belongs_to_course('topic-1', 'skill-a'));
     }

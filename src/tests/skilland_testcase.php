@@ -47,7 +47,7 @@ abstract class skilland_testcase extends \advanced_testcase {
 
         set_config('orgid', 'org-fixture', 'mod_skilland');
         set_config('apikey', 'fixture-api-key', 'mod_skilland');
-        set_config('graphql_endpoint', 'https://api.skilland.test/graphql', 'mod_skilland');
+        set_config('graphql_endpoint', 'https://api.skilland.test', 'mod_skilland');
         logger::reset_cache();
         // Every rebuild deletes a SCORM; skip the recycle bin's backup of each one.
         set_config('coursebinenable', 0, 'tool_recyclebin');

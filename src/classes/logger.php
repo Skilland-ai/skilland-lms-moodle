@@ -32,8 +32,8 @@ namespace mod_skilland;
  * Logger class for mod_skilland.
  *
  * Usage:
- *   \mod_skilland\logger::debug('GraphQL', 'Starting request to ' . $endpoint);
- *   \mod_skilland\logger::error('GraphQL', 'HTTP error: ' . $httpcode);
+ *   \mod_skilland\logger::debug('REST', 'Starting GET ' . $url);
+ *   \mod_skilland\logger::error('REST', 'HTTP error: ' . $httpcode);
  *   \mod_skilland\logger::warn('SCORM', 'SCO identifier not found for lesson ' . $id);
  */
 class logger {
@@ -65,7 +65,7 @@ class logger {
      * Use this for operational information that helps during development:
      * request/response details, step progress, data dumps, etc.
      *
-     * @param string $component Short component name (e.g. 'GraphQL', 'AJAX', 'SCORM').
+     * @param string $component Short component name (e.g. 'REST', 'AJAX', 'SCORM').
      * @param string $message The message to log.
      */
     public static function debug(string $component, string $message): void {
@@ -93,7 +93,7 @@ class logger {
      * Use this for unexpected but non-critical situations:
      * missing mappings, fallback behavior, deprecation notices.
      *
-     * @param string $component Short component name (e.g. 'GraphQL', 'AJAX', 'SCORM').
+     * @param string $component Short component name (e.g. 'REST', 'AJAX', 'SCORM').
      * @param string $message The message to log.
      */
     public static function warn(string $component, string $message): void {
@@ -105,7 +105,7 @@ class logger {
      *
      * Use this for actual errors, exceptions, and failures that need attention.
      *
-     * @param string $component Short component name (e.g. 'GraphQL', 'AJAX', 'SCORM').
+     * @param string $component Short component name (e.g. 'REST', 'AJAX', 'SCORM').
      * @param string $message The message to log.
      */
     public static function error(string $component, string $message): void {

@@ -68,13 +68,13 @@ try {
     // Generate SSO token.
     $token = skilland_generate_sso_token($USER, $orgid, $role);
 
-    // Construct redirect URL: /skills-studio/:skillId/topics/:topicId.
-    $redirect = '/skills-studio';
+    // Construct the native Studio path: /skills/:skillId, ?topic=:topicId to open one topic.
+    $redirect = '/skills';
     if (!empty($skillandcourseid)) {
-        $redirect .= '/' . urlencode($skillandcourseid);
-    }
-    if (!empty($topicid)) {
-        $redirect .= '/topics/' . urlencode($topicid);
+        $redirect .= '/' . rawurlencode($skillandcourseid);
+        if (!empty($topicid)) {
+            $redirect .= '?topic=' . rawurlencode($topicid);
+        }
     }
     if ($pending) {
         $pendingpath = mod_skilland_take_pending_studio_path($courseid);

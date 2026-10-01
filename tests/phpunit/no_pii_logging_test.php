@@ -132,7 +132,7 @@ class no_pii_logging_test extends TestCase {
         $this->assertStringNotContainsString('Form submitting with', file_get_contents(self::SRC . '/mod_form.php'));
     }
 
-    public function test_graphql_client_does_not_dump_curl_info(): void {
+    public function test_rest_client_does_not_dump_curl_info(): void {
         $this->assertStringNotContainsString('print_r($info', file_get_contents(self::SRC . '/locallib.php'));
     }
 }

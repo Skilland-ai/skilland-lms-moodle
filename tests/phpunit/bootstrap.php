@@ -71,7 +71,7 @@ spl_autoload_register(function ($class) {
 require_once __DIR__ . '/../../src/locallib.php';
 require_once __DIR__ . '/../../src/lib.php';
 
-// Doubles for the plugin's \core\di seams. GraphQL retry delays are recorded instead of slept
+// Doubles for the plugin's \core\di seams. REST retry delays are recorded instead of slept
 // in every test; a test that asserts them binds its own recording_retry_sleeper.
 require_once __DIR__ . '/stubs/test_doubles.php';
 \core\di::set_suite_default(\mod_skilland\local\retry_sleeper::class, fn() => new recording_retry_sleeper());

@@ -59,7 +59,7 @@ test.describe('SSO Integration', () => {
     expect(ssoUrl.search).toBe('')
     expect(request.url).not.toContain('token')
     expect(Object.keys(request.form).sort()).toEqual(['redirect', 'token'])
-    expect(extractRedirectPath(request)).toBe(`/skills-studio/${SKILL_ID}/topics/${TOPIC_ID}`)
+    expect(extractRedirectPath(request)).toBe(`/skills/${SKILL_ID}?topic=${TOPIC_ID}`)
 
     const token = extractSsoToken(request)
     expect(isValidJwtStructure(token)).toBe(true)
@@ -99,7 +99,7 @@ test.describe('SSO Integration', () => {
     expect(request.method).toBe('POST')
     expect(new URL(request.url).pathname).toBe('/sso-login')
     expect(new URL(request.url).search).toBe('')
-    expect(extractRedirectPath(request)).toBe('/skills-studio')
+    expect(extractRedirectPath(request)).toBe('/skills')
     expect(isValidJwtStructure(extractSsoToken(request))).toBe(true)
   })
 })

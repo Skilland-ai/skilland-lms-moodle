@@ -9,25 +9,19 @@ use mod_skilland\local\retry_sleeper;
 use mod_skilland\local\topic_scorm_updater;
 
 /**
- * api_client answering canned responses keyed by GraphQL operation name (graphql()) or by the
- * route's last path segment (rest_get()).
+ * api_client answering canned responses keyed by the route's last path segment, query string
+ * excluded (rest_get(): scorm-hash, scorm, contents, topics, skills, courses; rest_post(): skills).
  *
- * A response is the `data` array to return, a Throwable to throw, or a Closure($query, $variables)
- * returning either. Operations and routes with no canned response go to the fallback client — by default the
- * real http_api_client, so tests driving the curl stub keep working alongside canned answers.
+ * A response is the decoded body to return, a Throwable to throw, or a Closure returning either.
+ * Routes with no canned response go to the fallback client — by default the real
+ * http_api_client, so tests driving the curl stub keep working alongside canned answers.
  */
 class fake_api_client implements api_client {
-    /** @var array<string, mixed> */
-    private $responses = [];
-
     /** @var mixed Canned download_package() result (path, Throwable or Closure); null = fallback. */
     private $download = null;
 
     /** @var api_client|null */
     private $fallback;
-
-    /** @var array<int, array{operation: string, variables: array}> Every graphql() call, in order. */
-    public $calls = [];
 
     /** @var array<int, array{url: string, expectedsize: int}> Every download_package() call. */
     public $downloads = [];
@@ -37,6 +31,12 @@ class fake_api_client implements api_client {
 
     /** @var string[] Every rest_get() path, in order. */
     public $restcalls = [];
+
+    /** @var array<string, mixed> Canned rest_post() answers keyed by the route's last path segment. */
+    private $postresponses = [];
+
+    /** @var array<int, array{path: string, body: array}> Every rest_post() call, in order. */
+    public $restposts = [];
 
     public function __construct(?api_client $fallback = null) {
         $this->fallback = $fallback;
@@ -74,8 +74,12 @@ class fake_api_client implements api_client {
         return $this;
     }
 
-    public function respond(string $operation, $response): self {
-        $this->responses[$operation] = $response;
+    /**
+     * Answer rest_post() for every path whose last segment is $route: the decoded answer, a
+     * Throwable to throw, or a Closure($path, $body) returning either.
+     */
+    public function respond_post(string $route, $response): self {
+        $this->postresponses[$route] = $response;
         return $this;
     }
 
@@ -84,20 +88,21 @@ class fake_api_client implements api_client {
         return $this;
     }
 
-    /** @return string[] The operation names called, in order. */
-    public function operations(): array {
-        return array_column($this->calls, 'operation');
+    /** The last path segment of a route path, query string excluded. */
+    private static function route_of(string $path): string {
+        $segments = explode('/', trim((string) parse_url($path, PHP_URL_PATH), '/'));
+        return (string) end($segments);
     }
 
-    public function graphql(string $query, array $variables = []): array {
-        $operation = mod_skilland_graphql_operation_name($query);
-        $this->calls[] = ['operation' => $operation, 'variables' => $variables];
-        if (!array_key_exists($operation, $this->responses)) {
-            return $this->fallback()->graphql($query, $variables);
+    public function rest_get(string $path): array {
+        $this->restcalls[] = $path;
+        $route = self::route_of($path);
+        if (!array_key_exists($route, $this->restresponses)) {
+            return $this->fallback()->rest_get($path);
         }
-        $response = $this->responses[$operation];
+        $response = $this->restresponses[$route];
         if ($response instanceof \Closure) {
-            $response = $response($query, $variables);
+            $response = $response($path);
         }
         if ($response instanceof \Throwable) {
             throw $response;
@@ -105,16 +110,15 @@ class fake_api_client implements api_client {
         return $response;
     }
 
-    public function rest_get(string $path): array {
-        $this->restcalls[] = $path;
-        $segments = explode('/', trim($path, '/'));
-        $route = (string) end($segments);
-        if (!array_key_exists($route, $this->restresponses)) {
-            return $this->fallback()->rest_get($path);
+    public function rest_post(string $path, array $body): array {
+        $this->restposts[] = ['path' => $path, 'body' => $body];
+        $route = self::route_of($path);
+        if (!array_key_exists($route, $this->postresponses)) {
+            return $this->fallback()->rest_post($path, $body);
         }
-        $response = $this->restresponses[$route];
+        $response = $this->postresponses[$route];
         if ($response instanceof \Closure) {
-            $response = $response($path);
+            $response = $response($path, $body);
         }
         if ($response instanceof \Throwable) {
             throw $response;
