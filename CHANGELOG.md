@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.44-beta]
+
+### Fixed
+- Edit settings no longer overwrites a custom activity name; topic options read
+  `T<n> - <name>` without the internal id, the General section is visible
+  (expanded on new activities, collapsed on existing ones) with a note that its
+  values are filled in from Skilland, and the name field is labelled "Name"
+  (SKL-678).
+- The lesson list shows the score as a percentage using the package's scaled,
+  min and max values, SCORM 2004 lessons show Passed or Failed from
+  `cmi.success_status`, and lessons that cannot be played yet say "Not yet
+  available" with an explanation and `aria-disabled` (SKL-680).
+
 ## [0.9.43-beta]
 
 ### Added
