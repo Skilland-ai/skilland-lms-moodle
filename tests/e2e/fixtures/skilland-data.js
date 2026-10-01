@@ -23,13 +23,14 @@ const SECOND_TOPIC_ID = 'skl-e2e-topic-2'
 
 /**
  * mod_skilland_fetch_courses_ajax: {courses: [{id, name, code?, status?}], error?}
+ * Skills have no code, so the plugin sends the id as code; status is the skill status.
  * @param {Array<{id: string, name: string, code?: string, status?: string}>} [extra] Courses appended to the defaults
  */
 function courses(extra = []) {
   return {
     courses: [
-      { id: SKILL_ID, name: 'E2E Skill One', code: 'E2E1', status: 'PUBLISHED' },
-      { id: SECOND_SKILL_ID, name: 'E2E Skill Two', code: 'E2E2', status: 'DRAFT' },
+      { id: SKILL_ID, name: 'E2E Skill One', code: SKILL_ID, status: 'Published' },
+      { id: SECOND_SKILL_ID, name: 'E2E Skill Two', code: SECOND_SKILL_ID, status: 'Draft' },
       ...extra
     ]
   }
@@ -44,21 +45,22 @@ function createdCourse(overrides = {}) {
   return {
     skillid,
     name: 'E2E Created Skill',
-    redirect_url: `${SKILLAND_URL}/skills-studio/${skillid}`,
+    redirect_url: `${SKILLAND_URL}/skills/new?draft=${skillid}`,
     ...overrides
   }
 }
 
 /**
  * mod_skilland_fetch_topics_ajax: {course: {id, name?, code?}, topics: [{id, name, code?, description?}], error?}
+ * Skills and topics have no code, so the plugin sends each id as code.
  * @param {string} [courseId]
  */
 function topics(courseId = SKILL_ID) {
   return {
-    course: { id: courseId, name: 'E2E Skill One', code: 'E2E1' },
+    course: { id: courseId, name: 'E2E Skill One', code: courseId },
     topics: [
-      { id: TOPIC_ID, name: 'Getting started', code: 'T1', description: '<p>First topic</p>' },
-      { id: SECOND_TOPIC_ID, name: 'Going further', code: 'T2', description: '<p>Second topic</p>' }
+      { id: TOPIC_ID, name: 'Getting started', code: TOPIC_ID, description: '<p>First topic</p>' },
+      { id: SECOND_TOPIC_ID, name: 'Going further', code: SECOND_TOPIC_ID, description: '<p>Second topic</p>' }
     ]
   }
 }

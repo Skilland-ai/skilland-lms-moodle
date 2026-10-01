@@ -37,8 +37,8 @@ test.describe('Course Linking', () => {
     const options = getSkillandDropdown(authenticatedPage).locator('option')
     await expect(options).toHaveText([
       'Select a Skilland course...',
-      'E2E Skill One (E2E1) [PUBLISHED]',
-      'E2E Skill Two (E2E2) [DRAFT]'
+      'E2E Skill One (skl-e2e-skill-1) [Published]',
+      'E2E Skill Two (skl-e2e-skill-2) [Draft]'
     ])
     await expect(getCreateCourseButton(authenticatedPage)).toHaveText('Create in SkilLand')
     await expect(getCreateCourseButton(authenticatedPage)).toBeEnabled()
@@ -179,7 +179,7 @@ test.describe('Course Linking', () => {
     const page = authenticatedPage
     const courseId = await moodleCourse.create({ skillId: skillandData.SECOND_SKILL_ID })
     skillandMock.on('mod_skilland_fetch_courses_ajax', {
-      courses: [{ id: skillandData.SKILL_ID, name: 'E2E Skill One', code: 'E2E1', status: 'PUBLISHED' }]
+      courses: [{ id: skillandData.SKILL_ID, name: 'E2E Skill One', code: skillandData.SKILL_ID, status: 'Published' }]
     })
 
     await goToCourseEditPage(page, courseId)

@@ -16,7 +16,7 @@ const skillandData = require('../fixtures/skilland-data')
  * mod_skilland_fetch_lessons_ajax, both answered by the SkilLand mock.
  *
  * Saving the form and provisioning the SCORM package validate the topic against
- * SkilLand's GraphQL API from PHP, which the browser mock cannot answer; that part
+ * SkilLand's REST API from PHP, which the browser mock cannot answer; that part
  * is covered by PHPUnit (tests/phpunit).
  */
 test.describe('SCORM provisioning setup', () => {
