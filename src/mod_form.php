@@ -185,13 +185,17 @@ class mod_skilland_mod_form extends moodleform_mod {
         $mform->setType('selected_lessons', PARAM_RAW);
         $mform->setDefault('selected_lessons', '{}');
 
-        // 2. General settings (MOVED AFTER SKILLAND, HIDDEN via CSS)
-        // We hide this section because the name and description are auto-filled from the selected topic.
+        // 2. General settings: collapsed on an existing activity, with a note that the values are auto-filled.
         $mform->addElement('header', 'general', get_string('general', 'form'));
-        // Hidden via a JS-toggled class (styles.css), not unconditional CSS: the name field is
-        // normally auto-filled from the selected topic, but when the topic fetch fails (or a
-        // previous submit left a "name is required" error here) the section must stay visible so
-        // the field - and any validation error on it - is never invisible to the teacher.
+        if (!empty($this->_instance)) {
+            $mform->setExpanded('general', false);
+        }
+        $mform->addElement(
+            'static',
+            'general_autofill_note',
+            '',
+            html_writer::div(get_string('general_autofill_note', 'mod_skilland'), 'text-muted', ['data-skilland-general-note' => '1'])
+        );
 
         // Adding the standard "name" field.
         $mform->addElement('text', 'name', get_string('modulename', 'mod_skilland'), ['size' => '64']);

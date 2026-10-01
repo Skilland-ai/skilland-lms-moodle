@@ -29,9 +29,6 @@ form.mform:has(.skilland-missing-courseid) h4:not(.skilland-missing-courseid h4)
     display: none !important;
 }
 
-/* The auto-filled Name/Description section, hidden by the module only when nothing there needs attention. */
-#id_general.skilland-hide-general { display: none; }
-
 /* Skilland Course display */
 #fitem_id_skilland_course_id_display .felement {
     display: flex;

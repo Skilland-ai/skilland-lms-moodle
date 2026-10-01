@@ -125,6 +125,7 @@ $string['error_topicid_required'] = 'A topic is required. Select one, or retry i
 $string['error_unknown'] = 'Unknown error';
 $string['error_url_https_required'] = 'This URL must use https://.';
 $string['failed'] = 'Failed';
+$string['general_autofill_note'] = 'Name and description are filled in from Skilland when you pick a topic. You can edit them.';
 $string['go_to_skilland'] = 'Go to Skilland';
 $string['hidelabels'] = 'Hide Skilland codes';
 $string['hidelabels_desc'] = 'Hide Skilland codes (e.g. T2-L1) from student-facing activity names';

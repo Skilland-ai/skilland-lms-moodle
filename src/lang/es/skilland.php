@@ -125,6 +125,7 @@ $string['error_topicid_required'] = 'Se requiere un tema. Seleccione uno, o rein
 $string['error_unknown'] = 'Error desconocido';
 $string['error_url_https_required'] = 'Esta URL debe usar https://.';
 $string['failed'] = 'Fallido';
+$string['general_autofill_note'] = 'El nombre y la descripción se rellenan desde Skilland al elegir un tema. Puede editarlos.';
 $string['go_to_skilland'] = 'Ir a Skilland';
 $string['hidelabels'] = 'Ocultar códigos de Skilland';
 $string['hidelabels_desc'] = 'Ocultar códigos de Skilland (ej. T2-L1) de los nombres de actividades visibles para estudiantes';

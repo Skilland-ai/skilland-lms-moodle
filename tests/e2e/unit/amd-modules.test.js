@@ -123,12 +123,40 @@ describe('mod_form.js', () => {
     assert.equal(select(env).disabled, false)
     assert.equal(select(env).value, 'topic-1')
     assert.deepEqual(select(env).options.map(option => option.textContent), [
-      'S:select_topic...', 'T1 - Topic one (topic-1)', 'T2 - Topic two (topic-2)'
+      'S:select_topic...', 'T1 - Topic one', 'T2 - Topic two'
     ])
     assert.deepEqual(ajaxCalls(env, 'mod_skilland_fetch_lessons_ajax').map(call => call.args),
       [{ topicid: 'topic-1', moodlecourseid: 3 }])
     assert.equal(env.document.getElementById('skilland-update-btn').disabled, false)
-    assert.equal(env.document.getElementById('id_name').value, 'T1 - Topic one')
+    // Restoring the saved topic never writes the Name; the option carries the id as its tooltip.
+    assert.equal(env.document.getElementById('id_name').value, '')
+    assert.equal(select(env).options[1].title, 'topic-1')
+  })
+
+  test('opening the form keeps a custom name; picking a topic fills it only while it is empty or auto-generated', async () => {
+    const env = await startForm({ ajax: topicsAjax() }, { savedTopic: 'topic-1' }, { currenttopicid: 'topic-1' })
+    const name = env.document.getElementById('id_name')
+    assert.equal(name.value, '')
+
+    change(select(env), 'topic-2')
+    await env.flush()
+    assert.equal(name.value, 'T2 - Topic two')
+
+    change(select(env), 'topic-1')
+    await env.flush()
+    assert.equal(name.value, 'T1 - Topic one')
+
+    name.value = 'My custom name'
+    change(select(env), 'topic-2')
+    await env.flush()
+    assert.equal(name.value, 'My custom name')
+
+    const restored = loadModule('mod_form', { ajax: topicsAjax() })
+    buildActivityForm(restored, { savedTopic: 'topic-1' })
+    restored.document.getElementById('id_name').value = 'Teacher title'
+    restored.module.init(formConfig({ currenttopicid: 'topic-1' }))
+    await restored.flush()
+    assert.equal(restored.document.getElementById('id_name').value, 'Teacher title')
   })
 
   test('a get_strings failure is reported and the form still loads, with the keys as text', async () => {
@@ -258,7 +286,7 @@ describe('mod_form.js', () => {
         mod_skilland_fetch_topics_ajax: () => ({ topics: [{ id: 'topic-1', name: '<svg onload=x>', position: 1 }] })
       })
     })
-    assert.equal(select(env).options[1].textContent, 'T1 - <svg onload=x> (topic-1)')
+    assert.equal(select(env).options[1].textContent, 'T1 - <svg onload=x>')
     assert.equal(env.document.querySelectorAll('svg').length, 0)
 
     change(select(env), 'topic-1')

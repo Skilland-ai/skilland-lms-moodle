@@ -208,28 +208,7 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
 
         log('Skilland: Initialising form with currentTopicId:', currentTopicId);
         log('Skilland: currentSelectedLessons:', currentSelectedLessons);
-        applyGeneralSectionVisibility();
         initTopicSelect();
-
-        // Keep the auto-filled Name/Description section hidden only when nothing needs
-        // the teacher's attention there: a prior submit's validation error on 'name' (or
-        // the field already having no value while the topic could not be auto-filled)
-        // must keep the section visible.
-        function applyGeneralSectionVisibility() {
-            var generalHeader = document.getElementById('id_general');
-            if (!generalHeader) {
-                return;
-            }
-            var nameField = document.getElementById('id_name');
-            var hasNameError = !!document.getElementById('id_error_name') ||
-                (nameField && nameField.classList && nameField.classList.contains('is-invalid'));
-            if (hasNameError) {
-                return;
-            }
-            if (nameField && nameField.value) {
-                generalHeader.classList.add('skilland-hide-general');
-            }
-        }
 
         function initTopicSelect() {
             var topicSelect = document.getElementById('id_skilland_topicid');
@@ -452,6 +431,14 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                     });
                     return;
                 }
+                selectTopic(topicId, {userChange: true});
+            });
+
+            // Applies a topic choice. A user change also refills Name and Description; restoring the saved
+            // topic on load only syncs the order index, lessons and Edit button, so opening Edit settings
+            // and saving never rewrites what the teacher already has.
+            function selectTopic(topicId, options) {
+                var userChange = !!(options && options.userChange);
                 confirmedTopicId = null;
                 if (savedTopicInput) {
                     savedTopicInput.value = topicId;
@@ -480,7 +467,12 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                     renderedTopicId = null;
                     activeTopicId = topicId;
 
-                    updateFormFields(topic);
+                    if (userChange) {
+                        updateFormFields(topic);
+                    } else {
+                        updateEditButton(topic);
+                        lastAutoName = topicLabel(topic);
+                    }
                     fetchLessons(topicId);
                 } else {
                     if (renderedTopicId !== null) {
@@ -493,7 +485,7 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                     setLessonsLoading(false);
                     lessonsContainer.innerHTML = '';
                 }
-            });
+            }
 
             function formatUpdatedAt(value) {
                 if (!value) {
@@ -550,15 +542,20 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                 return skillandTs > (storedTs + toleranceMs);
             }
 
+            // Name this form last generated for a topic; a Name that differs was typed by the teacher.
+            var lastAutoName = null;
+
+            function topicLabel(topic) {
+                return 'T' + (topic.orderIndex || 1) + ' - ' + topic.name;
+            }
+
             function updateFormFields(topic) {
                 // Update Name with topic label (T1, T2, etc.)
                 var nameField = document.getElementById('id_name');
-                if (nameField) {
-                    var topicLabel = 'T' + (topic.orderIndex || 1);
-                    nameField.value = topicLabel + ' - ' + topic.name;
+                if (nameField && (!nameField.value || nameField.value === lastAutoName)) {
+                    nameField.value = topicLabel(topic);
+                    lastAutoName = nameField.value;
                 }
-                applyGeneralSectionVisibility();
-
                 // Update Edit in Skilland button
                 updateEditButton(topic);
 
@@ -1046,11 +1043,12 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                         response.topics.forEach(function(topic, index) {
                             topic.orderIndex = topic.position || (index + 1); // Use API position, fallback to index
                             topicsMap[topic.id] = topic;
-                            var optionText = 'T' + topic.orderIndex + ' - ' + topic.name + ' (' + topic.id + ')';
+                            var optionText = 'T' + topic.orderIndex + ' - ' + topic.name;
 
                             var option = document.createElement('option');
                             option.textContent = optionText;
                             option.value = topic.id;
+                            option.title = topic.id;
                             if (String(topic.id) === String(currentTopicId)) {
                                 log('Skilland: Found matching topic option', topic.id);
                                 option.selected = true;
@@ -1077,8 +1075,7 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                             if (savedTopicInput) {
                                 savedTopicInput.value = currentTopicId;
                             }
-                            var changeEvent = new Event('change', {bubbles: true});
-                            topicSelect.dispatchEvent(changeEvent);
+                            selectTopic(String(currentTopicId), {userChange: false});
                         } else {
                             addStaleTopicOption(currentTopicId);
                             Notification.addNotification({
