@@ -1,6 +1,6 @@
 # Contributing
 
-This is the Moodle activity plugin for SkilLand (`mod_skilland`). It lives in its own
+This is the Moodle activity plugin for Skilland (`mod_skilland`). It lives in its own
 repository (`Skilland-ai/skilland-lms-moodle`) and is developed as a normal Moodle plugin:
 the actual plugin code is `src/` (installed as `mod/skilland`), the repository root holds
 tooling (npm scripts, CI, PHPUnit stub harness).
@@ -14,8 +14,8 @@ npm ci
 composer install
 ```
 
-See `DEVELOPMENT.md` for wiring the plugin up against a local Skilland stack (API key,
-organization id, SSO secret) and `BACKUP.md` for the backup/restore contract.
+See [docs/development.md](docs/development.md) for wiring the plugin up against a local Skilland stack (API key,
+organization id, SSO secret) and [docs/backup-restore.md](docs/backup-restore.md) for the backup/restore contract.
 
 ### Running tests locally
 

@@ -652,8 +652,8 @@ class locallib_http_security_test extends TestCase {
 
     public function test_docs_mention_package_hosts(): void {
         $root = __DIR__ . '/../..';
-        $this->assertStringContainsString('SCORM package hosts', file_get_contents($root . '/README.md'));
-        $this->assertStringContainsString('mod_skilland/package_hosts', file_get_contents($root . '/DEVELOPMENT.md'));
-        $this->assertStringContainsString('package_max_mb', file_get_contents($root . '/DEVELOPMENT.md'));
+        $this->assertStringContainsString('SCORM package hosts', file_get_contents($root . '/docs/admin-guide.md'));
+        $this->assertStringContainsString('mod_skilland/package_hosts', file_get_contents($root . '/docs/admin-guide.md'));
+        $this->assertStringContainsString('package_max_mb', file_get_contents($root . '/docs/admin-guide.md'));
     }
 }
