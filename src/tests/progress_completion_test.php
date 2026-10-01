@@ -132,13 +132,15 @@ final class progress_completion_test extends skilland_testcase {
     }
 
     public function test_scorm_2004_success_status_overrides_completion_status(): void {
-        $this->preventResetByRollback();
         [, $student, $skilland, $scormid, $lessons] = $this->provisioned();
         $lesson = $lessons['lesson-1'];
 
-        $this->track($student->id, $scormid, $lesson, 'cmi.completion_status', 'completed');
-        $this->track($student->id, $scormid, $lesson, 'cmi.success_status', 'failed');
-        $this->track($student->id, $scormid, $lesson, 'cmi.score.scaled', '0.4');
+        // Unobserved, so one refresh sees all three tracks: an observer run after the completed
+        // track alone would store completed, which a later failed never lowers.
+        $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.completion_status', 'completed');
+        $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.success_status', 'failed');
+        $this->track_unobserved($student->id, $scormid, $lesson, 'cmi.score.scaled', '0.4');
+        $this->assertTrue(skilland_refresh_progress($skilland, (int) $student->id));
 
         $this->assertEquals(
             [(int) $lesson->id => ['status' => 'failed', 'score' => '40.00000']],
