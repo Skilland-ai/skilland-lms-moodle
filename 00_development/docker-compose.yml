@@ -47,6 +47,7 @@ services:
       # SkilLand derives for it from MOODLE_SSO_SECRET; without it, the SSO secret is typed by hand.
       SKILLAND_SSO_SECRET: ${MOODLE_SSO_SECRET:-}
       SKILLAND_ORG_ID: ${SKILLAND_ORG_ID:-}
+      SKILLAND_URL: ${SKILLAND_URL:-}
       SKILLAND_GRAPHQL_ENDPOINT: ${SKILLAND_GRAPHQL_ENDPOINT:-}
       SKILLAND_FRONTEND_URL: ${SKILLAND_FRONTEND_URL:-}
     volumes:

@@ -31,7 +31,8 @@ $skillandssosecret = getenv('SKILLAND_SSO_SECRET');
 $skillandorgid = getenv('SKILLAND_ORG_ID');
 if (!empty($skillandssosecret)) {
     $CFG->forced_plugin_settings['mod_skilland'] = [
-        'graphql_endpoint' => getenv('SKILLAND_GRAPHQL_ENDPOINT') ?: 'http://host.docker.internal:8000/graphql',
+        // Skilland URL (config key graphql_endpoint): the Next.js app serving /api/moodle.
+        'graphql_endpoint' => getenv('SKILLAND_URL') ?: (getenv('SKILLAND_GRAPHQL_ENDPOINT') ?: 'http://host.docker.internal:3100'),
         'frontend_url' => getenv('SKILLAND_FRONTEND_URL') ?: 'http://host.docker.internal:3100',
     ];
     if (!empty($skillandorgid)) {

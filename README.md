@@ -84,25 +84,22 @@ Go to **Site administration → Plugins → Activity modules → Skilland conten
 
 - **API Key**: Your private key from the Skilland platform.
 - **Organization ID**: Your institution's ID.
-- **GraphQL Endpoint**: The URL of the legacy Skilland GraphQL API (default: `https://api.skilland.ai/graphql`). Topic SCORM lookups fall back to it only when the REST API answers 401/403/404 or cannot be reached; clear it to turn the fallback off.
-  - For local development: `http://localhost:8000/graphql`
-- **Frontend URL**: The URL of the Skilland frontend application (default: `https://app.skilland.ai`).
-  - For local development: `http://localhost:3000`
-  - This is where the SSO handoff is posted when teachers click "Edit Lessons in Skilland"
-  - It is also the base of the SkilLand REST API (`{Frontend URL}/api/moodle/...`, authenticated with the API key as a Bearer token), which serves topic SCORM packages and their content hashes
+- **Skilland URL**: The address of the Skilland site (default: `https://app.skilland.ai`). Every call the plugin makes goes to the SkilLand REST API under it (`{Skilland URL}/api/moodle/...`, authenticated with the API key as a Bearer token): the course list, the courses a teacher can edit, course creation, topics, lessons, topic SCORM packages and their content hashes. A value saved with a trailing `/graphql` or `/api/moodle` (from older versions) still works; the suffix is ignored.
+  - For local development: `http://localhost:3100`
+- **Frontend URL** (optional): Overrides the Skilland URL for the REST API, the SSO handoff and the Studio links. Leave it empty to use the Skilland URL.
 - **SSO Shared Secret**: Your organization's Moodle SSO secret, copied from SkilLand › Settings › Integrations › Moodle. SkilLand derives a secret for each organization, so it only works together with this site's **Organization ID**. It must be at least 32 bytes long.
 
 #### SSO handoff
 
-Opening SkilLand Studio signs an HS256 JWT with the SSO shared secret and hands it over with a self-submitting form that **POSTs** `token` and `redirect` to `{Frontend URL}/sso-login`. The token never appears in a URL, so it stays out of browser history, `Referer` headers and access logs; the handoff page is sent with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Besides the user claims, every token carries:
+Opening SkilLand Studio signs an HS256 JWT with the SSO shared secret and hands it over with a self-submitting form that **POSTs** `token` and `redirect` to `{Skilland URL}/sso-login` (or the Frontend URL when set). `redirect` is a native Studio path: `/skills/<skillId>`, `/skills/<skillId>?topic=<topicId>` for one topic, or `/skills/new?draft=<skillId>` right after a course was created from Moodle. The token never appears in a URL, so it stays out of browser history, `Referer` headers and access logs; the handoff page is sent with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Besides the user claims, every token carries:
 
 - `exp`: `iat` + 60 seconds, just long enough for the form to submit.
-- `aud`: the origin (`scheme://host[:port]`) of the Frontend URL. The SkilLand side may override the audience it expects with `MOODLE_SSO_AUDIENCE`.
+- `aud`: the origin (`scheme://host[:port]`) of the Skilland URL (or the Frontend URL when set). The SkilLand side may override the audience it expects with `MOODLE_SSO_AUDIENCE`.
 - `iss`: this Moodle site's `wwwroot`.
 - `sub`: the Moodle user id, as a string. SkilLand binds the SkilLand account to the organization, `iss` and `sub`, not to the email address.
 
 Tokens are only issued to accounts that may sign in, read from the user table at click time: guest, suspended, deleted, unconfirmed and `nologin` accounts get an error page instead.
-- **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the Frontend URL and GraphQL endpoint hosts (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only; the default `*.amazonaws.com` covers the presigned S3 URLs the REST API hands out.
+- **SCORM package hosts**: Comma-separated hosts SCORM packages may be downloaded from, besides the Skilland URL and Frontend URL hosts (default: `*.skilland.ai, *.amazonaws.com`). `*.example.com` matches subdomains of `example.com` only; the default `*.amazonaws.com` covers the presigned S3 URLs the REST API hands out.
 - **Maximum SCORM package size (MB)**: Downloads larger than this are aborted (default: `200`).
 - **SCORM package signing keys**: Extra public keys SCORM packages may be signed with, one `keyid:base64publickey` per line, besides the keys built into the plugin (the setting is empty by default; key `2026-09` is pinned). See [Trust boundary](#trust-boundary).
 
@@ -124,7 +121,7 @@ Before adding activities, you must link the course:
 1. Go to your Moodle course.
 2. Click **Settings** (or "Edit settings").
 3. Scroll down to **Custom fields**.
-4. Pick the SkilLand course from the dropdown, or click **Create in SkilLand** and confirm to create a new one. A course created this way is linked to the Moodle course immediately, even if you then cancel the form.
+4. Pick the SkilLand course from the dropdown, or click **Create in SkilLand** and confirm to create a new one. A course created this way is linked to the Moodle course immediately, even if you then cancel the form. SkilLand creates it for your email address (and, if you have no SkilLand account yet, creates one linked to your Moodle account for SSO); an account without the Expert role, a deactivated one, an email that belongs to another organization or a course name already taken each show their own message.
 5. Save changes. After a create, the saved course page shows an **Open the new course in SkilLand** link.
 
 > **Note**: If you don't see this field, ask your administrator to create the "Skilland Course ID" custom course field.
