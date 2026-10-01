@@ -1,0 +1,40 @@
+# Opt-in stack for scripts/moodle-core-tests.sh: MariaDB 11 (as CI), Moodle 4.5 and headless Chrome.
+# Separate project, volumes and database from 00_development, so it never touches the dev site.
+name: skilland-core-tests
+
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+      MARIADB_DATABASE: moodle
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  chrome:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2gb
+    profiles: ["behat"]
+
+  moodle:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../src:/plugin-src:ro
+      - ../vendor:/plugin-vendor:ro
+      - moodle_code:/var/www/html
+      - phpunitdata:/var/phpunitdata
+      - behatdata:/var/behatdata
+    command: ["sleep", "infinity"]
+
+volumes:
+  moodle_code:
+  phpunitdata:
+  behatdata:
