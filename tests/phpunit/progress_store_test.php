@@ -182,6 +182,26 @@ class progress_store_test extends TestCase {
         $this->assertSame(['status' => 'completed', 'score' => 250.0], $progress[50][2]);
     }
 
+    public function test_normalise_score_ignores_non_finite_values(): void {
+        $this->assertSame(7.0, skilland_normalise_scorm_score(['raw' => '7', 'max' => '1e999']));
+        $this->assertSame(7.0, skilland_normalise_scorm_score(['raw' => '7', 'scaled' => '1e999']));
+        $this->assertNull(skilland_normalise_scorm_score(['raw' => '1e999']));
+        $this->assertNull(skilland_normalise_scorm_score(['raw' => 'NAN']));
+    }
+
+    public function test_read_takes_score_and_success_from_the_newest_reporting_attempt(): void {
+        $this->track(50, 11, 'cmi.core.lesson_status', 'completed', 2);
+        $this->track(50, 11, 'cmi.core.score.raw', '90', 2);
+        $this->track(50, 11, 'cmi.core.lesson_status', 'completed', 1);
+        $this->track(50, 11, 'cmi.success_status', 'failed', 1);
+        $this->track(50, 11, 'cmi.score.scaled', '0.2', 1);
+        $this->track(50, 11, 'cmi.score.max', '10', 1);
+
+        $progress = skilland_read_scorm_progress($this->skilland());
+
+        $this->assertSame(['status' => 'completed', 'score' => 90.0], $progress[50][1]);
+    }
+
     public function test_read_filters_on_the_requested_users(): void {
         $this->track(50, 11, 'cmi.core.lesson_status', 'completed');
         $this->track(51, 11, 'cmi.core.lesson_status', 'completed');

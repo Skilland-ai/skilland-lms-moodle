@@ -1962,7 +1962,7 @@ function skilland_normalise_scorm_status(string $value): string {
 function skilland_normalise_scorm_score(array $values): ?float {
     $number = static function ($key) use ($values): ?float {
         $value = $values[$key] ?? null;
-        return is_numeric($value) ? (float) $value : null;
+        return (is_numeric($value) && is_finite((float) $value)) ? (float) $value : null;
     };
 
     $scaled = $number('scaled');
@@ -2067,6 +2067,7 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
     $progress = [];
     $scorevalues = [];
     $success = [];
+    $scoreattempt = [];
     foreach ($tracks as $track) {
         $lessonid = $scotolesson[(int) $track->scoid] ?? null;
         if ($lessonid === null) {
@@ -2081,6 +2082,9 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
             if ($entry['status'] === null) {
                 $entry['status'] = skilland_normalise_scorm_status((string) $track->value);
             }
+        } else if (($scoreattempt[$userid][$lessonid] ??= (int) $track->attempt) !== (int) $track->attempt) {
+            // Score and success tracks come from the newest attempt that reported any of them.
+            continue;
         } else if (in_array($track->element, $successelements, true)) {
             $value = strtolower(trim((string) $track->value));
             if (!isset($success[$userid][$lessonid]) && in_array($value, ['passed', 'failed'], true)) {
