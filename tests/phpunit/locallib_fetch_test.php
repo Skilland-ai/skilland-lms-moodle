@@ -115,6 +115,26 @@ class locallib_fetch_test extends TestCase {
         mod_skilland_fetch_courses();
     }
 
+    public function test_skill_name_needs_no_orgid(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object) [
+            'apikey' => 'key1',
+            'graphql_endpoint' => 'https://localhost:8000',
+        ];
+        $this->stubRest(['skills' => [self::SKILL_ROW]]);
+
+        $this->assertSame('Course 1', mod_skilland_skill_name('c1'));
+        $this->assertSame(['https://localhost:8000/api/moodle/skills?status=all'], $GLOBALS['_test_curl_requests']);
+    }
+
+    public function test_skill_name_is_empty_for_an_unknown_skill_or_a_failure(): void {
+        $this->setValidConfig();
+        $this->stubRest(['skills' => [self::SKILL_ROW]]);
+        $this->assertSame('', mod_skilland_skill_name('other'));
+
+        $this->stubRestError(401);
+        $this->assertSame('', mod_skilland_skill_name('c1'));
+    }
+
     // ---------------------------------------------------------------
     // mod_skilland_fetch_user_courses() — GET users/courses?email=
     // ---------------------------------------------------------------

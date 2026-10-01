@@ -42,6 +42,9 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
 
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
+        // Creating the activity checks the topic belongs to the mapped skill; provisioning starts after.
+        $this->assertSame(['GET skills/{id}/topics'], $this->client->operations());
+        $before = count($this->client->calls);
 
         $cmid = $this->provision($skilland);
 
@@ -68,8 +71,8 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
 
         $this->assertSame(1, $this->client->count_calls('GET topics/{id}/scorm'));
         $this->assertSame(1, $this->client->count_calls('GET topics/{id}/scorm-hash'));
-        // Both lookups went through the topic REST routes.
-        $paths = array_column($this->client->calls, 'path');
+        // Provisioning made exactly two calls, both to the topic SCORM REST routes.
+        $paths = array_column(array_slice($this->client->calls, $before), 'path');
         $this->assertCount(2, $paths);
         foreach ($paths as $path) {
             $this->assertMatchesRegularExpression('#^/api/moodle/topics/[^/]+/scorm(-hash)?$#', $path);

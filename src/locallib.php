@@ -767,13 +767,15 @@ function mod_skilland_fetch_courses(): array {
  * Name of a Skilland course (skill) of the organization, for display only.
  *
  * One GET /api/moodle/skills?status=all; any failure, or a skill missing from the list, yields ''.
+ * Unlike mod_skilland_fetch_courses() it does not require the orgid setting: the REST API
+ * identifies the organization by the API key alone.
  *
  * @param string $skillid Skilland course ID
  * @return string
  */
 function mod_skilland_skill_name(string $skillid): string {
     try {
-        foreach (mod_skilland_fetch_courses() as $course) {
+        foreach (mod_skilland_skill_rows(mod_skilland_rest_get('/api/moodle/skills?status=all')) as $course) {
             if ($course['id'] === $skillid) {
                 return $course['name'];
             }
