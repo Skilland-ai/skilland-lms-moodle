@@ -282,14 +282,15 @@ A fast smoke layer that needs no Moodle install: `npm run test:unit` (Composer a
 
 ### Real Moodle suite (`src/tests`)
 
-`advanced_testcase` tests against a real `$DB`, the data generator (`src/tests/generator`) and Behat features (`src/tests/behat`). CI runs them with moodle-plugin-ci in `.github/workflows/moodle-plugin-ci.yml`. Locally, put the plugin into a Moodle 4.5 checkout (`src/` as `<moodle>/mod/skilland`) and use Moodle's own runners:
+`advanced_testcase` tests against a real `$DB`, the data generator (`src/tests/generator`) and Behat features (`src/tests/behat`). CI runs them with moodle-plugin-ci in `.github/workflows/moodle-plugin-ci.yml`. The stub suite passing says nothing about them (SKL-963's `topic_scorm_provisioning_test` and `add_activity.feature` only failed in CI), so run them before pushing a change that touches `src/`:
 
 ```bash
-php admin/tool/phpunit/cli/init.php
-vendor/bin/phpunit --testsuite mod_skilland_testsuite
-php admin/tool/behat/cli/init.php
-vendor/bin/behat --config <behat_dataroot>/behatrun/behat/behat.yml --tags=@mod_skilland
+scripts/moodle-core-tests.sh phpunit [filter]   # mod_skilland_testsuite, --filter is optional
+scripts/moodle-core-tests.sh behat [name]       # @mod_skilland, a scenario name is optional
+scripts/moodle-core-tests.sh down               # stop the stack and drop its volumes
 ```
+
+The script is opt-in and self-contained: `core-tests/docker-compose.yml` brings up its own MariaDB 11, a Moodle 4.5 image (PHP 8.3, `core-tests/Dockerfile`) and, for Behat, `selenium/standalone-chrome`, in a separate Compose project (`skilland-core-tests`) that never touches the `00_development` site. Each run syncs `src/` into `mod/skilland` and stages the root `vendor/` into it, as CI does, then calls Moodle's own `admin/tool/phpunit/cli/init.php` / `admin/tool/behat/cli/init.php` and runs `vendor/bin/phpunit --testsuite mod_skilland_testsuite --fail-on-warning` or `vendor/bin/behat --profile chrome --tags=@mod_skilland`. The first run builds the image and initialises the test sites (several minutes, a few GB of Docker disk); later runs are much faster. Behat failure dumps land in `/var/behatdata/faildump` inside the `moodle` container. It does not cover phpcs, phpdoc or `validate` (the `lint` job of the same workflow).
 
 ### Seams instead of test hooks
 
