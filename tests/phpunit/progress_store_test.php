@@ -153,6 +153,35 @@ class progress_store_test extends TestCase {
         $this->assertStringContainsString('{scorm_scoes_value}', $call['sql']);
     }
 
+    public function test_normalise_score_cases(): void {
+        $this->assertSame(70.0, skilland_normalise_scorm_score(['raw' => '7', 'max' => '10']));
+        $this->assertSame(50.0, skilland_normalise_scorm_score(['raw' => '15', 'min' => '10', 'max' => '20', 'scaled' => null]));
+        $this->assertEqualsWithDelta(85.0, skilland_normalise_scorm_score(['raw' => '9', 'max' => '10', 'scaled' => '0.85']), 0.0001);
+        $this->assertSame(0.0, skilland_normalise_scorm_score(['scaled' => '-0.4']));
+        $this->assertSame(100.0, skilland_normalise_scorm_score(['raw' => '15', 'max' => '10']));
+        $this->assertSame(250.0, skilland_normalise_scorm_score(['raw' => '250']));
+        $this->assertSame(80.0, skilland_normalise_scorm_score(['raw' => '80']));
+        $this->assertSame(7.0, skilland_normalise_scorm_score(['raw' => '7', 'min' => '10', 'max' => '5']));
+        $this->assertSame(7.0, skilland_normalise_scorm_score(['raw' => '7', 'min' => '5', 'max' => '5']));
+        $this->assertNull(skilland_normalise_scorm_score(['max' => '10']));
+        $this->assertNull(skilland_normalise_scorm_score([]));
+    }
+
+    public function test_read_normalises_scores_and_prefers_success_status(): void {
+        $this->track(50, 11, 'cmi.completion_status', 'completed');
+        $this->track(50, 11, 'cmi.success_status', 'failed');
+        $this->track(50, 11, 'cmi.score.raw', '7');
+        $this->track(50, 11, 'cmi.score.max', '10');
+        $this->track(50, 12, 'cmi.core.lesson_status', 'completed');
+        $this->track(50, 12, 'cmi.success_status', 'unknown');
+        $this->track(50, 12, 'cmi.core.score.raw', '250');
+
+        $progress = skilland_read_scorm_progress($this->skilland());
+
+        $this->assertSame(['status' => 'failed', 'score' => 70.0], $progress[50][1]);
+        $this->assertSame(['status' => 'completed', 'score' => 250.0], $progress[50][2]);
+    }
+
     public function test_read_filters_on_the_requested_users(): void {
         $this->track(50, 11, 'cmi.core.lesson_status', 'completed');
         $this->track(51, 11, 'cmi.core.lesson_status', 'completed');

@@ -101,11 +101,19 @@ class lesson_list implements renderable, templatable {
                 userdate($lesson->updatedat, get_string('strftimedateshort'));
         }
         if ($score !== null && $score !== '') {
-            $meta[] = get_string('score', 'mod_skilland') . ': ' . $score . '%';
+            $meta[] = get_string('score', 'mod_skilland') . ': ' . self::format_score((float) $score);
         }
 
-        return array_merge(self::status_display($status, $canplay), [
+        $displaystatus = self::status_display($status, $canplay);
+        $unavailable = !$canplay && !in_array($status, ['completed', 'passed', 'incomplete', 'browsed', 'failed'], true);
+        if ($unavailable) {
+            $displaystatus = self::status('skilland-lesson-pending', 'fa-circle-o', 'not_yet_available');
+        }
+
+        return array_merge($displaystatus, [
             'playable' => $canplay,
+            'unavailable' => $unavailable,
+            'statushelp' => $unavailable ? get_string('not_yet_available_help', 'mod_skilland') : '',
             'url' => $url,
             'showlabel' => empty($this->skilland->hidelabels),
             'label' => 'L' . $this->topicorderindex . '.' . $lessonindex,
@@ -113,6 +121,17 @@ class lesson_list implements renderable, templatable {
             'meta' => implode(' · ', $meta),
             'scomissing' => $this->showscowarnings && empty($lesson->scoid),
         ]);
+    }
+
+    /**
+     * A stored score as text: a percentage within 0-100, the bare number outside it.
+     *
+     * @param float $score The stored score.
+     * @return string
+     */
+    protected static function format_score(float $score): string {
+        $text = format_float($score, 0);
+        return ($score >= 0 && $score <= 100) ? $text . '%' : $text;
     }
 
     /**

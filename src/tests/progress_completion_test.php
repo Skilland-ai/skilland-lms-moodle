@@ -131,6 +131,21 @@ final class progress_completion_test extends skilland_testcase {
         ], $progress);
     }
 
+    public function test_scorm_2004_success_status_overrides_completion_status(): void {
+        $this->preventResetByRollback();
+        [, $student, $skilland, $scormid, $lessons] = $this->provisioned();
+        $lesson = $lessons['lesson-1'];
+
+        $this->track($student->id, $scormid, $lesson, 'cmi.completion_status', 'completed');
+        $this->track($student->id, $scormid, $lesson, 'cmi.success_status', 'failed');
+        $this->track($student->id, $scormid, $lesson, 'cmi.score.scaled', '0.4');
+
+        $this->assertEquals(
+            [(int) $lesson->id => ['status' => 'failed', 'score' => '40.00000']],
+            skilland_get_user_progress((int) $skilland->id, (int) $student->id)
+        );
+    }
+
     public function test_progress_only_moves_up_and_keeps_the_best_score(): void {
         [, $student, $skilland, $scormid, $lessons] = $this->provisioned();
         $lesson = $lessons['lesson-1'];

@@ -66,9 +66,35 @@ final class lesson_list_test extends \advanced_testcase {
         $this->assertSame(get_string('completed', 'mod_skilland'), $first['statustext']);
         $this->assertSame(get_string('score', 'mod_skilland') . ': 80%', $first['meta']);
         $this->assertFalse($first['scomissing']);
+        $this->assertFalse($first['unavailable']);
         $this->assertFalse($second['playable']);
+        $this->assertTrue($second['unavailable']);
+        $this->assertSame(get_string('not_yet_available', 'mod_skilland'), $second['statustext']);
+        $this->assertSame(get_string('not_yet_available_help', 'mod_skilland'), $second['statushelp']);
         $this->assertSame('skilland-lesson-pending', $second['completionclass']);
         $this->assertTrue($second['scomissing']);
+    }
+
+    public function test_score_meta_is_a_percentage_only_within_zero_to_hundred(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $PAGE->set_context(\context_system::instance());
+
+        $lessons = [
+            10 => (object) ['id' => 10, 'title' => 'A', 'scoid' => 110, 'updatedat' => 0],
+            11 => (object) ['id' => 11, 'title' => 'B', 'scoid' => 111, 'updatedat' => 0],
+        ];
+        $list = new lesson_list(
+            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0],
+            $lessons,
+            (object) ['id' => 2],
+            1,
+            [10 => ['status' => 'completed', 'score' => '70.00000'], 11 => ['status' => 'completed', 'score' => '250.00000']]
+        );
+        $data = $list->export_for_template($PAGE->get_renderer('mod_skilland'));
+
+        $this->assertSame(get_string('score', 'mod_skilland') . ': 70%', $data['lessons'][0]['meta']);
+        $this->assertSame(get_string('score', 'mod_skilland') . ': 250', $data['lessons'][1]['meta']);
     }
 
     public function test_renderer_renders_the_lesson_list_template(): void {
@@ -85,6 +111,8 @@ final class lesson_list_test extends \advanced_testcase {
         );
         $this->assertStringContainsString('<div class="skilland-lesson-number">L3.2</div>', $html);
         $this->assertStringContainsString(get_string('lessons', 'mod_skilland'), $html);
+        $this->assertStringContainsString('aria-disabled="true"', $html);
+        $this->assertStringContainsString(get_string('not_yet_available', 'mod_skilland'), $html);
         $this->assertStringContainsString(get_string('lesson_sco_missing', 'mod_skilland'), $html);
     }
 

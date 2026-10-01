@@ -1950,7 +1950,39 @@ function skilland_normalise_scorm_status(string $value): string {
 }
 
 /**
- * Read lesson status and raw score from the tracks of the activity's current topic SCORM.
+ * Turn the score elements of one SCO into the stored score.
+ *
+ * A SCORM 2004 scaled score (-1..1) wins and becomes a percentage. Otherwise a raw score with a
+ * usable range (max numeric and above min, min defaulting to 0) becomes a percentage of that
+ * range. With no usable range the raw value is kept as reported.
+ *
+ * @param array $values Optional keys 'raw', 'min', 'max', 'scaled': numeric strings or numbers, anything else is ignored.
+ * @return float|null The score, 0-100 when it could be scaled, or null without a score.
+ */
+function skilland_normalise_scorm_score(array $values): ?float {
+    $number = static function ($key) use ($values): ?float {
+        $value = $values[$key] ?? null;
+        return is_numeric($value) ? (float) $value : null;
+    };
+
+    $scaled = $number('scaled');
+    if ($scaled !== null) {
+        return max(0.0, min(100.0, $scaled * 100));
+    }
+    $raw = $number('raw');
+    if ($raw === null) {
+        return null;
+    }
+    $max = $number('max');
+    $min = $number('min') ?? 0.0;
+    if ($max !== null && $max > $min) {
+        return max(0.0, min(100.0, ($raw - $min) / ($max - $min) * 100));
+    }
+    return $raw;
+}
+
+/**
+ * Read lesson status and score from the tracks of the activity's current topic SCORM.
  *
  * One query per SCORM for every requested user. Each user's latest attempt that reported a value
  * wins, per SCO and per kind (status, score). SCOs map to lessons through skilland_lesson.scoid.
@@ -1989,11 +2021,20 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
     }
 
     $statuselements = ['cmi.core.lesson_status', 'cmi.completion_status'];
-    $scoreelements = ['cmi.core.score.raw', 'cmi.score.raw'];
+    $successelements = ['cmi.success_status'];
+    $scorekeys = [
+        'cmi.core.score.raw' => 'raw',
+        'cmi.score.raw' => 'raw',
+        'cmi.core.score.min' => 'min',
+        'cmi.score.min' => 'min',
+        'cmi.core.score.max' => 'max',
+        'cmi.score.max' => 'max',
+        'cmi.score.scaled' => 'scaled',
+    ];
 
     [$scosql, $params] = $DB->get_in_or_equal(array_keys($scotolesson), SQL_PARAMS_NAMED, 'sco');
     [$elementsql, $elementparams] = $DB->get_in_or_equal(
-        array_merge($statuselements, $scoreelements),
+        array_merge($statuselements, $successelements, array_keys($scorekeys)),
         SQL_PARAMS_NAMED,
         'el'
     );
@@ -2024,6 +2065,8 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
     }
 
     $progress = [];
+    $scorevalues = [];
+    $success = [];
     foreach ($tracks as $track) {
         $lessonid = $scotolesson[(int) $track->scoid] ?? null;
         if ($lessonid === null) {
@@ -2038,10 +2081,27 @@ function skilland_read_scorm_progress(stdClass $skilland, ?array $userids = null
             if ($entry['status'] === null) {
                 $entry['status'] = skilland_normalise_scorm_status((string) $track->value);
             }
-        } else if ($entry['score'] === null && is_numeric($track->value)) {
-            $entry['score'] = (float) $track->value;
+        } else if (in_array($track->element, $successelements, true)) {
+            $value = strtolower(trim((string) $track->value));
+            if (!isset($success[$userid][$lessonid]) && in_array($value, ['passed', 'failed'], true)) {
+                $success[$userid][$lessonid] = $value;
+            }
+        } else {
+            $key = $scorekeys[$track->element] ?? null;
+            if ($key !== null && !isset($scorevalues[$userid][$lessonid][$key]) && is_numeric($track->value)) {
+                $scorevalues[$userid][$lessonid][$key] = $track->value;
+            }
         }
         unset($entry);
+    }
+
+    foreach ($progress as $userid => $lessons) {
+        foreach (array_keys($lessons) as $lessonid) {
+            if (isset($success[$userid][$lessonid])) {
+                $progress[$userid][$lessonid]['status'] = $success[$userid][$lessonid];
+            }
+            $progress[$userid][$lessonid]['score'] = skilland_normalise_scorm_score($scorevalues[$userid][$lessonid] ?? []);
+        }
     }
 
     return $progress;

@@ -35,6 +35,8 @@
       * title - The lesson title, already formatted by format_string().
       * meta - The updated date and score line, empty when there is neither.
       * scomissing - Whether to warn a teacher that the lesson is missing from the package.
+      * unavailable - Whether the lesson cannot be played and has no progress yet.
+      * statushelp - Explains why an unavailable lesson cannot be played, empty otherwise.
       * completionclass - The card's progress class.
       * icon - The Font Awesome icon of the progress status.
       * statustext - The progress status.
@@ -63,9 +65,11 @@
                 "title": "Writing a first test",
                 "meta": "",
                 "scomissing": true,
+                "unavailable": true,
+                "statushelp": "This lesson hasn't been published or synced to Moodle yet.",
                 "completionclass": "skilland-lesson-pending",
                 "icon": "fa-circle-o",
-                "statustext": "Not started"
+                "statustext": "Not yet available"
             }
         ]
     }
@@ -84,7 +88,7 @@
         </a>
         {{/playable}}
         {{^playable}}
-        <div class="skilland-lesson-card skilland-lesson-disabled {{completionclass}}">
+        <div class="skilland-lesson-card skilland-lesson-disabled {{completionclass}}"{{#unavailable}} aria-disabled="true"{{#statushelp}} title="{{statushelp}}"{{/statushelp}}{{/unavailable}}>
             {{> mod_skilland/lesson_card}}
         </div>
         {{/playable}}

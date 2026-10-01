@@ -51,6 +51,12 @@ if (!function_exists('get_string')) {
     }
 }
 
+if (!function_exists('format_float')) {
+    function format_float($float, $decimalpoints = 1, $localize = true, $stripzeros = false) {
+        return number_format((float) $float, $decimalpoints, '.', '');
+    }
+}
+
 // Autoload plugin classes from src/classes/.
 spl_autoload_register(function ($class) {
     $prefix = 'mod_skilland\\';
