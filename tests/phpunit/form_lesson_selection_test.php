@@ -543,6 +543,13 @@ class form_lesson_selection_test extends TestCase {
         $this->assertStringContainsString("holder.getAttribute('data-lessons')", self::$js);
     }
 
+    public function test_saved_lessons_carry_their_skilland_position_to_the_script_and_the_hidden_value(): void {
+        // SKL-694: both the data-lessons attribute and the default selected_lessons read the stored
+        // position, so a saved lesson missing from Skilland keeps its code on the next save.
+        $this->assertSame(2, substr_count(self::$form, "'position' => (int) (\$record->skillandposition ?? 0),"));
+        $this->assertSame(2, substr_count(self::$form, ", skillandposition'"));
+    }
+
     public function test_every_script_string_comes_from_core_str_and_exists_in_both_languages(): void {
         // Each of these was a json_encode(get_string(...)) literal in mod_form.php before SKL-681.
         foreach (['loading', 'error_fetch_topics', 'error_fetch_topics_detail', 'select_topic', 'no_topics_available',

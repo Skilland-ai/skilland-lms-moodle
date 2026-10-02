@@ -43,6 +43,7 @@ require_once(__DIR__ . '/skilland_testcase.php');
  * @covers \mod_skilland\output\lesson_navigation
  * @covers \mod_skilland\output\player
  * @covers \mod_skilland\task\backfill_lesson_positions
+ * @covers ::xmldb_skilland_upgrade
  */
 final class lesson_codes_test extends skilland_testcase {
     /**
@@ -219,5 +220,105 @@ final class lesson_codes_test extends skilland_testcase {
             array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($failing->id))));
         $this->assertSame(['lesson-1' => 1, 'lesson-2' => 2],
             array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($working->id)));
+    }
+
+    public function test_saving_again_refreshes_a_submitted_position_and_keeps_a_missing_one(): void {
+        $skilland = $this->activity_without_lesson_two();
+
+        skilland_process_selected_lessons($skilland->id, json_encode([
+            'lesson-1' => ['name' => 'Lesson 1', 'position' => 2],
+            'lesson-3' => ['name' => 'Lesson 3'],
+            'lesson-4' => ['name' => 'Lesson 4', 'position' => 'four'],
+        ]));
+
+        $this->assertSame(['lesson-1' => 2, 'lesson-3' => 3, 'lesson-4' => 4],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id)));
+    }
+
+    public function test_backfill_task_fetches_only_activities_with_unknown_positions(): void {
+        global $DB;
+
+        $known = $this->activity_without_lesson_two();
+        $unknown = $this->create_activity($this->getDataGenerator()->create_course(), ['skilland_topicid' => 'topic-2']);
+        $DB->set_field('skilland_lesson', 'skillandposition', 0, ['skillandid' => $unknown->id]);
+        // A stored lesson Skilland no longer lists keeps 0; Skilland's lessons are never added.
+        $DB->insert_record('skilland_lesson', (object) ['skillandid' => $unknown->id, 'skilland_lessonid' => 'lesson-gone',
+            'title' => 'Gone', 'orderindex' => 9, 'visible' => 1, 'updatedat' => 0, 'skillandposition' => 0]);
+        $this->client->calls = [];
+
+        (new backfill_lesson_positions())->execute();
+
+        $this->assertSame(['topic-2'], array_column(array_column($this->client->calls, 'variables'), 'topicId'));
+        $this->assertSame(['lesson-1' => 1, 'lesson-3' => 3, 'lesson-4' => 4],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($known->id)));
+        $this->assertSame(['lesson-1' => 1, 'lesson-2' => 2, 'lesson-gone' => 0],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($unknown->id)));
+    }
+
+    public function test_backfill_task_does_nothing_when_the_plugin_is_not_configured(): void {
+        global $DB;
+
+        $skilland = $this->activity_without_lesson_two();
+        $DB->set_field('skilland_lesson', 'skillandposition', 0, ['skillandid' => $skilland->id]);
+        unset_config('apikey', 'mod_skilland');
+        $this->client->calls = [];
+
+        $this->expectOutputRegex('/plugin not configured, lesson positions not backfilled/');
+        (new backfill_lesson_positions())->execute();
+
+        $this->assertSame(0, $this->client->count_calls('GET topics/{id}/contents'));
+        $this->assertSame([0, 0, 0],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id))));
+    }
+
+    public function test_upgrade_step_is_idempotent_and_queues_one_backfill_task(): void {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/upgradelib.php');
+        require_once($CFG->dirroot . '/mod/skilland/db/upgrade.php');
+
+        $dbman = $DB->get_manager();
+        $table = new \xmldb_table('skilland_lesson');
+        $field = new \xmldb_field('skillandposition', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'visible');
+        $skilland = $this->activity_without_lesson_two();
+
+        // The field already exists (a fresh install, or the step ran before): nothing to add.
+        $this->assertTrue($dbman->field_exists($table, $field));
+        foreach ([1, 2] as $run) {
+            set_config('version', 2026100208, 'mod_skilland');
+            $this->assertTrue(\xmldb_skilland_upgrade(2026100208), "run $run");
+        }
+
+        $this->assertTrue($dbman->field_exists($table, $field));
+        $this->assertEquals(2026100209, get_config('mod_skilland', 'version'));
+        $this->assertCount(1, \core\task\manager::get_adhoc_tasks('\\mod_skilland\\task\\backfill_lesson_positions'));
+        // Existing positions are untouched by the step itself.
+        $this->assertSame([1, 3, 4],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id))));
+    }
+
+    public function test_upgrade_step_adds_the_field_as_unknown_on_an_older_site(): void {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/upgradelib.php');
+        require_once($CFG->dirroot . '/mod/skilland/db/upgrade.php');
+
+        $dbman = $DB->get_manager();
+        $table = new \xmldb_table('skilland_lesson');
+        $field = new \xmldb_field('skillandposition', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'visible');
+        $skilland = $this->activity_without_lesson_two();
+
+        $dbman->drop_field($table, $field);
+        try {
+            set_config('version', 2026100208, 'mod_skilland');
+            $this->assertTrue(\xmldb_skilland_upgrade(2026100208));
+        } finally {
+            // Never leave the shared test schema without the column.
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        $this->assertSame([0, 0, 0],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id))));
+        $this->assertCount(1, \core\task\manager::get_adhoc_tasks('\\mod_skilland\\task\\backfill_lesson_positions'));
     }
 }

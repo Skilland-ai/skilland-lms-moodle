@@ -105,6 +105,50 @@ class task_backfill_lesson_positions_test extends TestCase {
         $this->assertSame(['l1' => 0, 'l3' => 0, 'l4' => 0], $this->positions());
     }
 
+    public function test_a_stored_lesson_missing_from_skilland_keeps_zero_and_nothing_is_added(): void {
+        $this->seed_activity();
+        $this->db->insert_record('skilland_lesson', (object) ['id' => 4, 'skillandid' => 7,
+            'skilland_lessonid' => 'lgone', 'orderindex' => 4, 'skillandposition' => 0]);
+        \fake_api_client::install()->respond_rest('contents', $this->contents());
+
+        $stored = (new backfill_lesson_positions())->backfill_activity(7);
+
+        $this->assertSame(3, $stored);
+        $this->assertSame(['l1' => 1, 'l3' => 3, 'l4' => 4, 'lgone' => 0], $this->positions());
+        // Lesson l2, left out of the activity, is never inserted.
+        $this->assertCount(1, $this->db->get_calls_for('insert_record'), 'only the seeded lgone row');
+        $this->assertCount(4, $this->db->get_records('skilland_lesson', ['skillandid' => 7]));
+    }
+
+    public function test_an_activity_without_a_topic_or_record_is_skipped(): void {
+        $this->db->seed('skilland', [(object) ['id' => 8, 'skilland_topicid' => '']]);
+        $fake = \fake_api_client::install();
+        $fake->respond_rest('contents', $this->contents());
+
+        $this->assertSame(0, (new backfill_lesson_positions())->backfill_activity(8));
+        $this->assertSame(0, (new backfill_lesson_positions())->backfill_activity(99));
+        $this->assertSame([], $fake->restcalls);
+    }
+
+    public function test_one_failing_activity_does_not_stop_the_next(): void {
+        $this->seed_activity();
+        $this->db->insert_record('skilland', (object) ['id' => 9, 'skilland_topicid' => 'topic-9']);
+        $this->db->insert_record('skilland_lesson', (object) ['id' => 5, 'skillandid' => 9,
+            'skilland_lessonid' => 'l2', 'orderindex' => 1, 'skillandposition' => 0]);
+        \fake_api_client::install()->respond_rest('contents', function (string $path) {
+            if (strpos($path, '/topics/topic-1/') !== false) {
+                return new \mod_skilland\rest_exception('down', 503);
+            }
+            return $this->contents();
+        });
+
+        (new backfill_lesson_positions())->execute();
+
+        $this->assertSame(['l1' => 0, 'l3' => 0, 'l4' => 0], $this->positions());
+        $this->assertSame(2, (int) $this->db->get_record('skilland_lesson', ['id' => 5])->skillandposition);
+        $this->assertStringContainsString('activity 7', implode("\n", $GLOBALS['_test_mtrace']));
+    }
+
     public function test_upgrade_step_adds_the_field_and_queues_the_task(): void {
         $source = file_get_contents(__DIR__ . '/../../src/db/upgrade.php');
 

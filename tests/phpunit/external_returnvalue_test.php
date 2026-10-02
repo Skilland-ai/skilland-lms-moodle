@@ -175,6 +175,23 @@ class external_returnvalue_test extends TestCase {
         $this->assertNull($clean['error']);
     }
 
+    public function test_fetch_lessons_success_payload_passes_response_validation_with_integer_positions(): void {
+        $contents = ['body' => json_encode(['contents' => [
+            ['id' => 'l1', 'name' => 'One', 'type' => 'lesson', 'content' => '<p>1</p>', 'updatedAt' => '2026-01-01T00:00:00Z'],
+            ['id' => 'q1', 'name' => 'Quiz', 'type' => 'assessment', 'content' => '<p>q</p>'],
+            ['id' => 'l2', 'name' => 'Two', 'type' => 'lesson', 'content' => '<p>2</p>', 'updatedAt' => '2026-01-02T00:00:00Z'],
+        ]]), 'http_code' => 200, 'errno' => 0, 'error' => ''];
+        $GLOBALS['_test_curl_responses'] = [self::course_payload(), $contents];
+
+        $result = \mod_skilland\external\fetch_lessons::execute('topic-a1', self::COURSE_ID);
+        $clean = external_api::clean_returnvalue(self::returns('fetch_lessons'), $result);
+
+        $this->assertSame(PARAM_INT, self::returns('fetch_lessons')->keys['lessons']->content->keys['position']->type);
+        $this->assertNull($clean['error']);
+        $this->assertSame(['l1', 'l2'], array_column($clean['lessons'], 'id'));
+        $this->assertSame([1, 2], array_column($clean['lessons'], 'position'));
+    }
+
     // ---------------------------------------------------------------
     // Every web service's error payload
     // ---------------------------------------------------------------
