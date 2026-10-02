@@ -29,6 +29,8 @@ require_once($CFG->libdir . '/upgradelib.php');
  * @category   test
  * @copyright  2026 SkilLand
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @covers     ::xmldb_skilland_upgrade
+ * @covers     ::skilland_get_frontend_url
  */
 final class upgrade_frontend_url_test extends \advanced_testcase {
     /**
@@ -42,6 +44,7 @@ final class upgrade_frontend_url_test extends \advanced_testcase {
         $this->resetAfterTest();
         require_once($CFG->dirroot . '/mod/skilland/db/upgrade.php');
 
+        set_config('version', 2026100202, 'mod_skilland');
         set_config('frontend_url', $frontendurl, 'mod_skilland');
         $this->assertTrue(xmldb_skilland_upgrade(2026100202));
         return (string) get_config('mod_skilland', 'frontend_url');
