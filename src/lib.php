@@ -653,9 +653,13 @@ function skilland_process_selected_lessons($skillandid, $json) {
     $orderindex = 1; // Start lesson numbering at 1.
 
     foreach ($selected as $lessonid => $data) {
-        if (!is_array($data)
-                || (isset($data['name']) && !is_string($data['name']))
-                || (isset($data['updatedAt']) && !is_string($data['updatedAt']) && !is_int($data['updatedAt']))) {
+        $malformed = !is_array($data);
+        if (!$malformed) {
+            $badname = isset($data['name']) && !is_string($data['name']);
+            $baddate = isset($data['updatedAt']) && !is_string($data['updatedAt']) && !is_int($data['updatedAt']);
+            $malformed = $badname || $baddate;
+        }
+        if ($malformed) {
             debugging('mod_skilland: skipped a selected lesson with malformed data', DEBUG_DEVELOPER);
             continue;
         }
