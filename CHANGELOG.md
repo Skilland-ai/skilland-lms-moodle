@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.52-beta]
+
+### Changed
+- The `skilland_course_id` course custom field is now the only course mapping.
+  The upgrade copies each row of the legacy `skilland_course` table into an
+  empty field (a field that already holds a value is kept), then drops the
+  table; backup and restore carry the mapping through the custom field
+  (SKL-689).
+- Hide Skilland labels now also strips the topic code from the hidden SCORM's
+  name and its gradebook item; renaming the activity or toggling the setting
+  renames the SCORM (SKL-689).
+
+### Added
+- Skilland activities can show their description on the course page
+  (SKL-689).
+
+### Removed
+- The unused plain player navigation (`skilland_render_player_navigation()`,
+  its template and styles) and the unused SCORM attempt lookup in the player
+  (SKL-689).
+
 ## [0.9.51-beta]
 
 ### Fixed
