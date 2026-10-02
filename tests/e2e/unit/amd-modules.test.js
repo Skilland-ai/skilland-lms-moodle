@@ -296,7 +296,7 @@ describe('mod_form.js', () => {
     assert.equal(env.document.querySelectorAll('two').length, 0)
   })
 
-  test('the Edit in SkilLand link carries the Moodle course id (SKL-645)', async () => {
+  test('the Edit in Skilland link carries the Moodle course id (SKL-645)', async () => {
     const env = await startForm({ ajax: topicsAjax() })
     const container = env.document.getElementById('skilland-edit-button-container')
     assert.equal(container.classList.contains('d-none'), true)
@@ -599,7 +599,7 @@ describe('course_mapping.js', () => {
       [{ message: 'S:error_fetch_courses_detail [&lt;b&gt;no&lt;/b&gt; $&amp; access]', type: 'error' }])
   })
 
-  test('Create in SkilLand confirms with the escaped course name, then links the new course', async () => {
+  test('Create in Skilland confirms with the escaped course name, then links the new course', async () => {
     const { env, field } = await startMapping({
       ajax: coursesAjax({ mod_skilland_create_course_ajax: () => ({ skillid: 'skill-new', name: 'New $& course' }) })
     }, 'skill-1')

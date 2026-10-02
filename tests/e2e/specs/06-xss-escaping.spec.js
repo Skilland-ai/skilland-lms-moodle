@@ -8,8 +8,8 @@ const { SKILL_ID } = require('../fixtures/skilland-data')
 /**
  * Test suite: XSS escaping in the teacher UI (SKL-674)
  *
- * SkilLand API data (course name, topic description, error messages) must be
- * rendered as text in the activity form, never parsed as HTML. The SkilLand mock
+ * Skilland API data (course name, topic description, error messages) must be
+ * rendered as text in the activity form, never parsed as HTML. The Skilland mock
  * delivers the payloads to the browser unchanged.
  */
 const TOPIC_ID = 'xss-topic-1'
@@ -57,7 +57,7 @@ function recordDialogs(page) {
   return dialogs
 }
 
-test.describe('XSS escaping of SkilLand API data', () => {
+test.describe('XSS escaping of Skilland API data', () => {
   test.describe.configure({ mode: 'parallel' })
 
   test('course name renders as text', async ({

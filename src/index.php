@@ -18,7 +18,7 @@
  * Lists all Skilland content activities in a course.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

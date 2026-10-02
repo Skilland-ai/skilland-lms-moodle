@@ -25,7 +25,7 @@ use mod_skilland\rest_exception;
  * and other internal operations.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -433,7 +433,7 @@ function mod_skilland_get_skilland_url(): string {
 }
 
 /**
- * GET a SkilLand REST route through the injectable api_client (\core\di).
+ * GET a Skilland REST route through the injectable api_client (\core\di).
  *
  * @param string $path Route path below the Skilland URL, e.g. /api/moodle/topics/{id}/scorm-hash.
  * @return array The decoded JSON body.
@@ -445,7 +445,7 @@ function mod_skilland_rest_get(string $path): array {
 }
 
 /**
- * POST a JSON body to a SkilLand REST route through the injectable api_client (\core\di).
+ * POST a JSON body to a Skilland REST route through the injectable api_client (\core\di).
  *
  * @param string $path Route path below the Skilland URL, e.g. /api/moodle/skills.
  * @param array $body The JSON body.
@@ -484,7 +484,7 @@ function mod_skilland_rest_prepare(string $path): array {
 }
 
 /**
- * GET a SkilLand REST route over HTTPS (http_api_client).
+ * GET a Skilland REST route over HTTPS (http_api_client).
  *
  * The base URL is the frontend URL (skilland_get_frontend_url()) and the API key travels as a
  * Bearer token. Transient failures are retried; redirects are refused. Neither the API key nor a
@@ -563,7 +563,7 @@ function mod_skilland_rest_get_http(string $path): array {
 }
 
 /**
- * POST a JSON body to a SkilLand REST route over HTTPS (http_api_client).
+ * POST a JSON body to a Skilland REST route over HTTPS (http_api_client).
  *
  * Same base URL, Bearer key and redirect refusal as mod_skilland_rest_get_http(), but a POST is
  * sent exactly once: a write that may have reached the server is never repeated.
@@ -646,7 +646,7 @@ function mod_skilland_rest_failure(
         if ($curlerror !== '' && $curlerror !== 'Unknown error') {
             $details .= ' ' . $curlerror;
         }
-        logger::error('REST', 'Connection to SkilLand at ' . $safeurl . ' failed: HTTP ' . $httpcode . $details);
+        logger::error('REST', 'Connection to Skilland at ' . $safeurl . ' failed: HTTP ' . $httpcode . $details);
 
         $refused = $errno === 7 || strpos($curlerror, 'Connection refused') !== false ||
             strpos($curlerror, 'Could not connect') !== false;
@@ -658,7 +658,7 @@ function mod_skilland_rest_failure(
         throw new rest_exception('error_graphql_http', 0, 'HTTP 0');
     }
 
-    logger::error('REST', 'HTTP error ' . $httpcode . ' from SkilLand at ' . $method . ' ' . $safeurl);
+    logger::error('REST', 'HTTP error ' . $httpcode . ' from Skilland at ' . $method . ' ' . $safeurl);
     $apierror = '';
     if (trim($response) !== '') {
         logger::debug('REST', 'Response body: ' . substr($response, 0, 200));
@@ -689,7 +689,7 @@ function mod_skilland_rest_decode(string $response, int $httpcode, string $safeu
 }
 
 /**
- * Path of a topic's SkilLand REST route.
+ * Path of a topic's Skilland REST route.
  *
  * @param string $topicid Skilland topic ID.
  * @param string $route Last path segment: scorm-hash, scorm or contents.
@@ -815,7 +815,7 @@ function mod_skilland_fetch_user_courses(string $useremail): array {
 }
 
 /**
- * Whether a path is a SkilLand Studio path the plugin may send a user to after SSO.
+ * Whether a path is a Skilland Studio path the plugin may send a user to after SSO.
  *
  * A strict allow-list of same-origin relative paths: /skills, /skills/<id>,
  * /skills/<id>?topic=<id> and /skills/new?draft=<id>, where every id only uses unreserved or
@@ -1247,7 +1247,7 @@ function skilland_create_topic_scorm_module(
     $moduleinfo->scormtype = SCORM_TYPE_LOCAL;
     $moduleinfo->packagefile = $draftitemid;
     $moduleinfo->version = 'SCORM_1.2';
-    // The SkilLand activity owns the grade (SKL-668): the hidden SCORM keeps no grade item.
+    // The Skilland activity owns the grade (SKL-668): the hidden SCORM keeps no grade item.
     $moduleinfo->maxgrade = 0;
     $moduleinfo->grademethod = GRADEHIGHEST;
     $moduleinfo->whatgrade = HIGHESTATTEMPT;
@@ -2308,7 +2308,7 @@ function skilland_get_user_progress(int $skillandid, int $userid): array {
 }
 
 /**
- * Why a Moodle account may not be signed in to SkilLand, read fresh from the database.
+ * Why a Moodle account may not be signed in to Skilland, read fresh from the database.
  *
  * The session copy of the user can be stale: the account may have been suspended, deleted,
  * unconfirmed or switched to the nologin auth method since the user signed in to Moodle.
@@ -2345,7 +2345,7 @@ function skilland_sso_user_refusal_reason(int $userid): ?string {
 }
 
 /**
- * The SkilLand role an SSO token carries, from whether the user may add SkilLand activities.
+ * The Skilland role an SSO token carries, from whether the user may add Skilland activities.
  *
  * Only a user who can add the activity (a teacher) is signed in as an Expert; everyone else who
  * reaches the handoff is a Learner (SKL-645).
@@ -2358,7 +2358,7 @@ function skilland_determine_sso_role(bool $hasaddinstance): string {
 }
 
 /**
- * The SkilLand role an SSO token carries for the current user in a course context.
+ * The Skilland role an SSO token carries for the current user in a course context.
  *
  * @param context $context The course context the handoff was started from
  * @return string 'Expert' or 'Learner'
@@ -2371,12 +2371,12 @@ function skilland_sso_role_for_context(context $context): string {
  * Generate an SSO token for authenticating a Moodle user to Skilland.
  *
  * This function creates a signed JWT token that allows seamless authentication
- * from Moodle to Skilland without requiring the user to log in again. SkilLand binds
+ * from Moodle to Skilland without requiring the user to log in again. Skilland binds
  * the login to the token's issuer (this site's wwwroot) and subject (the Moodle user id).
  *
  * @param stdClass $user The Moodle user object
  * @param string $orgid The Skilland organization ID
- * @param string $role The SkilLand role the token carries, 'Learner' or 'Expert' (see skilland_sso_role_for_context())
+ * @param string $role The Skilland role the token carries, 'Learner' or 'Expert' (see skilland_sso_role_for_context())
  * @return string The signed JWT token
  * @throws coding_exception If the role is not 'Learner' or 'Expert'
  * @throws moodle_exception If the account may not sign in (guest, deleted, suspended, unconfirmed
@@ -2387,7 +2387,7 @@ function skilland_generate_sso_token($user, $orgid, string $role) {
 
     // Never fail open: a token only ever carries one of the two roles a Moodle user may hold.
     if ($role !== 'Learner' && $role !== 'Expert') {
-        throw new coding_exception('Invalid SkilLand SSO role: ' . $role);
+        throw new coding_exception('Invalid Skilland SSO role: ' . $role);
     }
 
     $refusal = skilland_sso_user_refusal_reason((int) $user->id);
@@ -2487,7 +2487,7 @@ function skilland_generate_sso_token($user, $orgid, string $role) {
 }
 
 /**
- * Get the SkilLand base URL the plugin talks to (REST API, SSO, Studio links), without a trailing slash.
+ * Get the Skilland base URL the plugin talks to (REST API, SSO, Studio links), without a trailing slash.
  *
  * Uses the optional frontend_url override, else the Skilland URL setting (graphql_endpoint), both
  * normalised by \mod_skilland\local\skilland_url::normalise(), else MOD_SKILLAND_DEFAULT_URL.
@@ -2521,7 +2521,7 @@ function mod_skilland_clear_default_frontend_url(): bool {
 }
 
 /**
- * Get the audience of SSO tokens: the origin (scheme://host[:port]) of the SkilLand frontend.
+ * Get the audience of SSO tokens: the origin (scheme://host[:port]) of the Skilland frontend.
  *
  * @return string
  */
@@ -2539,7 +2539,7 @@ function skilland_get_sso_audience(): string {
 }
 
 /**
- * Get the SkilLand endpoint the SSO form posts to. It never carries the token.
+ * Get the Skilland endpoint the SSO form posts to. It never carries the token.
  *
  * @return string
  */
@@ -2548,13 +2548,13 @@ function skilland_get_sso_endpoint(): string {
 }
 
 /**
- * Render a standalone page that POSTs the SSO token to SkilLand.
+ * Render a standalone page that POSTs the SSO token to Skilland.
  *
  * The token travels in the request body, so it never lands in a URL, browser history,
  * a Referer header or an access log.
  *
  * @param string $token The signed SSO token
- * @param string $redirect SkilLand path to open after login
+ * @param string $redirect Skilland path to open after login
  * @return string Complete HTML document
  */
 function skilland_render_sso_post_form(string $token, string $redirect): string {
@@ -3007,19 +3007,19 @@ function mod_skilland_client_error_message(\Throwable $e): string {
 }
 
 /**
- * Remembers, in the user's session, the SkilLand Studio path to open once the Moodle course form
+ * Remembers, in the user's session, the Skilland Studio path to open once the Moodle course form
  * has saved (SKL-664). The SSO token is minted at click time by sso_redirect.php, never here.
  *
  * @param int $courseid Moodle course ID.
- * @param string $path SkilLand Studio path accepted by mod_skilland_is_studio_path().
+ * @param string $path Skilland Studio path accepted by mod_skilland_is_studio_path().
  * @return void
- * @throws coding_exception When the path is not a SkilLand Studio path.
+ * @throws coding_exception When the path is not a Skilland Studio path.
  */
 function mod_skilland_set_pending_studio_path(int $courseid, string $path): void {
     global $SESSION;
 
     if (!mod_skilland_is_studio_path($path)) {
-        throw new coding_exception('Pending SkilLand path must be a SkilLand Studio path (/skills/...)');
+        throw new coding_exception('Pending Skilland path must be a Skilland Studio path (/skills/...)');
     }
     if (!is_object($SESSION)) {
         $SESSION = new stdClass();
@@ -3031,10 +3031,10 @@ function mod_skilland_set_pending_studio_path(int $courseid, string $path): void
 }
 
 /**
- * Returns the pending SkilLand Studio path for a course without consuming it (SKL-664).
+ * Returns the pending Skilland Studio path for a course without consuming it (SKL-664).
  *
  * @param int $courseid Moodle course ID.
- * @return string|null The path, or null when none is pending or it is not a SkilLand Studio path.
+ * @return string|null The path, or null when none is pending or it is not a Skilland Studio path.
  */
 function mod_skilland_peek_pending_studio_path(int $courseid): ?string {
     global $SESSION;
@@ -3050,10 +3050,10 @@ function mod_skilland_peek_pending_studio_path(int $courseid): ?string {
 }
 
 /**
- * Returns and clears the pending SkilLand Studio path for a course (SKL-664).
+ * Returns and clears the pending Skilland Studio path for a course (SKL-664).
  *
  * @param int $courseid Moodle course ID.
- * @return string|null The path, or null when none is pending or it is not a SkilLand Studio path.
+ * @return string|null The path, or null when none is pending or it is not a Skilland Studio path.
  */
 function mod_skilland_take_pending_studio_path(int $courseid): ?string {
     global $SESSION;

@@ -5,7 +5,7 @@ namespace mod_skilland\tests;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Source-text guards for the XSS sinks fixed in SKL-674: SkilLand API data and
+ * Source-text guards for the XSS sinks fixed in SKL-674: Skilland API data and
  * language strings must never reach innerHTML or addslashes-built JS literals. Since SKL-681
  * the activity form and course settings scripts are AMD modules (amd/src/mod_form.js,
  * amd/src/course_mapping.js) that take their strings from core/str.

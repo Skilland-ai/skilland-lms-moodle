@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 
 /**
- * SKL-696: every call to SkilLand, every topic SCORM rebuild and every retry pause goes through a
+ * SKL-696: every call to Skilland, every topic SCORM rebuild and every retry pause goes through a
  * \core\di seam, so tests replace them without test hooks in production code.
  */
 class di_seams_test extends TestCase {

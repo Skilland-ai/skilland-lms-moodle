@@ -1,6 +1,6 @@
 @mod @mod_skilland
-Feature: Learners see the lessons of a SkilLand activity
-  In order to follow a SkilLand topic in Moodle
+Feature: Learners see the lessons of a Skilland activity
+  In order to follow a Skilland topic in Moodle
   As a student
   I need to see the lessons of the activity and open the ones that are ready
 

@@ -33,7 +33,7 @@ require_once(__DIR__ . '/../../lib.php');
  * A teacher applies it from the activity page, through the verified import path.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class sync_content extends \core\task\scheduled_task {

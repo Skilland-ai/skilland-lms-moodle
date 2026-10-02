@@ -19,9 +19,9 @@ const { SKILL_ID, TOPIC_ID } = require('../fixtures/skilland-data')
  * Test suite: SSO Integration
  *
  * sso_redirect.php signs a token and answers with a self-submitting form that POSTs
- * it to SkilLand's /sso-login, so the token never appears in a URL (SKL-687). The
- * SkilLand origin is stubbed, so these tests assert the request Moodle produces,
- * never what SkilLand does with it.
+ * it to Skilland's /sso-login, so the token never appears in a URL (SKL-687). The
+ * Skilland origin is stubbed, so these tests assert the request Moodle produces,
+ * never what Skilland does with it.
  */
 test.describe('SSO Integration', () => {
   test('SSO redirect without a sesskey is rejected', async ({ authenticatedPage, skillandMock, expectConsoleError }) => {
@@ -33,7 +33,7 @@ test.describe('SSO Integration', () => {
     expect(skillandMock.navigations()).toEqual([])
   })
 
-  test('SSO handoff POSTs a signed, short-lived token and the topic path to SkilLand', async ({
+  test('SSO handoff POSTs a signed, short-lived token and the topic path to Skilland', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -73,7 +73,7 @@ test.describe('SSO Integration', () => {
     expect(payload?.iss).toBe(wwwroot)
   })
 
-  test('"Go to Skilland" on the course form opens SkilLand in a new tab', async ({
+  test('"Go to Skilland" on the course form opens Skilland in a new tab', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse

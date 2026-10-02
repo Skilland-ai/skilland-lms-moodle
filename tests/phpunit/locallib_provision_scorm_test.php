@@ -344,7 +344,7 @@ class locallib_provision_scorm_test extends TestCase {
         $this->assertSame(0, $info->visibleoncoursepage);
         $this->assertSame('skilland_topic_7', $info->idnumber);
         $this->assertSame(SCORM_TYPE_LOCAL, $info->scormtype);
-        // SKL-668: the SkilLand activity owns the grade; the hidden SCORM has no grade item.
+        // SKL-668: the Skilland activity owns the grade; the hidden SCORM has no grade item.
         $this->assertSame(GRADEHIGHEST, $info->grademethod);
         $this->assertSame(0, $info->maxgrade);
         $this->assertLessThanOrEqual(255, mb_strlen($info->name, 'UTF-8'));

@@ -31,11 +31,11 @@ require_once($CFG->dirroot . '/mod/skilland/locallib.php');
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 abstract class skilland_testcase extends \advanced_testcase {
-    /** @var fixture_api_client The API client every SkilLand call goes to. */
+    /** @var fixture_api_client The API client every Skilland call goes to. */
     protected fixture_api_client $client;
 
     /**
@@ -68,7 +68,7 @@ abstract class skilland_testcase extends \advanced_testcase {
     }
 
     /**
-     * Create a SkilLand activity in a course.
+     * Create a Skilland activity in a course.
      *
      * @param \stdClass $course
      * @param array $record Extra fields for the generator.
@@ -139,7 +139,7 @@ abstract class skilland_testcase extends \advanced_testcase {
     }
 
     /**
-     * The activity's lesson rows keyed by SkilLand lesson id.
+     * The activity's lesson rows keyed by Skilland lesson id.
      *
      * @param int $skillandid
      * @return \stdClass[]

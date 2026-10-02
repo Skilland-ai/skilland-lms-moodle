@@ -174,7 +174,7 @@ class locallib_sso_token_test extends TestCase {
             $string = [];
             include(__DIR__ . '/../../src/lang/' . $lang . '/skilland.php');
             $this->assertArrayHasKey('error_sso_user_not_allowed', $string, "$lang is missing error_sso_user_not_allowed");
-            $this->assertStringContainsString('SkilLand', $string['error_sso_user_not_allowed']);
+            $this->assertStringContainsString('Skilland', $string['error_sso_user_not_allowed']);
         }
     }
 
@@ -191,7 +191,7 @@ class locallib_sso_token_test extends TestCase {
 
         $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
         $this->assertSame('42', $decoded->sub);
-        // A JSON string, not a number: SkilLand compares it as text.
+        // A JSON string, not a number: Skilland compares it as text.
         [, $body] = explode('.', $token);
         $this->assertStringContainsString('"sub":"42"', JWT::urlsafeB64Decode($body));
     }

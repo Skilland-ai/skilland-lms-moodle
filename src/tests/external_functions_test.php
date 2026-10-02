@@ -36,7 +36,7 @@ require_once(__DIR__ . '/skilland_testcase.php');
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \mod_skilland\external\base
  * @covers     \mod_skilland\external\fetch_courses
@@ -49,9 +49,9 @@ require_once(__DIR__ . '/skilland_testcase.php');
  */
 final class external_functions_test extends skilland_testcase {
     /**
-     * A course mapped to a SkilLand course, with an editing teacher and a student.
+     * A course mapped to a Skilland course, with an editing teacher and a student.
      *
-     * @param string $skillid SkilLand course the Moodle course is mapped to.
+     * @param string $skillid Skilland course the Moodle course is mapped to.
      * @return array [course, teacher, student]
      */
     private function mapped_course(string $skillid = 'skill-1'): array {
@@ -169,7 +169,7 @@ final class external_functions_test extends skilland_testcase {
         global $CFG;
 
         $course = $this->getDataGenerator()->create_course(['fullname' => 'Algebra 101']);
-        // A course saved through the course form has a (still empty) SkilLand course field.
+        // A course saved through the course form has a (still empty) Skilland course field.
         $this->generator()->create_course_mapping($course->id, '');
         $teacher = $this->enrol($course, 'editingteacher');
         $this->setUser($teacher);

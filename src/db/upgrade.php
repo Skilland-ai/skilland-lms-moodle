@@ -18,7 +18,7 @@
  * Upgrade script for mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -182,7 +182,7 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092604, 'skilland');
     }
 
-    // For version 2026092608 (SKL-668): the SkilLand activity owns completion and the (opt-in)
+    // For version 2026092608 (SKL-668): the Skilland activity owns completion and the (opt-in)
     // grade, read from a per-learner progress store that survives SCORM re-provisioning; the
     // hidden topic SCORM keeps no gradebook presence.
     if ($oldversion < 2026092608) {

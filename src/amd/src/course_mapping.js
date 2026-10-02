@@ -1,9 +1,9 @@
 /**
- * SkilLand course mapping on the course settings page (SKL-664, SKL-681).
+ * Skilland course mapping on the course settings page (SKL-664, SKL-681).
  *
- * Turns the SkilLand course ID custom field into a dropdown of SkilLand courses, adds a
- * "Create in SkilLand" button that creates and links a course after a confirmation, keeps a
- * stale mapping visible with a warning, and inserts a "Go to SkilLand" button above the field.
+ * Turns the Skilland course ID custom field into a dropdown of Skilland courses, adds a
+ * "Create in Skilland" button that creates and links a course after a confirmation, keeps a
+ * stale mapping visible with a warning, and inserts a "Go to Skilland" button above the field.
  *
  * @module     mod_skilland/course_mapping
  * @copyright  2024
@@ -19,7 +19,7 @@ define(['core/ajax', 'core/notification', 'mod_skilland/local/string_loader'], f
     // so runtime values go in through these placeholders and a literal split/join instead.
     /** @var {string} namePlaceholder Stands for the Moodle course name in the confirmation body */
     var namePlaceholder = '__SKILLAND_COURSE_NAME__';
-    /** @var {string} idPlaceholder Stands for the stale SkilLand course id */
+    /** @var {string} idPlaceholder Stands for the stale Skilland course id */
     var idPlaceholder = '__SKILLAND_COURSE_ID__';
     /** @var {string} errorPlaceholder Stands for the error text returned by a web service */
     var errorPlaceholder = '__SKILLAND_ERROR__';
@@ -68,7 +68,7 @@ define(['core/ajax', 'core/notification', 'mod_skilland/local/string_loader'], f
     }
 
     /**
-     * Insert the "Go to SkilLand" button above the custom field; it opens the linked course.
+     * Insert the "Go to Skilland" button above the custom field; it opens the linked course.
      *
      * @param {HTMLElement} fieldInput The custom field's text input
      * @param {string} ssoUrl The sso_redirect.php URL for this course
@@ -105,7 +105,7 @@ define(['core/ajax', 'core/notification', 'mod_skilland/local/string_loader'], f
     }
 
     /**
-     * Replace the custom field's text input with a SkilLand course dropdown and a create button.
+     * Replace the custom field's text input with a Skilland course dropdown and a create button.
      *
      * @param {HTMLElement} fieldInput The custom field's text input
      * @param {Object} config The init configuration
@@ -214,7 +214,7 @@ define(['core/ajax', 'core/notification', 'mod_skilland/local/string_loader'], f
 
         createBtn.addEventListener('click', onCreateClick);
 
-        // Fetch the SkilLand courses this site can link to.
+        // Fetch the Skilland courses this site can link to.
         log('Skilland: Making AJAX call to fetch courses');
         Ajax.call([{
             methodname: 'mod_skilland_fetch_courses_ajax',
@@ -312,8 +312,8 @@ define(['core/ajax', 'core/notification', 'mod_skilland/local/string_loader'], f
      * @param {Object} config Configuration object
      * @param {number} config.courseid The Moodle course id
      * @param {string} config.coursename The Moodle course full name, as plain text
-     * @param {boolean} config.linked Whether the course already has a SkilLand course mapped
-     * @param {string} config.ssourl The "Go to SkilLand" sso_redirect.php URL
+     * @param {boolean} config.linked Whether the course already has a Skilland course mapped
+     * @param {string} config.ssourl The "Go to Skilland" sso_redirect.php URL
      * @param {boolean} config.debug Whether the plugin's devmode console logging is on
      */
     var init = function(config) {

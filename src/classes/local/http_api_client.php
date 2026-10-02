@@ -15,17 +15,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Production transport to the SkilLand API over HTTPS.
+ * Production transport to the Skilland API over HTTPS.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace mod_skilland\local;
 
 /**
- * The real {@see api_client}: Moodle's curl against the configured SkilLand URLs.
+ * The real {@see api_client}: Moodle's curl against the configured Skilland URLs.
  */
 class http_api_client implements api_client {
     /**

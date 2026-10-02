@@ -21,11 +21,11 @@ $CFG->dataroot  = '/var/moodledata';
 $CFG->directorypermissions = 02777;
 $CFG->admin = 'admin';
 
-// Local Skilland wiring from the monorepo .env, never from the plugin source. SkilLand verifies
+// Local Skilland wiring from the monorepo .env, never from the plugin source. Skilland verifies
 // every SSO token with the organization's own secret, derived from its master secret
 // (MOODLE_SSO_SECRET) as hex(HMAC-SHA256(master, 'skilland:moodle-sso:v1:' . orgId)), and rejects
 // the master itself. So the organization id and its derived secret are forced only when
-// SKILLAND_ORG_ID is set too; otherwise paste the secret from SkilLand > Settings > Integrations >
+// SKILLAND_ORG_ID is set too; otherwise paste the secret from Skilland > Settings > Integrations >
 // Moodle into the plugin settings.
 $skillandssosecret = getenv('SKILLAND_SSO_SECRET');
 $skillandorgid = getenv('SKILLAND_ORG_ID');

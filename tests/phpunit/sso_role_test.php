@@ -21,11 +21,11 @@ use Firebase\JWT\Key;
 use PHPUnit\Framework\TestCase;
 
 /**
- * SKL-645: the SSO handoff needs a course the user may open SkilLand Studio from, refuses guests,
+ * SKL-645: the SSO handoff needs a course the user may open Skilland Studio from, refuses guests,
  * and the token's role follows mod/skilland:addinstance in that course instead of always being Expert.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class sso_role_test extends TestCase {

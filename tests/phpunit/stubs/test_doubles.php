@@ -215,7 +215,7 @@ class recording_retry_sleeper extends retry_sleeper {
 }
 
 /**
- * Signs topic SCORM answers the way SkilLand does (SKL-650), with a test-only key derived from a
+ * Signs topic SCORM answers the way Skilland does (SKL-650), with a test-only key derived from a
  * fixed public seed, and trusts that key in the current test's plugin config.
  */
 class test_package_signer {

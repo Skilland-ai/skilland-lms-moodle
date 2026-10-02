@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * Pure logic behind the SkilLand AJAX mock: parse a Moodle AJAX batch, answer its
+ * Pure logic behind the Skilland AJAX mock: parse a Moodle AJAX batch, answer its
  * mod_skilland_* entries from a handler map, and merge those answers with Moodle's
  * own responses for the core entries of the same batch.
  *
@@ -66,14 +66,14 @@ function failure(message, errorcode = 'skillandmock') {
 /**
  * Decide how to answer a batch.
  *
- * - no SkilLand entry: `passthrough` (the request goes to Moodle untouched)
- * - a SkilLand entry whose handler is `abort`: `abort` (the whole request fails)
- * - otherwise `answer`: one response per SkilLand entry, keyed by position, plus the
+ * - no Skilland entry: `passthrough` (the request goes to Moodle untouched)
+ * - a Skilland entry whose handler is `abort`: `abort` (the whole request fails)
+ * - otherwise `answer`: one response per Skilland entry, keyed by position, plus the
  *   core entries that still have to be sent to Moodle
  *
  * @param {BatchEntry[]} entries
  * @param {Map<string, Handler>} handlers
- * @param {(entry: BatchEntry) => void} onUnhandled Called for each SkilLand entry without a handler
+ * @param {(entry: BatchEntry) => void} onUnhandled Called for each Skilland entry without a handler
  * @returns {Promise<{ kind: 'passthrough' } | { kind: 'abort', methodname: string } | { kind: 'answer', answers: Map<number, BatchResponse>, core: BatchEntry[] }>}
  */
 async function resolveBatch(entries, handlers, onUnhandled) {
@@ -93,7 +93,7 @@ async function resolveBatch(entries, handlers, onUnhandled) {
     const handler = handlers.get(entry.methodname)
     if (!handler) {
       onUnhandled(entry)
-      answers.set(entry.position, failure(`Unmocked SkilLand AJAX call: ${entry.methodname}`))
+      answers.set(entry.position, failure(`Unmocked Skilland AJAX call: ${entry.methodname}`))
     } else if (handler.type === 'fail') {
       answers.set(entry.position, failure(handler.message))
     } else if (handler.type === 'data') {
@@ -129,11 +129,11 @@ function coreRequestBody(core) {
 }
 
 /**
- * Put SkilLand answers and Moodle's core responses back in batch order.
+ * Put Skilland answers and Moodle's core responses back in batch order.
  * A whole-request error from Moodle (an object, not an array) is returned as is.
  *
  * @param {BatchEntry[]} entries The original batch
- * @param {Map<number, BatchResponse>} answers SkilLand answers keyed by position
+ * @param {Map<number, BatchResponse>} answers Skilland answers keyed by position
  * @param {unknown} coreResponses Moodle's response to `coreRequestBody(core)`
  * @returns {unknown}
  */

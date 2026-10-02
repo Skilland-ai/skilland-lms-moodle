@@ -13,7 +13,7 @@ require_once __DIR__ . '/stubs/privacy_stub.php';
 
 /**
  * The Privacy API provider (SKL-660): metadata, the guards that keep it in step with install.xml
- * and the data sent to SkilLand, and export/delete of skilland_progress.
+ * and the data sent to Skilland, and export/delete of skilland_progress.
  */
 class privacy_provider_test extends TestCase {
 
@@ -25,7 +25,7 @@ class privacy_provider_test extends TestCase {
     private const CTX_ACTIVITY_2 = 101;
     private const CTX_COURSE = 200;
 
-    /** Fields of the data sent to SkilLand that carry no personal data. */
+    /** Fields of the data sent to Skilland that carry no personal data. */
     private const NON_PERSONAL_PAYLOAD_KEYS = ['orgId', 'nonce', 'iat', 'exp', 'aud', 'iss', 'source'];
 
     /** SSO payload key => field declared on the 'skilland' external location. */
@@ -184,10 +184,10 @@ class privacy_provider_test extends TestCase {
 
     public function test_skilland_summary_names_the_three_flows(): void {
         $summary = self::lang('en')['privacy:metadata:skilland'];
-        $this->assertStringContainsString('SkilLand Studio', $summary);
-        $this->assertStringContainsString('list the SkilLand courses', $summary);
-        $this->assertStringContainsString('create a SkilLand course', $summary);
-        $this->assertStringContainsString('SkilLand administrator', $summary);
+        $this->assertStringContainsString('Skilland Studio', $summary);
+        $this->assertStringContainsString('list the Skilland courses', $summary);
+        $this->assertStringContainsString('create a Skilland course', $summary);
+        $this->assertStringContainsString('Skilland administrator', $summary);
     }
 
     // ---------------------------------------------------------------

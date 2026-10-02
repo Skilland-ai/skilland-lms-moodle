@@ -15,11 +15,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Step definitions for the SkilLand activity.
+ * Step definitions for the Skilland activity.
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -30,25 +30,25 @@ require_once(__DIR__ . '/../../../../lib/behat/behat_base.php');
 use Behat\Mink\Exception\ExpectationException;
 
 /**
- * SkilLand activity step definitions.
+ * Skilland activity step definitions.
  *
- * The SSO handoff answers with a form that submits itself to SkilLand, so these steps fetch
+ * The SSO handoff answers with a form that submits itself to Skilland, so these steps fetch
  * sso_redirect.php in the background, with the browser session and its sesskey, and read the
  * answer instead of navigating to it: the browser never leaves Moodle and an expected error page
  * never becomes the current page.
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class behat_mod_skilland extends behat_base {
     /**
      * Checks that the SSO handoff started from a course signs the current user in with a role.
      *
-     * @Then the SkilLand SSO handoff for course :course should sign me in as :role
+     * @Then the Skilland SSO handoff for course :course should sign me in as :role
      * @param string $course The course shortname, fullname or idnumber
-     * @param string $role The SkilLand role the token must carry
+     * @param string $role The Skilland role the token must carry
      */
     public function the_skilland_sso_handoff_for_course_should_sign_me_in_as(string $course, string $role): void {
         $response = $this->fetch_sso_redirect(['courseid' => $this->course_id($course)]);
@@ -57,7 +57,7 @@ class behat_mod_skilland extends behat_base {
         $hasform = strpos($html, 'id="skilland-sso"') !== false;
         if (!$hasform || !preg_match('/<input type="hidden" name="token" value="([^"]+)">/', $html, $matches)) {
             throw new ExpectationException(
-                'sso_redirect.php did not answer with the SkilLand handoff form: ' . $this->describe_response($response),
+                'sso_redirect.php did not answer with the Skilland handoff form: ' . $this->describe_response($response),
                 $this->getSession()
             );
         }
@@ -66,7 +66,7 @@ class behat_mod_skilland extends behat_base {
         $actual = is_array($claims) ? ($claims['role'] ?? null) : null;
         if ($actual !== $role) {
             throw new ExpectationException(
-                'The SkilLand SSO token carries the role ' . var_export($actual, true) . ', expected ' . $role,
+                'The Skilland SSO token carries the role ' . var_export($actual, true) . ', expected ' . $role,
                 $this->getSession()
             );
         }
@@ -75,7 +75,7 @@ class behat_mod_skilland extends behat_base {
     /**
      * Checks that the SSO handoff started from a course is refused with a message, and mints no token.
      *
-     * @Then the SkilLand SSO handoff for course :course should be refused with :message
+     * @Then the Skilland SSO handoff for course :course should be refused with :message
      * @param string $course The course shortname, fullname or idnumber
      * @param string $message Text the error page must contain
      */
@@ -86,7 +86,7 @@ class behat_mod_skilland extends behat_base {
     /**
      * Checks that the SSO handoff without a course is refused with a message, and mints no token.
      *
-     * @Then the SkilLand SSO handoff without a course should be refused with :message
+     * @Then the Skilland SSO handoff without a course should be refused with :message
      * @param string $message Text the error page must contain
      */
     public function the_skilland_sso_handoff_without_a_course_should_be_refused_with(string $message): void {
@@ -151,7 +151,7 @@ class behat_mod_skilland extends behat_base {
         $html = $response['body'];
 
         if (strpos($html, 'id="skilland-sso"') !== false) {
-            throw new ExpectationException('sso_redirect.php answered with the SkilLand handoff form', $this->getSession());
+            throw new ExpectationException('sso_redirect.php answered with the Skilland handoff form', $this->getSession());
         }
         $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         if (strpos($text, $message) === false) {

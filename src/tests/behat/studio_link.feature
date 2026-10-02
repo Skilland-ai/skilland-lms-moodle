@@ -1,8 +1,8 @@
 @mod @mod_skilland
-Feature: Teachers reach SkilLand Studio from their course
-  In order to edit the content behind my SkilLand activities
+Feature: Teachers reach Skilland Studio from their course
+  In order to edit the content behind my Skilland activities
   As a teacher
-  I need a link that signs me in to SkilLand Studio
+  I need a link that signs me in to Skilland Studio
 
   Background:
     Given the following "users" exist:
@@ -23,35 +23,35 @@ Feature: Teachers reach SkilLand Studio from their course
       | orgid      | org-behat-fixture                            | mod_skilland |
       | sso_secret | behat-fixture-sso-secret-not-a-real-one-0123 | mod_skilland |
 
-  Scenario: A teacher sees the SkilLand Studio link and the provision controls
+  Scenario: A teacher sees the Skilland Studio link and the provision controls
     When I am on the "Course 1" "course" page logged in as "teacher1"
     Then "//a[contains(@href, '/mod/skilland/sso_redirect.php') and contains(normalize-space(.), 'Edit in Skilland')]" "xpath_element" should exist
     And I am on the "skl1" "Activity" page
     And I should see "Lesson one"
     And I should see "Content last updated"
 
-  Scenario: A student gets no SkilLand Studio link
+  Scenario: A student gets no Skilland Studio link
     When I am on the "Course 1" "course" page logged in as "student1"
     Then "//a[contains(@href, '/mod/skilland/sso_redirect.php')]" "xpath_element" should not exist
 
   @javascript
-  Scenario: A teacher's SkilLand Studio handoff signs them in as an Expert
+  Scenario: A teacher's Skilland Studio handoff signs them in as an Expert
     When I am on the "Course 1" "course" page logged in as "teacher1"
-    Then the SkilLand SSO handoff for course "C1" should sign me in as "Expert"
+    Then the Skilland SSO handoff for course "C1" should sign me in as "Expert"
 
   @javascript
-  Scenario: A student cannot start the SkilLand Studio handoff without a course
+  Scenario: A student cannot start the Skilland Studio handoff without a course
     When I am on the "Course 1" "course" page logged in as "student1"
-    Then the SkilLand SSO handoff without a course should be refused with "A required parameter (courseid) was missing"
+    Then the Skilland SSO handoff without a course should be refused with "A required parameter (courseid) was missing"
 
   @javascript
-  Scenario: A student cannot start the SkilLand Studio handoff from their course
+  Scenario: A student cannot start the Skilland Studio handoff from their course
     When I am on the "Course 1" "course" page logged in as "student1"
-    Then the SkilLand SSO handoff for course "C1" should be refused with "Sorry, but you do not currently have permissions to do that"
+    Then the Skilland SSO handoff for course "C1" should be refused with "Sorry, but you do not currently have permissions to do that"
 
   @javascript
-  Scenario: A guest cannot start the SkilLand Studio handoff
+  Scenario: A guest cannot start the Skilland Studio handoff
     Given I am on the "Course 1" "enrolment methods" page logged in as admin
     And I click on "Enable" "link" in the "Guest access" "table_row"
     When I am on the "Course 1" "course" page logged in as "guest"
-    Then the SkilLand SSO handoff for course "C1" should be refused with "Course or activity not accessible."
+    Then the Skilland SSO handoff for course "C1" should be refused with "Course or activity not accessible."

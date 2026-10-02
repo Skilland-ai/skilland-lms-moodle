@@ -29,7 +29,7 @@ require_once($CFG->dirroot . '/mod/skilland/locallib.php');
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \mod_skilland_generator
  */

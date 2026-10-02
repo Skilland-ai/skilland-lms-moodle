@@ -28,7 +28,7 @@ require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \backup_skilland_activity_structure_step
  * @covers     \restore_skilland_activity_structure_step

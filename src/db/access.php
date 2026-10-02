@@ -18,7 +18,7 @@
  * Capability definitions for the skilland module.
  *
  * @package    mod_skilland
- * @copyright  2025 SkilLand <https://skilland.ai>
+ * @copyright  2025 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -50,7 +50,7 @@ $capabilities = [
         ],
     ],
 
-    // Ability to provision and update SkilLand SCORM content in an activity.
+    // Ability to provision and update Skilland SCORM content in an activity.
     'mod/skilland:provision' => [
         'riskbitmask' => RISK_XSS,
         'captype' => 'write',
@@ -62,7 +62,7 @@ $capabilities = [
         'clonepermissionsfrom' => 'moodle/course:manageactivities',
     ],
 
-    // Ability to open SkilLand Studio (SSO) and link or create SkilLand courses.
+    // Ability to open Skilland Studio (SSO) and link or create Skilland courses.
     'mod/skilland:accessstudio' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,

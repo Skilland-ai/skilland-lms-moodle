@@ -29,7 +29,7 @@ use templatable;
  * mod_skilland/player_navigation (a plain row), picked by the style.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class lesson_navigation implements renderable, templatable {

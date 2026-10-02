@@ -302,7 +302,7 @@ class task_sync_content_test extends TestCase {
         $this->assertEquals('current', $result);
     }
 
-    /** A provisioned activity whose stored snapshot is older than SkilLand's. */
+    /** A provisioned activity whose stored snapshot is older than Skilland's. */
     private function changedActivity(array $fields = []): \stdClass {
         return (object) ($fields + [
             'id' => 1,

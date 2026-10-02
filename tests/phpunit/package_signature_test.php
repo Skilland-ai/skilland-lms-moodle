@@ -296,7 +296,7 @@ class package_signature_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // Cross-language vector from the SkilLand backend
+    // Cross-language vector from the Skilland backend
     // ---------------------------------------------------------------
 
     public function test_backend_signature_vector_verifies(): void {

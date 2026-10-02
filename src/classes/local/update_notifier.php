@@ -15,10 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tells the teachers of an activity that new SkilLand content is waiting to be applied.
+ * Tells the teachers of an activity that new Skilland content is waiting to be applied.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

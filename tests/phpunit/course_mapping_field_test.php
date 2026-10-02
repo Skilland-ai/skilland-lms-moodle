@@ -84,7 +84,7 @@ class course_mapping_field_test extends TestCase {
 
     public function test_field_is_found_by_name_once_for_both_controls(): void {
         $source = self::module_source();
-        // One lookup by name feeds both the dropdown and the "Go to SkilLand" button.
+        // One lookup by name feeds both the dropdown and the "Go to Skilland" button.
         $this->assertSame(1, substr_count($source, 'document.querySelector(\'[name="customfield_skilland_course_id"]\')'));
         $this->assertStringNotContainsString('input[id*=', $source);
         $this->assertStringNotContainsString('input[id*=', self::hooks_source());

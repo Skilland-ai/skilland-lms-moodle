@@ -4,7 +4,7 @@ const { defineConfig, devices } = require('@playwright/test')
 /**
  * Playwright configuration for Moodle-Skilland E2E tests
  *
- * The suite runs against a local Moodle only (MOODLE_URL). SkilLand is always
+ * The suite runs against a local Moodle only (MOODLE_URL). Skilland is always
  * mocked in the browser by fixtures/skilland-mock.js; setup/global-setup.js fails
  * the run when Moodle is not reachable.
  */

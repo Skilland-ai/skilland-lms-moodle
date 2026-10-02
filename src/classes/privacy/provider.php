@@ -27,13 +27,13 @@ use core_privacy\local\request\writer;
 /**
  * Privacy API provider for mod_skilland.
  *
- * Declares the personal data sent to SkilLand (SSO sign-in, listing and creating SkilLand
+ * Declares the personal data sent to Skilland (SSO sign-in, listing and creating Skilland
  * courses) and exports and deletes the per-learner progress kept in skilland_progress.
- * Any new field sent to SkilLand or any new table with a userid column must be declared here;
+ * Any new field sent to Skilland or any new table with a userid column must be declared here;
  * tests/phpunit/privacy_provider_test.php enforces it.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class provider implements
@@ -41,7 +41,7 @@ class provider implements
     \core_privacy\local\request\core_userlist_provider,
     \core_privacy\local\request\plugin\provider {
     /**
-     * Describe the personal data stored locally and sent to SkilLand.
+     * Describe the personal data stored locally and sent to Skilland.
      *
      * @param collection $collection The collection to add metadata to.
      * @return collection

@@ -15,19 +15,19 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Ed25519 signature check of a SkilLand topic SCORM package (SKL-650).
+ * Ed25519 signature check of a Skilland topic SCORM package (SKL-650).
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace mod_skilland\local;
 
 /**
- * Verifies that a downloaded topic SCORM package is the one SkilLand signed for the requested topic.
+ * Verifies that a downloaded topic SCORM package is the one Skilland signed for the requested topic.
  *
- * SkilLand signs, with Ed25519, the UTF-8 lines (joined by "\n", no trailing newline):
+ * Skilland signs, with Ed25519, the UTF-8 lines (joined by "\n", no trailing newline):
  * MESSAGE_PREFIX, the requested topic id (lower case), the response's contentHash, the lower-case
  * hex sha256 of the package bytes and the response's generatedAt string. The plugin trusts the
  * keys pinned in PINNED_KEYS plus those an admin adds in mod_skilland/signingkeys; a package that
@@ -43,7 +43,7 @@ class package_signature {
     /**
      * Keys shipped with the plugin: key id => base64 of the raw 32-byte Ed25519 public key.
      *
-     * Several entries at once is how a key is rotated: pin the new key, let SkilLand sign with it,
+     * Several entries at once is how a key is rotated: pin the new key, let Skilland sign with it,
      * then drop the old one in a later release.
      */
     const PINNED_KEYS = [
@@ -52,7 +52,7 @@ class package_signature {
     ];
 
     /**
-     * The exact bytes SkilLand signs for a package.
+     * The exact bytes Skilland signs for a package.
      *
      * @param string $topicid The topic id the plugin requested (lower-cased here).
      * @param string $contenthash The response's contentHash.
@@ -67,7 +67,7 @@ class package_signature {
     /**
      * Refuse a package response that carries no signature, before anything is downloaded.
      *
-     * A SkilLand server that predates package signing never sends one, so its packages always
+     * A Skilland server that predates package signing never sends one, so its packages always
      * stop here.
      *
      * @param array $response The normalised topic SCORM response.

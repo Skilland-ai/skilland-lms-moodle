@@ -23,7 +23,7 @@ require_once($CFG->dirroot . '/mod/skilland/backup/moodle2/backup_skilland_steps
  * complete backup of the activity
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class backup_skilland_activity_task extends backup_activity_task {

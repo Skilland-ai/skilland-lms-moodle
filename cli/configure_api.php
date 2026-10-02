@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Development-only CLI script to configure the SkilLand plugin API settings.
+ * Development-only CLI script to configure the Skilland plugin API settings.
  *
  * Not shipped in the release zip. The API key is never taken from the command line
  * (it would land in the shell history and the process list): it is read from the
@@ -52,7 +52,7 @@ if ($unrecognized) {
 
 if ($options['help']) {
     $help = <<<EOT
-Configure the SkilLand plugin API settings (development only).
+Configure the Skilland plugin API settings (development only).
 
 Only the settings you pass are written; everything else is left unchanged.
 
@@ -148,7 +148,7 @@ try {
     cli_error($e->getMessage());
 }
 
-echo "Configuring SkilLand plugin...\n\n";
+echo "Configuring Skilland plugin...\n\n";
 
 foreach ($writes as $name => $value) {
     set_config($name, $value, 'mod_skilland');

@@ -19,7 +19,7 @@ const { SKILL_ID } = require('../fixtures/skilland-data')
  * Test suite: Error Handling
  *
  * Error scenarios and graceful degradation in the Moodle-Skilland integration.
- * SkilLand failures are simulated with skillandMock.fail / .abort / an `error` field.
+ * Skilland failures are simulated with skillandMock.fail / .abort / an `error` field.
  */
 test.describe('Error Handling', () => {
   test.describe.configure({ mode: 'parallel' })
@@ -53,7 +53,7 @@ test.describe('Error Handling', () => {
 })
 
 /**
- * Test suite: SkilLand failures on the course form
+ * Test suite: Skilland failures on the course form
  */
 test.describe('Network Error Handling', () => {
   test.describe.configure({ mode: 'parallel' })
@@ -80,7 +80,7 @@ test.describe('Network Error Handling', () => {
     await expect(authenticatedPage.locator('[name="customfield_skilland_course_id"]')).toHaveCount(1)
   })
 
-  test('Course list error from SkilLand is shown and falls back to the text input', async ({
+  test('Course list error from Skilland is shown and falls back to the text input', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -123,7 +123,7 @@ test.describe('Network Error Handling', () => {
     moodleCourse
   }) => {
     const courseId = await moodleCourse.create()
-    skillandMock.fail('mod_skilland_create_course_ajax', 'SkilLand API error')
+    skillandMock.fail('mod_skilland_create_course_ajax', 'Skilland API error')
 
     await goToCourseEditPage(authenticatedPage, courseId)
     await waitForSkillandDropdownLoaded(authenticatedPage)

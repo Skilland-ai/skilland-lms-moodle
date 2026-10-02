@@ -397,7 +397,7 @@ class lib_test extends TestCase {
         $data->instance = 1;
         $data->skilland_topicid = 'topic1';
         $data->topic_orderindex = 1;
-        // The form carries SkilLand's newer timestamps, as it did before SKL-683.
+        // The form carries Skilland's newer timestamps, as it did before SKL-683.
         $data->selected_lessons = json_encode([
             'L1' => ['name' => 'Lesson 1', 'updatedAt' => '2026-01-03T00:00:00Z'],
             'L2' => ['name' => 'Lesson 2', 'updatedAt' => 1700000000],

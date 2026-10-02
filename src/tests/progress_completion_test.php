@@ -32,7 +32,7 @@ require_once($CFG->libdir . '/gradelib.php');
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers ::skilland_read_scorm_progress
  * @covers ::skilland_refresh_progress
@@ -46,7 +46,7 @@ final class progress_completion_test extends skilland_testcase {
      * A course with completion enabled, a student and a provisioned activity.
      *
      * @param array $record Extra activity fields.
-     * @return array [course, student, skilland record, scorm instance id, lesson rows by SkilLand id]
+     * @return array [course, student, skilland record, scorm instance id, lesson rows by Skilland id]
      */
     private function provisioned(array $record = []): array {
         global $DB;

@@ -1,6 +1,6 @@
 # Contributing
 
-This is the Moodle activity plugin for SkilLand (`mod_skilland`). It lives in its own
+This is the Moodle activity plugin for Skilland (`mod_skilland`). It lives in its own
 repository (`Skilland-ai/skilland-lms-moodle`) and is developed as a normal Moodle plugin:
 the actual plugin code is `src/` (installed as `mod/skilland`), the repository root holds
 tooling (npm scripts, CI, PHPUnit stub harness).
