@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100205;   // YYYYMMDDHH - Studio deep link resolves Edukami ids, string_loader AMD build (SKL-998).
+$plugin->version   = 2026100206;   // YYYYMMDDHH - cli/adopt_edukami.php turns mod_edukami activities into Skilland ones (SKL-997).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.47-beta';
+$plugin->release   = '0.9.48-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

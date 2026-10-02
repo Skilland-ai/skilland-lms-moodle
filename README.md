@@ -173,6 +173,18 @@ The Skilland activity owns completion and the grade; the hidden topic SCORM has 
 - **Grade** (opt-in, *None* by default): with a maximum grade set, the raw grade is `grade × mean / 100`, the mean taken over the visible lessons of the SCO raw score (clamped to 0–100) when one was reported, else 100 for a completed or passed lesson, else 0. A learner with no recorded progress gets no grade. Scales are not supported.
 - **Progress survives re-provisioning**: each learner's best status and highest score per lesson are kept in the plugin's own table, so rebuilding the SCORM (an applied update, topic change) never loses completion or grades. The `sync_content` task also backfills that table from the SCORM tracks.
 
+### Moving activities from mod_edukami
+
+On a site moving from the Edukami plugin, once its skills have been migrated to Skilland and this plugin is configured, an administrator turns the `mod_edukami` activities into Skilland activities from the command line:
+
+```bash
+php mod/skilland/cli/adopt_edukami.php            # dry run: prints what it would do, writes nothing
+php mod/skilland/cli/adopt_edukami.php --apply    # adopt
+php mod/skilland/cli/adopt_edukami.php --course=42 --apply   # one course only
+```
+
+Each Edukami activity whose topic Skilland lists gets a Skilland activity right before it, in the same section, linked to the same topic SCORM with the same snapshot hash and lesson→SCO mapping, so learners keep their attempts and progress and no update is announced. The Edukami activity is hidden, never deleted, and the SCORM is left untouched. A course with no Skilland skill is mapped to the migrated skill; a course mapped to another skill, an activity whose topic is not in the migration and an activity without a topic SCORM are skipped and left alone. Each activity is adopted in its own transaction, so a failure rolls back only that one. The report lists, per course, the adopted, already adopted, skipped and failed activities with the reasons; a second run changes nothing. The script exits 1 when an activity failed.
+
 ## Privacy
 
 The plugin implements Moodle's Privacy API (`classes/privacy/provider.php`), so its data shows up in *Site administration → Users → Privacy and policies → Plugin privacy registry* and in data requests.
