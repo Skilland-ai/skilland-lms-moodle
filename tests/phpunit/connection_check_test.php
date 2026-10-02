@@ -21,6 +21,9 @@ class connection_check_test extends TestCase {
     private const VECTOR_NONCE = 'abcdef0123456789abcdef0123456789';
     private const VECTOR_SIGNATURE = '7cd8ed26aee05108f314652d611670d527f5d4f66384e51f70cde99ba2de1ddc';
 
+    /** SSO secret of the saved settings: low-entropy on purpose, so the secret scan does not flag it. */
+    private const SSO_SECRET = 'fixture-fixture-fixture-fixture-fixture';
+
     /** @var \fake_api_client */
     private $client;
 
@@ -33,7 +36,7 @@ class connection_check_test extends TestCase {
             'frontend_url' => '',
             'apikey' => 'key1',
             'orgid' => ' Org-1 ',
-            'sso_secret' => 'a-sso-secret-that-is-long-enough-0123456789',
+            'sso_secret' => self::SSO_SECRET,
         ];
         \mod_skilland\logger::reset_cache();
         $this->client = new \fake_api_client(new \mod_skilland\tests\no_network_api_client());
@@ -119,7 +122,7 @@ class connection_check_test extends TestCase {
             hash_hmac(
                 'sha256',
                 "skilland:moodle-connection-check:v1\norg-1\n" . $proof['timestamp'] . "\n" . $proof['nonce'],
-                'a-sso-secret-that-is-long-enough-0123456789'
+                self::SSO_SECRET
             ),
             $proof['signature']
         );
@@ -284,7 +287,7 @@ class connection_check_test extends TestCase {
         $proof = $this->client->restposts[0]['body']['ssoProof'];
 
         $log = implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
-        foreach (['key1', 'a-sso-secret-that-is-long-enough-0123456789', $proof['signature'], $proof['nonce']] as $secret) {
+        foreach (['key1', self::SSO_SECRET, $proof['signature'], $proof['nonce']] as $secret) {
             $this->assertStringNotContainsString($secret, $log);
         }
     }
