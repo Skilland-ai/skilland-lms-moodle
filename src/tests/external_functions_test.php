@@ -269,6 +269,7 @@ final class external_functions_test extends skilland_testcase {
         $this->assertNull($result['error']);
         $this->assertSame(['lesson-1', 'lesson-2'], array_column($result['lessons'], 'id'));
         $this->assertSame('2026-01-01T10:00:00Z', $result['lessons'][0]['updatedAt']);
+        $this->assertSame([1, 2], array_column($result['lessons'], 'position'));
     }
 
     public function test_fetch_lessons_refuses_a_topic_of_another_skill(): void {
