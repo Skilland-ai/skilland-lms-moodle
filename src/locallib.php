@@ -1597,7 +1597,7 @@ function skilland_build_topic_scorm(stdClass $skilland, stdClass $course, int $s
         'cmid' => $cmid,
         'scos' => $scos,
         'mappings' => $scorminfo['mappings'] ?? [],
-        'generatedat' => !empty($scorminfo['generatedAt']) ? strtotime($scorminfo['generatedAt']) : time(),
+        'generatedat' => !empty($scorminfo['generatedAt']) ? skilland_parse_timestamp($scorminfo['generatedAt']) : time(),
     ];
 }
 
@@ -1803,7 +1803,7 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?strin
         // Step 5: updatedat = version of the lesson in the installed package; only a successful
         // build advances it.
         foreach ($lessons as $lesson) {
-            $updatedat = !empty($lesson['updatedAt']) ? strtotime($lesson['updatedAt']) : time();
+            $updatedat = !empty($lesson['updatedAt']) ? skilland_parse_timestamp($lesson['updatedAt']) : time();
             $DB->set_field('skilland_lesson', 'updatedat', $updatedat, [
                 'skillandid' => $current->id,
                 'skilland_lessonid' => $lesson['id'],
@@ -3301,4 +3301,30 @@ function skilland_render_provision_view($skilland, $cm) {
     ]]);
 
     return $html;
+}
+
+/**
+ * Convert a timestamp received from Skilland (Unix number or ISO 8601 string) to an int.
+ *
+ * Anything empty or unparseable becomes 0; the offending value is never logged, only its length.
+ *
+ * @param mixed $value The received value.
+ * @return int Unix timestamp, or 0.
+ */
+function skilland_parse_timestamp($value): int {
+    if (is_int($value)) {
+        return $value;
+    }
+    if (is_numeric($value)) {
+        return (int) $value;
+    }
+    if (!is_string($value) || trim($value) === '') {
+        return 0;
+    }
+    $parsed = strtotime($value);
+    if ($parsed === false) {
+        logger::debug('Timestamp', 'Unparseable timestamp ignored, length ' . strlen($value));
+        return 0;
+    }
+    return $parsed;
 }

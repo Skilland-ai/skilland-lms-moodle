@@ -149,12 +149,18 @@ function skilland_add_instance($skilland, $mform = null) {
     $skilland->grade = (int) ($skilland->grade ?? 0);
     $skilland->completionlessons = empty($skilland->completionlessons) ? 0 : 1;
 
-    $id = $DB->insert_record('skilland', $skilland);
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        $id = $DB->insert_record('skilland', $skilland);
 
-    // Process selected lessons with topic order index for proper numbering.
-    if ($selectedlessons && $id) {
-        skilland_process_selected_lessons($id, $selectedlessons);
+        // Process selected lessons with topic order index for proper numbering.
+        if ($selectedlessons && $id) {
+            skilland_process_selected_lessons($id, $selectedlessons);
+        }
+    } catch (\Throwable $e) {
+        $transaction->rollback($e);
     }
+    $transaction->allow_commit();
 
     if ($id && $skilland->grade > 0) {
         $skilland->id = $id;
@@ -216,12 +222,18 @@ function skilland_update_instance($skilland, $mform = null) {
         $skilland->snapshotid = null;
     }
 
-    $result = $DB->update_record('skilland', $skilland);
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        $result = $DB->update_record('skilland', $skilland);
 
-    // Process selected lessons with topic order index for proper numbering.
-    if ($selectedlessons && $result) {
-        skilland_process_selected_lessons($skilland->id, $selectedlessons);
+        // Process selected lessons with topic order index for proper numbering.
+        if ($selectedlessons && $result) {
+            skilland_process_selected_lessons($skilland->id, $selectedlessons);
+        }
+    } catch (\Throwable $e) {
+        $transaction->rollback($e);
     }
+    $transaction->allow_commit();
 
     if ($result && $old && !empty($old->scormcmid)) {
         skilland_reconcile_scorm_after_update((int) $skilland->id, $topicchanged);
@@ -641,9 +653,16 @@ function skilland_process_selected_lessons($skillandid, $json) {
     $orderindex = 1; // Start lesson numbering at 1.
 
     foreach ($selected as $lessonid => $data) {
+        if (!is_array($data)
+                || (isset($data['name']) && !is_string($data['name']))
+                || (isset($data['updatedAt']) && !is_string($data['updatedAt']) && !is_int($data['updatedAt']))) {
+            debugging('mod_skilland: skipped a selected lesson with malformed data', DEBUG_DEVELOPER);
+            continue;
+        }
+
         $processedids[$lessonid] = true;
 
-        $name = isset($data['name']) ? $data['name'] : '';
+        $name = isset($data['name']) ? core_text::substr($data['name'], 0, 255) : '';
 
         if (isset($existing[$lessonid])) {
             // Update existing record.
@@ -656,11 +675,7 @@ function skilland_process_selected_lessons($skillandid, $json) {
             $DB->update_record('skilland_lesson', $rec);
         } else {
             // Insert new record.
-            $updatedat = isset($data['updatedAt']) ? $data['updatedAt'] : 0;
-            // Convert ISO8601 string to timestamp if necessary.
-            if (!is_numeric($updatedat)) {
-                $updatedat = strtotime($updatedat);
-            }
+            $updatedat = skilland_parse_timestamp($data['updatedAt'] ?? 0);
 
             $rec = new stdClass();
             $rec->skillandid = $skillandid;
