@@ -20,14 +20,14 @@ namespace mod_skilland;
  * Hook callbacks for mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class hooks {
     /**
      * Bind the plugin's injectable services in the Moodle DI container.
      *
-     * The SkilLand transport is the real HTTPS client, except on a Behat site, where the
+     * The Skilland transport is the real HTTPS client, except on a Behat site, where the
      * fixture client (when installed) answers from canned responses instead of the network.
      *
      * @param \core\hook\di_configuration $hook
@@ -67,8 +67,8 @@ class hooks {
             }
 
             if ($courseid) {
-                // Turn the SkilLand course ID custom field into a dropdown plus an explicit
-                // "Create in SkilLand" button (SKL-664), and add a "Go to SkilLand" button above it.
+                // Turn the Skilland course ID custom field into a dropdown plus an explicit
+                // "Create in Skilland" button (SKL-664), and add a "Go to Skilland" button above it.
                 // The strings are fetched by the module through core/str.
                 $course = get_course($courseid);
                 $ssourl = new \moodle_url('/mod/skilland/sso_redirect.php', [

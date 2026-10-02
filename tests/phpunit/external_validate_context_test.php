@@ -159,7 +159,7 @@ class external_validate_context_test extends TestCase {
             $this->assertInstanceOf(\require_login_exception::class, $e);
         }
 
-        $this->assertCount($queued, $GLOBALS['_test_curl_responses'], 'No SkilLand API call may be made');
+        $this->assertCount($queued, $GLOBALS['_test_curl_responses'], 'No Skilland API call may be made');
         $this->assertEmpty($GLOBALS['_test_curl_requests'] ?? []);
         $this->assertEmpty($GLOBALS['_test_deleted_cmids'] ?? [], 'No module may be deleted');
         $this->assertEmpty($GLOBALS['_test_create_module_calls'] ?? [], 'No module may be created');

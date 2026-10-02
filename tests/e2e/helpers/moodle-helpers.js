@@ -32,7 +32,7 @@ async function goToSkillandSettings(page) {
 
 /**
  * Make sure the plugin can sign SSO tokens: set an organization id and, unless
- * config.php forces one, an SSO secret. Returns the frontend URL SSO redirects to,
+ * config.php forces one, an SSO secret. Returns the URL SSO redirects to (the Frontend URL, else the Skilland URL),
  * so the caller can stub that origin.
  * @param {import('@playwright/test').Page} page Admin page
  * @returns {Promise<{ orgId: string, frontendUrl: string }>}
@@ -61,7 +61,10 @@ async function configureSkillandSso(page) {
   }
 
   const orgId = await orgInput.inputValue()
+  const skillandUrlInput = page.locator('input#id_s_mod_skilland_graphql_endpoint')
+  // An empty Frontend URL means the Skilland URL (SKL-991).
   const frontendUrl = (await frontendInput.count() > 0 && await frontendInput.inputValue()) ||
+    (await skillandUrlInput.count() > 0 && await skillandUrlInput.inputValue()) ||
     'https://app.skilland.ai'
   return { orgId, frontendUrl }
 }
@@ -80,7 +83,7 @@ async function isSkillandPluginInstalled(page) {
 
 /**
  * Create a new course in Moodle. Throws when Moodle does not land on the new course.
- * The course form triggers mod_skilland_fetch_courses_ajax, which the SkilLand mock answers.
+ * The course form triggers mod_skilland_fetch_courses_ajax, which the Skilland mock answers.
  * @param {import('@playwright/test').Page} page
  * @param {{ fullname: string, shortname: string }} courseData
  * @returns {Promise<string>} Course ID
@@ -104,8 +107,8 @@ async function createCourse(page, courseData = testData.testCourse) {
 }
 
 /**
- * Link a Moodle course to a SkilLand skill through the course form dropdown.
- * `skillId` must be one of the courses the SkilLand mock returns for
+ * Link a Moodle course to a Skilland skill through the course form dropdown.
+ * `skillId` must be one of the courses the Skilland mock returns for
  * mod_skilland_fetch_courses_ajax.
  * @param {import('@playwright/test').Page} page
  * @param {string} courseId
@@ -278,7 +281,7 @@ async function waitForSkillandDropdownLoaded(page) {
 }
 
 /**
- * The "Create in SkilLand" button placed after the dropdown.
+ * The "Create in Skilland" button placed after the dropdown.
  * @param {import('@playwright/test').Page} page
  * @returns {import('@playwright/test').Locator}
  */
@@ -287,8 +290,8 @@ function getCreateCourseButton(page) {
 }
 
 /**
- * Click "Create in SkilLand" and answer the confirmation dialog. Confirming creates the
- * SkilLand course right away (and links it server-side); cancelling sends no request.
+ * Click "Create in Skilland" and answer the confirmation dialog. Confirming creates the
+ * Skilland course right away (and links it server-side); cancelling sends no request.
  * @param {import('@playwright/test').Page} page
  * @param {{ confirm?: boolean }} [options]
  */

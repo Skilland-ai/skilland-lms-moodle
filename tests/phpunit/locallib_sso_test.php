@@ -57,6 +57,73 @@ class locallib_sso_test extends TestCase {
         $this->assertSame('https://app.skilland.ai', skilland_get_frontend_url());
     }
 
+    /** An unset Frontend URL (a fresh install, or one the upgrade cleared) uses the Skilland URL. */
+    public function test_unset_frontend_url_uses_the_skilland_url(): void {
+        $this->config(['graphql_endpoint' => 'https://skilland.university.example/']);
+
+        $this->assertSame('https://skilland.university.example', skilland_get_frontend_url());
+        $this->assertSame('https://skilland.university.example/sso-login', skilland_get_sso_endpoint());
+    }
+
+    // ---------------------------------------------------------------
+    // mod_skilland_clear_default_frontend_url() (upgrade step 2026100203)
+    // ---------------------------------------------------------------
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function old_default_provider(): array {
+        return [
+            'exact' => ['https://app.skilland.ai'],
+            'trailing slash' => ['https://app.skilland.ai/'],
+            'surrounding spaces' => ['  https://app.skilland.ai/  '],
+        ];
+    }
+
+    /**
+     * The stored old default is removed, so the Skilland URL applies.
+     *
+     * @dataProvider old_default_provider
+     */
+    public function test_upgrade_clears_the_old_default(string $stored): void {
+        $this->config(['frontend_url' => $stored, 'graphql_endpoint' => 'https://skilland.university.example']);
+
+        $this->assertTrue(mod_skilland_clear_default_frontend_url());
+
+        $this->assertNull(get_config('mod_skilland', 'frontend_url'));
+        $this->assertSame('https://skilland.university.example', skilland_get_frontend_url());
+    }
+
+    /** A Frontend URL an administrator chose is kept. */
+    public function test_upgrade_keeps_a_chosen_frontend_url(): void {
+        $this->config(['frontend_url' => 'https://skilland.internal.example', 'graphql_endpoint' => 'https://x.test']);
+
+        $this->assertFalse(mod_skilland_clear_default_frontend_url());
+
+        $this->assertSame('https://skilland.internal.example', get_config('mod_skilland', 'frontend_url'));
+    }
+
+    /** An empty or missing Frontend URL is left alone. */
+    public function test_upgrade_ignores_an_empty_frontend_url(): void {
+        $this->config(['frontend_url' => '']);
+        $this->assertFalse(mod_skilland_clear_default_frontend_url());
+        $this->assertSame('', get_config('mod_skilland', 'frontend_url'));
+
+        $this->config([]);
+        $this->assertFalse(mod_skilland_clear_default_frontend_url());
+    }
+
+    /** The upgrade step runs the cleanup and saves its savepoint. */
+    public function test_upgrade_step_calls_the_cleanup(): void {
+        $source = file_get_contents(__DIR__ . '/../../src/db/upgrade.php');
+
+        $this->assertMatchesRegularExpression(
+            '/if \(\$oldversion < 2026100203\) \{.*?mod_skilland_clear_default_frontend_url\(\);.*?' .
+            'upgrade_mod_savepoint\(true, 2026100203, \'skilland\'\);/s',
+            $source
+        );
+    }
+
     // ---------------------------------------------------------------
     // skilland_get_sso_endpoint()
     // ---------------------------------------------------------------

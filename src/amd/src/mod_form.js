@@ -1,7 +1,7 @@
 /**
  * Activity settings form for mod_skilland (mod_form.php).
  *
- * Populates the topic select and the lesson checkboxes from the SkilLand API through
+ * Populates the topic select and the lesson checkboxes from the Skilland API through
  * Moodle web services, keeps the lesson selection per topic in the selected_lessons
  * hidden field, fills Name/Description from the picked topic and offers the
  * "Update from Skilland" action. When the course has no Skilland Course ID mapped it

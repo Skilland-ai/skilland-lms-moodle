@@ -18,7 +18,7 @@
  * SSO handoff page - generates an SSO token and POSTs it to Skilland
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -40,14 +40,14 @@ require_sesskey();
 global $USER;
 
 // The Moodle course ID is mandatory (SKL-645): the token is only minted for a user who may open
-// SkilLand Studio from that course, and its role is resolved in that course's context. The
+// Skilland Studio from that course, and its role is resolved in that course's context. The
 // Skilland skill ID is resolved from it server-side.
 $courseid = required_param('courseid', PARAM_INT);
 $course  = get_course($courseid); // Throws dml_missing_record_exception if not found.
 $context = context_course::instance($courseid);
 require_login($course);
 if (isguestuser()) {
-    throw new require_login_exception('Guest users cannot access SkilLand');
+    throw new require_login_exception('Guest users cannot access Skilland');
 }
 require_capability('mod/skilland:accessstudio', $context);
 $role = skilland_sso_role_for_context($context);
@@ -85,7 +85,7 @@ try {
 
     logger::debug('SSO', 'Handing user ' . $USER->id . ' off to topic ' . $topicid);
 
-    // POST the token to SkilLand from a self-submitting form, so it never appears in a URL.
+    // POST the token to Skilland from a self-submitting form, so it never appears in a URL.
     header('Cache-Control: no-store');
     header('Referrer-Policy: no-referrer');
     header('Content-Type: text/html; charset=utf-8');

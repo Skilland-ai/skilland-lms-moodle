@@ -22,14 +22,32 @@
  * a course is mapped.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die;
 
+// Test connection page (SKL-992), listed with the activity module settings.
+$ADMIN->add('modsettings', new admin_externalpage(
+    'mod_skilland_connection_check',
+    new lang_string('connectioncheck_pagetitle', 'mod_skilland'),
+    new moodle_url('/mod/skilland/connection_check.php'),
+    'moodle/site:config'
+));
+
 if ($ADMIN->fulltree) {
     require_once(__DIR__ . '/locallib.php');
+
+    $settings->add(new admin_setting_heading(
+        'mod_skilland/connectioncheck_heading',
+        get_string('connectioncheck', 'mod_skilland'),
+        get_string('connectioncheck_settings_desc', 'mod_skilland') . ' ' . html_writer::link(
+            new moodle_url('/mod/skilland/connection_check.php'),
+            get_string('connectioncheck_open', 'mod_skilland')
+        )
+    ));
+
     $field = skilland_get_course_customfield();
     $description = $field ? get_string('customfield_exists', 'mod_skilland') : get_string('customfield_missing', 'mod_skilland');
 
@@ -103,11 +121,12 @@ if ($ADMIN->fulltree) {
     ));
 
     // Optional override of the Skilland URL for SSO redirects, Studio links and the REST API.
+    // Empty (the default) uses the Skilland URL.
     $settings->add(new \mod_skilland\admin_setting_https_url(
         'mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),
         get_string('settings_frontend_url_desc', 'mod_skilland'),
-        'https://app.skilland.ai'
+        ''
     ));
 
     // SSO shared secret setting.

@@ -20,7 +20,7 @@ namespace mod_skilland;
  * Event observers for mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class observer {
@@ -69,7 +69,7 @@ class observer {
     }
 
     /**
-     * The course settings form saved: when this user created a SkilLand course for it (SKL-664),
+     * The course settings form saved: when this user created a Skilland course for it (SKL-664),
      * offer the Studio link now. The pending path is consumed by sso_redirect.php, not here.
      *
      * @param \core\event\course_updated $event

@@ -96,7 +96,7 @@ class admin_setting_sso_secret_test extends TestCase {
     }
 
     public function test_accepts_64_hex_char_organization_secret(): void {
-        // SKL-647: SkilLand hands out hex(HMAC-SHA256(master, 'skilland:moodle-sso:v1:' . orgId)).
+        // SKL-647: Skilland hands out hex(HMAC-SHA256(master, 'skilland:moodle-sso:v1:' . orgId)).
         // 64 hex chars are valid base64 and decode to 48 bytes, above the minimum.
         $secret = hash_hmac('sha256', 'skilland:moodle-sso:v1:' . 'org-fixture', str_repeat('m', 32));
         $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $secret);

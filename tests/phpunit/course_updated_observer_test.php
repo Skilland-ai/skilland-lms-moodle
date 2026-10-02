@@ -5,7 +5,7 @@ namespace mod_skilland\tests;
 use PHPUnit\Framework\TestCase;
 
 /**
- * SKL-664: after the course settings form saves, a SkilLand course created from it is offered
+ * SKL-664: after the course settings form saves, a Skilland course created from it is offered
  * through one info notification; the pending path is only consumed by sso_redirect.php.
  */
 class course_updated_observer_test extends TestCase {

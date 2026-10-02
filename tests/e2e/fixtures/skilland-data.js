@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * Default payloads for the SkilLand AJAX mock.
+ * Default payloads for the Skilland AJAX mock.
  *
  * Each builder returns a fresh object shaped exactly like the matching
  * `execute_returns()` definition in src/classes/external/<function>.php. When a return structure

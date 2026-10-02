@@ -25,7 +25,7 @@ use mod_skilland\logger;
  * Module instance settings form for mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mod_skilland_mod_form extends moodleform_mod {
@@ -122,7 +122,7 @@ class mod_skilland_mod_form extends moodleform_mod {
         );
         $mform->setType('skilland_topicid', PARAM_ALPHANUMEXT);
         // No client-side 'required' rule: the topic select is populated by AJAX and stays
-        // usable (loading, then a saved/stale option) while the SkilLand API is unreachable,
+        // usable (loading, then a saved/stale option) while the Skilland API is unreachable,
         // so an unrelated setting can still be saved. validation() below is the real guard.
         $mform->addHelpButton('skilland_topicid', 'topicid', 'mod_skilland');
 

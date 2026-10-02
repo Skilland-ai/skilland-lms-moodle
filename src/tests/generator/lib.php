@@ -20,20 +20,20 @@ use mod_skilland\local\testing\fixture_api_client;
 /**
  * Data generator for mod_skilland.
  *
- * skilland_add_instance() checks the topic against the SkilLand course mapped to the Moodle course
+ * skilland_add_instance() checks the topic against the Skilland course mapped to the Moodle course
  * over the API, so create_instance() maps the course to the fixture skill when it is unmapped and
  * installs {@see fixture_api_client} unless a fixture client (or a subclass) is already bound.
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mod_skilland_generator extends testing_module_generator {
-    /** @var string SkilLand course (skill) of the fixtures. */
+    /** @var string Skilland course (skill) of the fixtures. */
     public const FIXTURE_SKILL = 'skill-1';
 
-    /** @var string SkilLand topic of the fixtures. */
+    /** @var string Skilland topic of the fixtures. */
     public const FIXTURE_TOPIC = 'topic-1';
 
     /** @var int Number of lessons created by create_lesson(). */
@@ -48,7 +48,7 @@ class mod_skilland_generator extends testing_module_generator {
     }
 
     /**
-     * Create a SkilLand activity.
+     * Create a Skilland activity.
      *
      * Defaults: skilland_topicid topic-1, autoupdate 0, topic_orderindex 1, grade 0, and both fixture
      * lessons selected (pass selected_lessons => '' for none, or a JSON lesson map of your own).
@@ -143,10 +143,10 @@ class mod_skilland_generator extends testing_module_generator {
     }
 
     /**
-     * Map a Moodle course to a SkilLand course through the locked course custom field.
+     * Map a Moodle course to a Skilland course through the locked course custom field.
      *
      * @param int $courseid Moodle course id.
-     * @param string $skillid SkilLand course id.
+     * @param string $skillid Skilland course id.
      */
     public function create_course_mapping(int $courseid, string $skillid = self::FIXTURE_SKILL): void {
         global $CFG;

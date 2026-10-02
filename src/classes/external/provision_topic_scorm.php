@@ -29,7 +29,7 @@ require_once(__DIR__ . '/../../locallib.php');
  * Web service mod_skilland_provision_topic_scorm_ajax: provision a topic-level SCORM package containing all lessons as SCOs.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class provision_topic_scorm extends base {

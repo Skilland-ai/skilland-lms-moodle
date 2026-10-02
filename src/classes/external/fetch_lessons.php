@@ -30,7 +30,7 @@ require_once(__DIR__ . '/../../locallib.php');
  * Web service mod_skilland_fetch_lessons_ajax: list the lessons of a topic of the linked Skilland course.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class fetch_lessons extends base {

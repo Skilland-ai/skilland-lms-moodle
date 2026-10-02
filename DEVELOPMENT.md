@@ -4,13 +4,13 @@ This guide helps you set up the Skilland Moodle plugin for local development.
 
 ## Prerequisites
 
-1. **Docker & Docker Compose** - for running the SkilLand monorepo dev stack
+1. **Docker & Docker Compose** - for running the Skilland monorepo dev stack
 2. **Moodle** - local Moodle installation (4.2+)
 3. **SCORM module** - enabled in Moodle
 
 ## Quick Setup
 
-### 1. Start SkilLand
+### 1. Start Skilland
 
 From the monorepo root:
 
@@ -18,7 +18,7 @@ From the monorepo root:
 ./start.sh --plugin
 ```
 
-This starts the SkilLand web app (Next.js) on port 3100, which serves the REST API the plugin
+This starts the Skilland web app (Next.js) on port 3100, which serves the REST API the plugin
 calls (`/api/moodle/...`), the Studio and the SSO handoff (`/sso-login`), plus a Moodle
 container with this plugin.
 
@@ -32,9 +32,9 @@ container with this plugin.
    |---------|-------|-------------|
    | **API Key** | (from backend) | Your Skilland API key |
    | **Organization ID** | (from backend) | Your organization ID |
-   | **Skilland URL** | `http://host.docker.internal:3100` | Address of the SkilLand site; the REST API lives under `/api/moodle` (config key `graphql_endpoint`; a stored `/graphql` or `/api/moodle` suffix is ignored) |
-   | **Frontend URL** | (empty) | Optional override of the Skilland URL |
-   | **SSO Shared Secret** | (from SkilLand › Settings › Integrations › Moodle) | Your organization's SSO secret, which SkilLand derives from `MOODLE_SSO_SECRET` |
+   | **Skilland URL** | `http://host.docker.internal:3100` | Address of the Skilland site; the REST API lives under `/api/moodle` (config key `graphql_endpoint`; a stored `/graphql` or `/api/moodle` suffix is ignored) |
+   | **Frontend URL** | (empty, the default) | Empty uses the Skilland URL; set it only when Moodle must reach Skilland through a different address than browsers |
+   | **SSO Shared Secret** | (from Skilland › Settings › Integrations › Moodle) | Your organization's SSO secret, which Skilland derives from `MOODLE_SSO_SECRET` |
 
 3. Click **Save changes**
 
@@ -43,9 +43,9 @@ container with this plugin.
    `SKILLAND_URL` and `SKILLAND_FRONTEND_URL`; the old `SKILLAND_GRAPHQL_ENDPOINT` still works) from the monorepo `.env` and
    `00_development/config.php` forces them as plugin settings. The SSO secret is forced only
    when `SKILLAND_ORG_ID` is set: config.php then forces that Organization ID and the secret
-   SkilLand derives for it, `hex(HMAC-SHA256(MOODLE_SSO_SECRET, "skilland:moodle-sso:v1:" + orgId))`.
-   With `MOODLE_SSO_SECRET` alone, copy the secret from SkilLand › Settings › Integrations ›
-   Moodle; SkilLand rejects tokens signed with the master secret itself. `http://` URLs are
+   Skilland derives for it, `hex(HMAC-SHA256(MOODLE_SSO_SECRET, "skilland:moodle-sso:v1:" + orgId))`.
+   With `MOODLE_SSO_SECRET` alone, copy the secret from Skilland › Settings › Integrations ›
+   Moodle; Skilland rejects tokens signed with the master secret itself. `http://` URLs are
    accepted only there, because that config sets `$CFG->mod_skilland_allow_http = true`;
    everywhere else the Skilland URL and frontend URL must use `https://`.
 
@@ -112,7 +112,7 @@ whether it exists.
 1. Create a new course or use an existing one
 2. Go to **Course settings**
 3. Scroll to **Custom fields**
-4. Pick a SkilLand course in the dropdown, or click **Create in SkilLand** and confirm (the course is created and linked at once; the Studio link appears after the save). If the course list cannot load, the plain `skilland_course_id` text field comes back
+4. Pick a Skilland course in the dropdown, or click **Create in Skilland** and confirm (the course is created and linked at once; the Studio link appears after the save). If the course list cannot load, the plain `skilland_course_id` text field comes back
 5. Save
 
 ### 2. Create a Skilland Activity
@@ -121,7 +121,7 @@ whether it exists.
 2. Add an activity → **Skilland content**
 3. Select a topic from the dropdown
 4. Click **Edit Lessons in Skilland** button
-5. Moodle shows a short "Signing you in to SkilLand…" page that POSTs the token to http://localhost:3100/sso-login (it is never in the URL)
+5. Moodle shows a short "Signing you in to Skilland…" page that POSTs the token to http://localhost:3100/sso-login (it is never in the URL)
 6. The SSO should authenticate you and redirect to the native Studio path, `/skills/<skillId>?topic=<topicId>`
 
 ## Troubleshooting
@@ -146,31 +146,31 @@ If you see "Invalid API key or organization":
 
 If SSO login fails with "Invalid SSO token":
 
-1. Verify the plugin's SSO secret is the one SkilLand › Settings › Integrations › Moodle shows for
+1. Verify the plugin's SSO secret is the one Skilland › Settings › Integrations › Moodle shows for
    the organization in the plugin's Organization ID (or that `SKILLAND_ORG_ID` in the monorepo `.env`
    names that organization)
 2. A token signed with `MOODLE_SSO_SECRET` itself, or with another organization's secret, is rejected
 3. After changing `.env`, recreate the Moodle and web containers so both read the new value
 
 Guest, suspended, deleted, unconfirmed and `nologin` accounts never get a token: Moodle shows
-"This Moodle account cannot sign in to SkilLand" instead of posting to SkilLand.
+"This Moodle account cannot sign in to Skilland" instead of posting to Skilland.
 
 ## Environment Configuration
 
 ### SSO shared secret
 
-There is no default secret. SkilLand's master secret lives only in the monorepo `.env` as
-`MOODLE_SSO_SECRET`; SkilLand verifies each token with the organization's own secret derived from it,
+There is no default secret. Skilland's master secret lives only in the monorepo `.env` as
+`MOODLE_SSO_SECRET`; Skilland verifies each token with the organization's own secret derived from it,
 `hex(HMAC-SHA256(MOODLE_SSO_SECRET, "skilland:moodle-sso:v1:" + orgId))` (64 lower-case hex
 characters), and that derived value is what the plugin's SSO Shared Secret holds. `./start.sh --plugin`
 generates the master when it is missing. To have `config.php` force the organization and its secret:
 
 ```bash
 MOODLE_SSO_SECRET=<generate with openssl rand -base64 32>
-SKILLAND_ORG_ID=<your SkilLand organization id>
+SKILLAND_ORG_ID=<your Skilland organization id>
 ```
 
-Production sites paste their organization's secret from SkilLand › Settings › Integrations › Moodle
+Production sites paste their organization's secret from Skilland › Settings › Integrations › Moodle
 into the plugin settings; never reuse a development value.
 
 ### Moodle Plugin
@@ -191,7 +191,7 @@ Settings location: **Site administration → Plugins → Activity modules → Sk
 
 ### Coding conventions: escaping output
 
-Never pass SkilLand API data (course and topic names, descriptions, error messages) or language strings to `innerHTML`, and never build a JS string literal with `addslashes()`. In inline JS, set text with `textContent` and build markup with `document.createElement`; when a Moodle API only takes HTML (e.g. `notification.addNotification`), wrap the value in the form's `escapeHtml()` helper. From PHP, emit strings and URLs into JS as whole literals with `json_encode($value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)`. HTML that is meant to be rendered (topic descriptions) is purified server-side with `clean_text()` and declared as `PARAM_CLEANHTML` in the external function's return structure. `tests/phpunit/xss_sinks_test.php` guards these rules (SKL-674).
+Never pass Skilland API data (course and topic names, descriptions, error messages) or language strings to `innerHTML`, and never build a JS string literal with `addslashes()`. In inline JS, set text with `textContent` and build markup with `document.createElement`; when a Moodle API only takes HTML (e.g. `notification.addNotification`), wrap the value in the form's `escapeHtml()` helper. From PHP, emit strings and URLs into JS as whole literals with `json_encode($value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)`. HTML that is meant to be rendered (topic descriptions) is purified server-side with `clean_text()` and declared as `PARAM_CLEANHTML` in the external function's return structure. `tests/phpunit/xss_sinks_test.php` guards these rules (SKL-674).
 
 The activity form keeps the lesson selection per topic (`selectionsByTopic`), derives `selected_lessons` only from the ticked checkboxes of the rendered topic (`updateSelectedState()`), drops lesson responses for a superseded topic (`lessonsRequestSeq`), and `validation()` rejects lessons outside the submitted topic (`skilland_lessons_outside_topic()`); `tests/phpunit/form_lesson_selection_test.php` guards this (SKL-657).
 
@@ -199,13 +199,13 @@ Web services live in `src/classes/external/<function>.php` (one `mod_skilland\ex
 
 External functions return `self::client_error($e, '<function>')` in `error` from a last `catch (\Throwable $e)`, so a `TypeError` from a malformed API answer becomes the declared error payload (access checks stay outside the try; `tests/phpunit/external_throwable_test.php` guards this, SKL-659) (the raw message goes to the log only; `mod_skilland_client_error_message()` shows allowlisted codes and the generic `error_api_unavailable` otherwise, plus the raw message when devmode is on); inline and AMD JS logs only through a devmode-gated `log` helper; never log emails. `tests/phpunit/no_pii_logging_test.php` and `client_errors_test.php` guard this (SKL-670).
 
-Every call to SkilLand is a REST route under `{Skilland URL}/api/moodle` (`skilland_get_frontend_url()`: the `frontend_url` override, else the `graphql_endpoint` setting, both normalised by `mod_skilland\local\skilland_url::normalise()`, which drops a trailing `/`, `/graphql` or `/api/moodle`), authenticated with `Authorization: Bearer <apikey>`, redirects refused (SKL-963): `GET skills?status=all` (course list), `GET users/courses?email=` (lower-cased), `POST skills` (create, sending the SSO token's `sub`/`iss` as `moodleUserId`/`issuer`), `GET skills/{id}/topics`, `GET topics/{id}/contents` (lessons with a body only), `GET topics/{id}/scorm-hash` and `GET topics/{id}/scorm`. `mod_skilland_rest_get()` retries on transient failures (HTTP 429/500/502/503/504, curl connect/timeout errors); `mod_skilland_rest_post()` is sent exactly once, so every new write must be a POST. A failure throws `mod_skilland\rest_exception` carrying `httpcode` (0 for a transport failure) and `apierror`, the answer's `{error}` code; `tests/phpunit/locallib_rest_test.php` guards this. A 409 from the scorm route (topic without lessons) is `error_scorm_not_available`; there is no GraphQL fallback any more.
+Every call to Skilland is a REST route under `{Skilland URL}/api/moodle` (`skilland_get_frontend_url()`: the `frontend_url` override, else the `graphql_endpoint` setting, both normalised by `mod_skilland\local\skilland_url::normalise()`, which drops a trailing `/`, `/graphql` or `/api/moodle`), authenticated with `Authorization: Bearer <apikey>`, redirects refused (SKL-963): `GET skills?status=all` (course list), `GET users/courses?email=` (lower-cased), `POST skills` (create, sending the SSO token's `sub`/`iss` as `moodleUserId`/`issuer`), `GET skills/{id}/topics`, `GET topics/{id}/contents` (lessons with a body only), `GET topics/{id}/scorm-hash`, `GET topics/{id}/scorm` and `POST connection-check` (the admin **Test connection** page, `mod_skilland\local\connection_check`: body `{organizationId, ssoProof: {timestamp, nonce, signature} | null}`, the signature being `hex(HMAC-SHA256(sso_secret, "skilland:moodle-connection-check:v1\n" + lower(trim(orgid)) + "\n" + timestamp + "\n" + nonce))`; `tests/phpunit/connection_check_test.php` holds the shared test vector). `mod_skilland_rest_get()` retries on transient failures (HTTP 429/500/502/503/504, curl connect/timeout errors); `mod_skilland_rest_post()` is sent exactly once, so every new write must be a POST. A failure throws `mod_skilland\rest_exception` carrying `httpcode` (0 for a transport failure) and `apierror`, the answer's `{error}` code; `tests/phpunit/locallib_rest_test.php` guards this. A 409 from the scorm route (topic without lessons) is `error_scorm_not_available`; there is no GraphQL fallback any more.
 
 Studio links are native paths, checked by `mod_skilland_is_studio_path()` before one is stored for after the course form saves: `/skills`, `/skills/<id>`, `/skills/<id>?topic=<id>`, `/skills/new?draft=<id>`, nothing else.
 
 Every topic SCORM package is verified by `mod_skilland\local\package_signature` inside `skilland_download_topic_scorm_package()`, after the download and before `create_file_from_pathname()` or the SCORM parser: an Ed25519 signature (`keyId`, `signature`) over `skilland-scorm-package-v1`, the requested topic id (lower case), `contentHash`, the locally computed sha256 of the zip (which must equal `packageHash`) and `generatedAt`, joined by `\n`. Trusted keys are `package_signature::PINNED_KEYS` plus the `mod_skilland/signingkeys` setting (`keyid:base64publickey` lines). An unsigned answer is always refused. The `sync_content` task never imports: it stores the new content hash in `skilland.updateavailable`, notifies the teachers once per hash and leaves the import to **Update From Skilland** (`skilland_link_topic_scorm()` clears the field). In the Moodle suite, `fixture_api_client` signs its package with a test-only key derived from a fixed seed (`fixture_key_line()`), trusted by `skilland_testcase`, the generator and the Behat background; `sign_with()`, `tamper_download()` and `sign_scorm()` build the refusal cases (SKL-650).
 
-Any new field sent to SkilLand, or any new table with a `userid` field, must be declared in `src/classes/privacy/provider.php`; `tests/phpunit/privacy_provider_test.php` guards this (SKL-660).
+Any new field sent to Skilland, or any new table with a `userid` field, must be declared in `src/classes/privacy/provider.php`; `tests/phpunit/privacy_provider_test.php` guards this (SKL-660).
 
 ## Common Development Tasks
 
@@ -213,7 +213,7 @@ Any new field sent to SkilLand, or any new table with a `userid` field, must be 
 
 Enable debug mode in Moodle plugin settings and check:
 - the `[REST]` lines in the Moodle debug log (URLs without query strings, never the API key)
-- the SkilLand web app logs
+- the Skilland web app logs
 - Browser console for frontend errors
 
 ### Testing SCORM Provisioning
@@ -247,22 +247,22 @@ Changing a provisioned activity's topic rebuilds its SCORM on save (student prog
        │ REST /api/moodle
        ▼
 ┌─────────────┐      ┌─────────────┐
-│  SkilLand   │◄────►│ PostgreSQL  │
+│  Skilland   │◄────►│ PostgreSQL  │
 │  (Next.js)  │      │             │
 │ (Port 3100) │      └─────────────┘
 └─────────────┘
 
 SSO Flow:
 1. Moodle generates SSO token with the organization's SSO secret: sub = Moodle user id,
-   exp = iat + 60 s, aud = origin of frontend_url (SkilLand may override the expected value
+   exp = iat + 60 s, aud = origin of frontend_url (Skilland may override the expected value
    with MOODLE_SSO_AUDIENCE), iss = Moodle wwwroot. Guest, suspended, deleted, unconfirmed
    and nologin accounts are refused. sso_redirect.php requires `courseid` and
    `mod/skilland:accessstudio` in that course; role = Expert with `mod/skilland:addinstance`
    there, otherwise Learner
 2. sso_redirect.php answers with a self-submitting form that POSTs token and redirect to
-   SkilLand /sso-login (no query string; Cache-Control: no-store, Referrer-Policy: no-referrer)
-3. SkilLand verifies the token, binds the login to (organization, iss, sub) and creates a session
-4. SkilLand redirects to the native Studio path in `redirect` (/skills/<id>[?topic=<id>])
+   Skilland /sso-login (no query string; Cache-Control: no-store, Referrer-Policy: no-referrer)
+3. Skilland verifies the token, binds the login to (organization, iss, sub) and creates a session
+4. Skilland redirects to the native Studio path in `redirect` (/skills/<id>[?topic=<id>])
 ```
 
 ## Support
@@ -298,7 +298,7 @@ Production code never carries `$GLOBALS` test hooks. Everything a test needs to 
 
 | Seam | Default | Used by |
 |------|---------|---------|
-| `\mod_skilland\local\api_client` | `http_api_client`, bound in `mod_skilland\hooks::di_configuration()` (registered in `db/hooks.php`); on a Behat site `local\testing\fixture_api_client` | `mod_skilland_rest_get()`, `mod_skilland_rest_post()`, `mod_skilland_download_package()` - every call to SkilLand |
+| `\mod_skilland\local\api_client` | `http_api_client`, bound in `mod_skilland\hooks::di_configuration()` (registered in `db/hooks.php`); on a Behat site `local\testing\fixture_api_client` | `mod_skilland_rest_get()`, `mod_skilland_rest_post()`, `mod_skilland_download_package()` - every call to Skilland |
 | `\mod_skilland\local\topic_scorm_updater` | itself (wraps `skilland_update_topic_scorm()`) | `skilland_update_instance()`, the `update_topic_scorm` web service |
 | `\mod_skilland\local\update_notifier` | itself (sends the `contentupdate` message to users with `mod/skilland:provision`) | the `sync_content` task |
 | `\mod_skilland\local\retry_sleeper` | itself (`usleep`) | `mod_skilland_retry_sleep()` between REST GET retries |
@@ -307,7 +307,7 @@ A test replaces one with `\core\di::set(api_client::class, $fake)`; Moodle's `ad
 
 ## E2E tests
 
-The Playwright suite in `tests/e2e` needs **only a running Moodle** with the plugin installed: no SkilLand backend, frontend or database. It is local only (no CI job).
+The Playwright suite in `tests/e2e` needs **only a running Moodle** with the plugin installed: no Skilland backend, frontend or database. It is local only (no CI job).
 
 ```bash
 npx grunt build                                      # dist/, mounted into the Moodle container
@@ -318,7 +318,7 @@ node --test tests/e2e/unit/*.test.js                 # unit tests of the mock it
 
 `setup/global-setup.js` fails the run when Moodle is not reachable, and `loginToMoodle` throws `Moodle login failed for <user>` instead of carrying on logged out. The suite expects the `admin`, `teacher1` and `student1` accounts from `00_development/create_test_users.php`. The SSO specs set an organization id on the plugin settings page when it is empty and sign tokens with the configured (or `config.php`-forced) SSO secret.
 
-**SkilLand is always mocked.** The `skillandMock` fixture (`fixtures/skilland-mock.js`, auto-used through `fixtures/auth.js`) intercepts Moodle's AJAX endpoint (`/lib/ajax/service.php`) and answers every `mod_skilland_*` call in the batch from per-test handlers; core Moodle calls in the same batch still reach Moodle. Browser navigations to a SkilLand origin (`SKILLAND_URL`, default `http://localhost:3000`, plus `https://app.skilland.ai`) land on a stub page; the SSO form POST to `/sso-login` is recorded with its method, URL and form fields:
+**Skilland is always mocked.** The `skillandMock` fixture (`fixtures/skilland-mock.js`, auto-used through `fixtures/auth.js`) intercepts Moodle's AJAX endpoint (`/lib/ajax/service.php`) and answers every `mod_skilland_*` call in the batch from per-test handlers; core Moodle calls in the same batch still reach Moodle. Browser navigations to a Skilland origin (`SKILLAND_URL`, default `http://localhost:3000`, plus `https://app.skilland.ai`) land on a stub page; the SSO form POST to `/sso-login` is recorded with its method, URL and form fields:
 
 ```js
 test('lists topics', async ({ authenticatedPage, skillandMock, moodleCourse }) => {
@@ -326,7 +326,7 @@ test('lists topics', async ({ authenticatedPage, skillandMock, moodleCourse }) =
   skillandMock.on('mod_skilland_fetch_topics_ajax', skillandData.topics())
   skillandMock.fail('mod_skilland_fetch_lessons_ajax', 'boom')        // Moodle web service exception
   // skillandMock.abort(method): network failure; skillandMock.on(method, args => data) for dynamic answers
-  // skillandMock.calls(method): args the page sent; skillandMock.navigations(): SkilLand URLs opened
+  // skillandMock.calls(method): args the page sent; skillandMock.navigations(): Skilland URLs opened
   // skillandMock.ssoRequests(): [{ method, url, form: { token, redirect } }] posted to /sso-login
 })
 ```
@@ -335,7 +335,7 @@ Only `mod_skilland_fetch_courses_ajax` has a default answer, because every cours
 
 **Tests fail loudly.** A test fails when the page calls a `mod_skilland_*` method it did not mock, logs a `console.error`, or throws an uncaught error. Allow an expected one with `expectConsoleError(/pattern/)` (or `skillandMock.expectConsoleError`); `skillandMock.abort()` allows the `net::ERR_FAILED` it causes. Use `test.skip` only for a real environment toggle, never to hide a missing precondition, and wait on `expect(...)`, `waitForURL` or `expect.poll` rather than `waitForTimeout`.
 
-Behaviour that runs server-side against SkilLand's REST API (saving an activity, SCORM provisioning and updates, the `sync_content` task) cannot be reached from the browser mock and is covered by PHPUnit (see [Tests](#tests)).
+Behaviour that runs server-side against Skilland's REST API (saving an activity, SCORM provisioning and updates, the `sync_content` task) cannot be reached from the browser mock and is covered by PHPUnit (see [Tests](#tests)).
 
 Every spec creates its own Moodle course through the `moodleCourse` fixture, so a spec passes alone (`npx playwright test --config=tests/e2e/playwright.config.js --grep "<title>"`) and in parallel (`--workers=4`); the default stays `workers: 1`.
 

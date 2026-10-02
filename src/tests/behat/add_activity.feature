@@ -1,6 +1,6 @@
 @mod @mod_skilland @javascript
-Feature: Teachers add a SkilLand activity to a course
-  In order to deliver a SkilLand topic in my course
+Feature: Teachers add a Skilland activity to a course
+  In order to deliver a Skilland topic in my course
   As a teacher
   I need to pick a topic and its lessons in the activity form
 
@@ -39,7 +39,7 @@ Feature: Teachers add a SkilLand activity to a course
     And I am on "Course 1" course homepage
     And I should see "T1 - Fixture topic one"
 
-  Scenario: A course without a SkilLand course asks the teacher to set one first
+  Scenario: A course without a Skilland course asks the teacher to set one first
     Given the following "courses" exist:
       | fullname | shortname |
       | Course 2 | C2        |

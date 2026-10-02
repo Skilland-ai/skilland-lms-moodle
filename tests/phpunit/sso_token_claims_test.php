@@ -7,7 +7,7 @@ use Firebase\JWT\Key;
 use PHPUnit\Framework\TestCase;
 
 /**
- * SKL-687: the SSO token is short-lived, bound to the SkilLand origin and to this Moodle, and only
+ * SKL-687: the SSO token is short-lived, bound to the Skilland origin and to this Moodle, and only
  * ever leaves Moodle in the body of a POST.
  */
 class sso_token_claims_test extends TestCase {

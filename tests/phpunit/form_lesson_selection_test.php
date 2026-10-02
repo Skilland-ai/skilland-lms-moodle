@@ -367,7 +367,7 @@ class form_lesson_selection_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // SKL-688: the activity form stays usable when the SkilLand API fails
+    // SKL-688: the activity form stays usable when the Skilland API fails
     // or the saved topic/lessons vanish upstream.
     // ---------------------------------------------------------------
 

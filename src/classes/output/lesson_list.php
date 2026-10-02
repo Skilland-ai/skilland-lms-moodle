@@ -23,12 +23,12 @@ use stdClass;
 use templatable;
 
 /**
- * The lesson list of a SkilLand activity, each lesson with the viewer's progress.
+ * The lesson list of a Skilland activity, each lesson with the viewer's progress.
  *
  * Rendered by mod_skilland/lesson_list.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class lesson_list implements renderable, templatable {

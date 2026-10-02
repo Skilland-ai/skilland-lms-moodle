@@ -31,7 +31,7 @@ require_once(__DIR__ . '/../../locallib.php');
  * self::validate_context() before require_capability().
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 abstract class base extends external_api {

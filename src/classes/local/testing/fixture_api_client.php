@@ -19,15 +19,15 @@ namespace mod_skilland\local\testing;
 use mod_skilland\local\api_client;
 
 /**
- * SkilLand API client answering from canned fixtures, for PHPUnit and Behat.
+ * Skilland API client answering from canned fixtures, for PHPUnit and Behat.
  *
  * REST answers are keyed by route (see REST_ROUTES, e.g. "GET topics/{id}/scorm") and read from
- * tests/fixtures/api_responses.json, each the JSON body SkilLand returns. download_package()
+ * tests/fixtures/api_responses.json, each the JSON body Skilland returns. download_package()
  * returns a fresh copy of the SCORM 1.2 package zipped from tests/fixtures/scorm/. Every call is
  * recorded, and a test can replace any answer, make a route or the download throw, or build the
  * package from another directory.
  *
- * The scorm route answers like SkilLand does since SKL-650: packageHash, contentHash, keyId and an
+ * The scorm route answers like Skilland does since SKL-650: packageHash, contentHash, keyId and an
  * Ed25519 signature over the package it serves, made with a test-only key derived from a fixed
  * seed (FIXTURE_KEY_ID). The plugin trusts that key only once trust_fixture_key() lists it in
  * mod_skilland/signingkeys; a test can sign with another key, serve unsigned answers or tamper
@@ -37,7 +37,7 @@ use mod_skilland\local\api_client;
  * only picks it while BEHAT_SITE_RUNNING, and PHPUnit tests install it with \core\di::set().
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class fixture_api_client implements api_client {
@@ -135,7 +135,7 @@ class fixture_api_client implements api_client {
     }
 
     /**
-     * Add SkilLand's signature fields to a topic SCORM answer, as the backend does.
+     * Add Skilland's signature fields to a topic SCORM answer, as the backend does.
      *
      * The signature covers the package bytes' real sha256, whatever packageHash the answer
      * announces; an answer without packageHash or contentHash gets the real hash and $contenthash.
@@ -287,6 +287,7 @@ class fixture_api_client implements api_client {
     public const REST_ROUTES = [
         '#^GET /api/moodle/skills$#' => ['GET skills', null],
         '#^POST /api/moodle/skills$#' => ['POST skills', null],
+        '#^POST /api/moodle/connection-check$#' => ['POST connection-check', null],
         '#^GET /api/moodle/users/courses$#' => ['GET users/courses', null],
         '#^GET /api/moodle/skills/([^/]+)/topics$#' => ['GET skills/{id}/topics', 'skillId'],
         '#^GET /api/moodle/topics/([^/]+)/contents$#' => ['GET topics/{id}/contents', 'topicId'],

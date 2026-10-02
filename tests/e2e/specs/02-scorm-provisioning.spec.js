@@ -13,16 +13,16 @@ const skillandData = require('../fixtures/skilland-data')
  *
  * Adding a Skilland activity starts in the activity form: the topic dropdown is fed
  * by mod_skilland_fetch_topics_ajax and the lesson picker by
- * mod_skilland_fetch_lessons_ajax, both answered by the SkilLand mock.
+ * mod_skilland_fetch_lessons_ajax, both answered by the Skilland mock.
  *
  * Saving the form and provisioning the SCORM package validate the topic against
- * SkilLand's REST API from PHP, which the browser mock cannot answer; that part
+ * Skilland's REST API from PHP, which the browser mock cannot answer; that part
  * is covered by PHPUnit (tests/phpunit).
  */
 test.describe('SCORM provisioning setup', () => {
   test.describe.configure({ mode: 'parallel' })
 
-  test('Activity form asks to link the course to SkilLand first', async ({
+  test('Activity form asks to link the course to Skilland first', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -38,7 +38,7 @@ test.describe('SCORM provisioning setup', () => {
     expect(skillandMock.calls('mod_skilland_fetch_topics_ajax')).toEqual([])
   })
 
-  test('Activity form lists the SkilLand topics of the linked course', async ({
+  test('Activity form lists the Skilland topics of the linked course', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -125,7 +125,7 @@ test.describe('SCORM provisioning setup', () => {
     expect(href.searchParams.get('sesskey')).toBeTruthy()
   })
 
-  test('A lessons error from SkilLand is shown in the lesson picker', async ({
+  test('A lessons error from Skilland is shown in the lesson picker', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse

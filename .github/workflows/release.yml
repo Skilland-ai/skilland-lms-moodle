@@ -229,7 +229,7 @@ jobs:
             echo "Found CHANGELOG.md section for $RELEASE"
           else
             echo "No CHANGELOG.md section for $RELEASE, falling back to the default template"
-            NOTES=$'### Requirements\n- Moodle 4.2 or later'
+            NOTES=$'### Requirements\n- Moodle 4.5 or later'
           fi
 
           {
@@ -242,8 +242,8 @@ jobs:
             echo
             echo "### Installation"
             echo "1. Download \`mod_skilland-$MOODLEVERSION.zip\`"
-            echo "2. Extract to your Moodle's \`mod/\` directory"
-            echo "3. Visit Site Administration > Notifications to complete installation"
+            echo "2. Install it in Moodle under Site administration › Plugins › Install plugins (or unzip it so its files sit in \`mod/skilland\`)"
+            echo "3. Visit Site administration › Notifications to complete the installation"
             echo "RELEASE_BODY_EOF"
           } >> "$GITHUB_OUTPUT"
 

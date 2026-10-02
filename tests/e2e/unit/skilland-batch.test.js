@@ -11,7 +11,7 @@ const {
 } = require('../fixtures/skilland-batch')
 
 /**
- * Unit tests for the pure part of the SkilLand AJAX mock.
+ * Unit tests for the pure part of the Skilland AJAX mock.
  * Run with: node --test tests/e2e/unit/*.test.js
  */
 
@@ -41,7 +41,7 @@ test('a core-only batch passes through', async () => {
   assert.deepEqual(await resolveBatch(entries, new Map(), () => {}), { kind: 'passthrough' })
 })
 
-test('SkilLand entries are answered and core entries are forwarded re-indexed', async () => {
+test('Skilland entries are answered and core entries are forwarded re-indexed', async () => {
   const entries = parseBatch(body)
   const handlers = new Map([['mod_skilland_fetch_courses_ajax', {
     type: /** @type {const} */ ('data'),
@@ -61,7 +61,7 @@ test('SkilLand entries are answered and core entries are forwarded re-indexed', 
   assert.deepEqual(merged, [success('n'), success({ courses: [], for: 7 }), success('Yes')])
 })
 
-test('an unhandled SkilLand call is reported and answered with an error', async () => {
+test('an unhandled Skilland call is reported and answered with an error', async () => {
   const entries = parseBatch(body)
   /** @type {string[]} */
   const unhandled = []
@@ -69,7 +69,7 @@ test('an unhandled SkilLand call is reported and answered with an error', async 
   assert.deepEqual(unhandled, ['mod_skilland_fetch_courses_ajax'])
   assert.equal(plan.kind, 'answer')
   if (plan.kind !== 'answer') return
-  assert.deepEqual(plan.answers.get(1), failure('Unmocked SkilLand AJAX call: mod_skilland_fetch_courses_ajax'))
+  assert.deepEqual(plan.answers.get(1), failure('Unmocked Skilland AJAX call: mod_skilland_fetch_courses_ajax'))
 })
 
 test('fail() answers with a Moodle exception and nothing after it is returned', async () => {

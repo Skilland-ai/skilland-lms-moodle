@@ -2,8 +2,8 @@
 const { SKILLAND_URL } = require('../fixtures/skilland-data')
 
 /**
- * SkilLand-side helpers. The suite never reaches a SkilLand backend: navigations to a
- * SkilLand origin land on the stub page served by fixtures/skilland-mock.js.
+ * Skilland-side helpers. The suite never reaches a Skilland backend: navigations to a
+ * Skilland origin land on the stub page served by fixtures/skilland-mock.js.
  */
 
 const SKILLAND_BASE_URL = SKILLAND_URL

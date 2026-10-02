@@ -18,7 +18,7 @@
  * Version details for mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100202;   // YYYYMMDDHH - activity name kept on edit, score and status display (SKL-989).
+$plugin->version   = 2026100203;   // YYYYMMDDHH - Frontend URL default, Test connection, spelling (SKL-991/992/990).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.44-beta';
+$plugin->release   = '0.9.45-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

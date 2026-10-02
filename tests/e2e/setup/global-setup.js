@@ -3,9 +3,9 @@
 /**
  * Global setup for Playwright tests.
  *
- * The suite only needs a running Moodle with the plugin installed: SkilLand is
+ * The suite only needs a running Moodle with the plugin installed: Skilland is
  * always mocked in the browser (see fixtures/skilland-mock.js), so nothing here
- * probes a SkilLand backend.
+ * probes a Skilland backend.
  */
 async function globalSetup() {
   const moodleUrl = process.env.MOODLE_URL || 'http://localhost:8081'

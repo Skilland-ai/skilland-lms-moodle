@@ -5,6 +5,11 @@
             {"id": "skill-2", "name": "Other fixture skill", "description": "Second fixture skill", "status": "Draft", "language": "en", "category": "General"}
         ]
     },
+    "POST connection-check": {
+        "ok": true,
+        "organization": {"id": "fixture-org", "name": "Fixture organization"},
+        "checks": {"organizationId": "ok", "ssoSecret": "ok"}
+    },
     "GET users/courses": {
         "skills": [
             {"id": "skill-1", "name": "Fixture skill", "description": "First fixture skill", "status": "Published", "language": "en", "category": null}

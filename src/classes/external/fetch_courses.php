@@ -30,7 +30,7 @@ require_once(__DIR__ . '/../../locallib.php');
  * Web service mod_skilland_fetch_courses_ajax: list the Skilland courses the caller may link.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class fetch_courses extends base {
@@ -139,7 +139,7 @@ class fetch_courses extends base {
         $enrolledcourses = enrol_get_users_courses($userid, true);
 
         foreach ($enrolledcourses as $course) {
-            // Check if user may use SkilLand Studio in this course.
+            // Check if user may use Skilland Studio in this course.
             $ctx = \context_course::instance($course->id);
             if (has_capability('mod/skilland:accessstudio', $ctx, $userid)) {
                 // Get the Skilland course ID from the custom field.

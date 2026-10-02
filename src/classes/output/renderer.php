@@ -22,7 +22,7 @@ use plugin_renderer_base;
  * The mod_skilland renderer: every view.php widget goes through its Mustache template here.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class renderer extends plugin_renderer_base {

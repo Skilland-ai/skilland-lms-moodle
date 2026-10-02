@@ -12,8 +12,8 @@ const skillandData = require('../fixtures/skilland-data')
  * Test suite: Auto-update content
  *
  * The "Auto-update content" setting of a Skilland activity and the scheduled task
- * that acts on it. Detecting a changed SkilLand snapshot and re-provisioning the
- * SCORM package run server-side against SkilLand's REST API, so they are
+ * that acts on it. Detecting a changed Skilland snapshot and re-provisioning the
+ * SCORM package run server-side against Skilland's REST API, so they are
  * covered by PHPUnit (tests/phpunit/task_sync_content_test.php and
  * tests/phpunit/locallib_provision_scorm_test.php), not here.
  */
@@ -21,7 +21,7 @@ test.describe('Auto-update content', () => {
   test.describe.configure({ mode: 'parallel' })
 
   /**
-   * Open the add-activity form of a SkilLand-linked course with its Behaviour section expanded.
+   * Open the add-activity form of a Skilland-linked course with its Behaviour section expanded.
    * @param {import('@playwright/test').Page} page
    * @param {any} skillandMock
    * @param {{ create: (options?: object) => Promise<string> }} moodleCourse

@@ -16,15 +16,15 @@ const skillandData = require('../fixtures/skilland-data')
 /**
  * Test suite: Course Linking
  *
- * The course settings form replaces the SkilLand course ID custom field with a
- * dropdown fed by mod_skilland_fetch_courses_ajax, plus a "Create in SkilLand"
+ * The course settings form replaces the Skilland course ID custom field with a
+ * dropdown fed by mod_skilland_fetch_courses_ajax, plus a "Create in Skilland"
  * button that calls mod_skilland_create_course_ajax once its confirmation dialog is
  * accepted. Every test creates its own Moodle course, so each one runs alone and in parallel.
  */
 test.describe('Course Linking', () => {
   test.describe.configure({ mode: 'parallel' })
 
-  test('Course edit page lists SkilLand courses in the dropdown', async ({
+  test('Course edit page lists Skilland courses in the dropdown', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -40,12 +40,12 @@ test.describe('Course Linking', () => {
       'E2E Skill One (skl-e2e-skill-1) [Published]',
       'E2E Skill Two (skl-e2e-skill-2) [Draft]'
     ])
-    await expect(getCreateCourseButton(authenticatedPage)).toHaveText('Create in SkilLand')
+    await expect(getCreateCourseButton(authenticatedPage)).toHaveText('Create in Skilland')
     await expect(getCreateCourseButton(authenticatedPage)).toBeEnabled()
     expect(skillandMock.calls('mod_skilland_fetch_courses_ajax')).toEqual([{ moodlecourseid: Number(courseId) }])
   })
 
-  test('The form submits exactly one SkilLand course value and has no duplicate ids', async ({
+  test('The form submits exactly one Skilland course value and has no duplicate ids', async ({
     authenticatedPage,
     moodleCourse
   }) => {
@@ -86,7 +86,7 @@ test.describe('Course Linking', () => {
     expect(skillandMock.calls('mod_skilland_create_course_ajax')).toEqual([])
   })
 
-  test('"Create in SkilLand" asks first, then creates the SkilLand course and selects it', async ({
+  test('"Create in Skilland" asks first, then creates the Skilland course and selects it', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -100,7 +100,7 @@ test.describe('Course Linking', () => {
     await waitForSkillandDropdownLoaded(page)
     await getCreateCourseButton(page).click()
     const dialog = page.locator('.modal.show .modal-dialog')
-    await expect(dialog).toContainText(`Create “${fullname}” in SkilLand?`)
+    await expect(dialog).toContainText(`Create “${fullname}” in Skilland?`)
     expect(skillandMock.calls('mod_skilland_create_course_ajax')).toEqual([])
     await dialog.locator('[data-action="save"]').click()
 
@@ -108,11 +108,11 @@ test.describe('Course Linking', () => {
     await expect(dropdown).toHaveValue(skillandData.CREATED_SKILL_ID)
     await expect(dropdown.locator(`option[value="${skillandData.CREATED_SKILL_ID}"]`)).toHaveText('E2E Created Skill')
     await expect(getCreateCourseButton(page)).toBeEnabled()
-    await expect(getCreateCourseButton(page)).toHaveText('Create in SkilLand')
+    await expect(getCreateCourseButton(page)).toHaveText('Create in Skilland')
     expect(skillandMock.calls('mod_skilland_create_course_ajax')).toEqual([{ moodlecourseid: Number(courseId) }])
   })
 
-  test('Saving after "Create in SkilLand" keeps the mapping and opens no tab', async ({
+  test('Saving after "Create in Skilland" keeps the mapping and opens no tab', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -129,7 +129,7 @@ test.describe('Course Linking', () => {
 
     // The Studio link is offered only by the notification queued after a successful save
     // (observer::course_updated, from the pending path create_course stores server-side);
-    // the form itself never opens SkilLand.
+    // the form itself never opens Skilland.
     /** @type {import('@playwright/test').Page[]} */
     const popups = []
     page.context().on('page', popup => popups.push(popup))
@@ -139,7 +139,7 @@ test.describe('Course Linking', () => {
     // The mocked create never reached the server, so nothing is pending for this course.
     await expect(page.locator('a[href*="/mod/skilland/sso_redirect.php"][href*="pending=1"]')).toHaveCount(0)
 
-    // SkilLand now lists the new course, and Moodle has stored it on the course.
+    // Skilland now lists the new course, and Moodle has stored it on the course.
     skillandMock.on('mod_skilland_fetch_courses_ajax', skillandData.courses([
       { id: created.skillid, name: created.name, status: 'CREATING' }
     ]))
@@ -148,7 +148,7 @@ test.describe('Course Linking', () => {
     expect(await getSelectedSkillandCourse(page)).toBe(created.skillid)
   })
 
-  test('A failed "Create in SkilLand" reports the error and leaves the dropdown alone', async ({
+  test('A failed "Create in Skilland" reports the error and leaves the dropdown alone', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -171,7 +171,7 @@ test.describe('Course Linking', () => {
     await expect(getCreateCourseButton(authenticatedPage)).toBeEnabled()
   })
 
-  test('A linked course SkilLand no longer lists shows as unknown, with a warning', async ({
+  test('A linked course Skilland no longer lists shows as unknown, with a warning', async ({
     authenticatedPage,
     skillandMock,
     moodleCourse
@@ -190,10 +190,10 @@ test.describe('Course Linking', () => {
     await expect(dropdown.locator(`option[value="${skillandData.SECOND_SKILL_ID}"]`))
       .toHaveText(`Unknown course (ID ${skillandData.SECOND_SKILL_ID})`)
     await expect(page.locator('.skilland-course-mapping-field .alert-warning[role="status"]'))
-      .toHaveText('The linked SkilLand course is no longer available to this site. Choose another course or clear the selection.')
+      .toHaveText('The linked Skilland course is no longer available to this site. Choose another course or clear the selection.')
   })
 
-  test('Selecting an existing SkilLand course persists after save', async ({
+  test('Selecting an existing Skilland course persists after save', async ({
     authenticatedPage,
     moodleCourse
   }) => {
@@ -218,7 +218,7 @@ test.describe('Course Linking', () => {
  * moodle/course:changelockedcustomfields (managers, admins) can remap a course.
  */
 test.describe('Teacher Course Linking', () => {
-  test('Teacher can edit the course but cannot remap its SkilLand course', async ({
+  test('Teacher can edit the course but cannot remap its Skilland course', async ({
     teacherPage,
     skillandMock,
     moodleCourse

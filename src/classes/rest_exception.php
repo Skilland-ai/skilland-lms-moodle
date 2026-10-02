@@ -15,10 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Exception raised when a SkilLand REST route fails.
+ * Exception raised when a Skilland REST route fails.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

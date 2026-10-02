@@ -27,7 +27,7 @@ require_once(__DIR__ . '/skilland_testcase.php');
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers ::skilland_provision_topic_scorm
  * @covers ::skilland_update_topic_scorm
@@ -314,7 +314,7 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
     public function test_a_missing_scorm_route_fails_without_any_second_lookup(): void {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
-        // A SkilLand server without the topic scorm route answers 404: nothing else is asked.
+        // A Skilland server without the topic scorm route answers 404: nothing else is asked.
         $this->client->set_response('GET topics/{id}/scorm', new rest_exception('error_graphql_http', 404));
 
         $this->assert_provision_refused($skilland, 'error_config_missing_topicid');

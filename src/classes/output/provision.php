@@ -27,7 +27,7 @@ use templatable;
  * Rendered by mod_skilland/provision; mod_skilland/provision_scorm drives it.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class provision implements renderable, templatable {

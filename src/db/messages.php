@@ -18,14 +18,14 @@
  * Message providers of mod_skilland.
  *
  * @package    mod_skilland
- * @copyright  2026 SkilLand <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
 $messageproviders = [
-    // The sync task found new SkilLand content for an activity; a teacher applies it by hand (SKL-650).
+    // The sync task found new Skilland content for an activity; a teacher applies it by hand (SKL-650).
     'contentupdate' => [
         'capability' => 'mod/skilland:provision',
         'defaults' => [

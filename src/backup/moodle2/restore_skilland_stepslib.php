@@ -18,7 +18,7 @@
  * Structure step to restore one skilland activity
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_skilland_activity_structure_step extends restore_activity_structure_step {

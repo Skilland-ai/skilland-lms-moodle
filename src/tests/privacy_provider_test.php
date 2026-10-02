@@ -30,7 +30,7 @@ use mod_skilland\privacy\provider;
  *
  * @package    mod_skilland
  * @category   test
- * @copyright  2026 SkilLand
+ * @copyright  2026 Skilland
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \mod_skilland\privacy\provider
  */
@@ -38,7 +38,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
     /** @var \stdClass Course. */
     private \stdClass $course;
 
-    /** @var \stdClass[] Two activities, each with ->cmid and ->lessons (rows by SkilLand id). */
+    /** @var \stdClass[] Two activities, each with ->cmid and ->lessons (rows by Skilland id). */
     private array $activities = [];
 
     /** @var \stdClass First learner, with progress in both activities. */

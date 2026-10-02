@@ -29,7 +29,7 @@ require_once(__DIR__ . '/../../locallib.php');
  * Web service mod_skilland_check_topic_snapshot: tell whether a topic's content changed in Skilland since the last sync.
  *
  * @package    mod_skilland
- * @copyright  2024 SkilLand <https://skilland.ai>
+ * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class check_topic_snapshot extends base {

@@ -9,8 +9,8 @@ const MOODLE_URL = process.env.MOODLE_URL || testData.moodle.baseUrl
 /**
  * Test fixtures for the Moodle side of the suite.
  *
- * `skillandMock` is set up for every test (auto fixture): SkilLand is always mocked
- * at the Moodle AJAX boundary, and the test fails on unmocked SkilLand calls,
+ * `skillandMock` is set up for every test (auto fixture): Skilland is always mocked
+ * at the Moodle AJAX boundary, and the test fails on unmocked Skilland calls,
  * console errors or uncaught page errors (see fixtures/skilland-mock.js).
  */
 const test = base.extend({
@@ -54,8 +54,8 @@ const test = base.extend({
 
   /**
    * Creates Moodle courses for the current test from a separate admin session and
-   * deletes them when the test ends. That session has its own SkilLand mock, so
-   * creating a course never reaches a SkilLand backend either.
+   * deletes them when the test ends. That session has its own Skilland mock, so
+   * creating a course never reaches a Skilland backend either.
    */
   moodleCourse: async ({ browser }, use) => {
     const context = await browser.newContext()
@@ -68,7 +68,7 @@ const test = base.extend({
     await use({
       /**
        * @param {{ fullname?: string, shortname?: string, skillId?: string, enrolTeacher?: boolean }} [options]
-       *   `skillId` links the course to that SkilLand skill (it must be in the
+       *   `skillId` links the course to that Skilland skill (it must be in the
        *   default mod_skilland_fetch_courses_ajax answer); `enrolTeacher` enrols
        *   the test teacher as an editing teacher.
        * @returns {Promise<string>} The Moodle course id

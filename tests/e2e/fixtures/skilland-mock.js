@@ -9,11 +9,11 @@ const {
 const skillandData = require('./skilland-data')
 
 /**
- * SkilLand mock for the E2E suite.
+ * Skilland mock for the E2E suite.
  *
- * The suite never talks to a SkilLand backend. Every mod_skilland_* call that the
+ * The suite never talks to a Skilland backend. Every mod_skilland_* call that the
  * browser sends through Moodle's AJAX endpoint is answered here from a per-test
- * handler map, and every browser navigation to a SkilLand origin (the SSO form POST,
+ * handler map, and every browser navigation to a Skilland origin (the SSO form POST,
  * "Edit in Skilland" tabs) lands on a stub page.
  *
  * Fail-loud guards, checked when the test ends:
@@ -27,8 +27,8 @@ const skillandData = require('./skilland-data')
  * test can never reach the real app by accident. */
 const DEFAULT_STUB_ORIGINS = [skillandData.SKILLAND_URL, 'https://app.skilland.ai']
 
-const STUB_HTML = '<!doctype html><html><head><meta charset="utf-8"><title>SkilLand stub</title></head>' +
-  '<body><main id="skilland-stub">SkilLand stub page</main></body></html>'
+const STUB_HTML = '<!doctype html><html><head><meta charset="utf-8"><title>Skilland stub</title></head>' +
+  '<body><main id="skilland-stub">Skilland stub page</main></body></html>'
 
 /**
  * mod_skilland_fetch_courses_ajax runs on every course form (including "Add a new
@@ -129,7 +129,7 @@ async function installSkillandMock(context) {
   })
 
   // sso_redirect.php answers with a self-submitting form that POSTs the token to
-  // SkilLand's /sso-login (SKL-687), so that navigation reaches the stub route below.
+  // Skilland's /sso-login (SKL-687), so that navigation reaches the stub route below.
   await context.route(url => stubOrigins.has(url.origin), async route => {
     const request = route.request()
     if (request.isNavigationRequest()) {
@@ -178,7 +178,7 @@ async function installSkillandMock(context) {
     },
 
     /**
-     * Args of every call sent for `method` so far (all SkilLand calls when omitted).
+     * Args of every call sent for `method` so far (all Skilland calls when omitted).
      * @param {string} [method]
      * @returns {Array<Record<string, any>>}
      */
@@ -189,7 +189,7 @@ async function installSkillandMock(context) {
     },
 
     /**
-     * URLs of every navigation that landed on the SkilLand stub page.
+     * URLs of every navigation that landed on the Skilland stub page.
      * @returns {string[]}
      */
     navigations() {
@@ -197,7 +197,7 @@ async function installSkillandMock(context) {
     },
 
     /**
-     * Every navigation to SkilLand's /sso-login: method, URL and the form fields it posted.
+     * Every navigation to Skilland's /sso-login: method, URL and the form fields it posted.
      * @returns {SsoRequest[]}
      */
     ssoRequests() {
@@ -223,12 +223,12 @@ async function installSkillandMock(context) {
     },
 
     /**
-     * Throw when an unmocked SkilLand call or an unexpected page error happened.
+     * Throw when an unmocked Skilland call or an unexpected page error happened.
      */
     assertClean() {
       const problems = []
       if (unmocked.length > 0) {
-        problems.push(`Unmocked SkilLand AJAX calls: ${[...new Set(unmocked)].join(', ')}. ` +
+        problems.push(`Unmocked Skilland AJAX calls: ${[...new Set(unmocked)].join(', ')}. ` +
           'Register them with skillandMock.on(method, data).')
       }
       const unexpected = pageErrors.filter(text => !expectedErrors.some(pattern => pattern.test(text)))

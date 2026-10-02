@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * SKL-665: every web service result must pass core's external_api::clean_returnvalue() against its
  * execute_returns(), including the error payloads. A null for a single structure is rejected by core
- * ("Invalid response value detected"), which hid the SkilLand error from the teacher.
+ * ("Invalid response value detected"), which hid the Skilland error from the teacher.
  */
 class external_returnvalue_test extends TestCase {
 
