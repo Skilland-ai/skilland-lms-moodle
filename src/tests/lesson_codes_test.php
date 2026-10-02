@@ -177,15 +177,19 @@ final class lesson_codes_test extends skilland_testcase {
         $course = $this->getDataGenerator()->create_course();
         $skilland = $this->create_activity($course);
         $this->provision($skilland);
-        $this->assertSame(['lesson-1' => 1, 'lesson-2' => 2],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id)));
+        $this->assertSame(
+            ['lesson-1' => 1, 'lesson-2' => 2],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id))
+        );
 
         $contents = fixture_api_client::default_responses()['GET topics/{id}/contents']['contents'];
         $this->client->merge_response('GET topics/{id}/contents', ['contents' => array_reverse($contents)]);
         $this->update($skilland);
 
-        $this->assertSame(['lesson-1' => 2, 'lesson-2' => 1],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id)));
+        $this->assertSame(
+            ['lesson-1' => 2, 'lesson-2' => 1],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id))
+        );
     }
 
     public function test_backfill_task_stores_positions_from_skilland(): void {
@@ -196,8 +200,10 @@ final class lesson_codes_test extends skilland_testcase {
 
         (new backfill_lesson_positions())->execute();
 
-        $this->assertSame(['lesson-1' => 1, 'lesson-3' => 3, 'lesson-4' => 4],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id)));
+        $this->assertSame(
+            ['lesson-1' => 1, 'lesson-3' => 3, 'lesson-4' => 4],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id))
+        );
     }
 
     public function test_backfill_task_leaves_zero_when_the_api_fails_and_goes_on(): void {
@@ -216,10 +222,14 @@ final class lesson_codes_test extends skilland_testcase {
         $this->expectOutputRegex('/could not backfill lesson positions for activity ' . $failing->id . ' /');
         (new backfill_lesson_positions())->execute();
 
-        $this->assertSame([0, 0, 0],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($failing->id))));
-        $this->assertSame(['lesson-1' => 1, 'lesson-2' => 2],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($working->id)));
+        $this->assertSame(
+            [0, 0, 0],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($failing->id)))
+        );
+        $this->assertSame(
+            ['lesson-1' => 1, 'lesson-2' => 2],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($working->id))
+        );
     }
 
     public function test_saving_again_refreshes_a_submitted_position_and_keeps_a_missing_one(): void {
@@ -231,8 +241,10 @@ final class lesson_codes_test extends skilland_testcase {
             'lesson-4' => ['name' => 'Lesson 4', 'position' => 'four'],
         ]));
 
-        $this->assertSame(['lesson-1' => 2, 'lesson-3' => 3, 'lesson-4' => 4],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id)));
+        $this->assertSame(
+            ['lesson-1' => 2, 'lesson-3' => 3, 'lesson-4' => 4],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($skilland->id))
+        );
     }
 
     public function test_backfill_task_fetches_only_activities_with_unknown_positions(): void {
@@ -249,10 +261,14 @@ final class lesson_codes_test extends skilland_testcase {
         (new backfill_lesson_positions())->execute();
 
         $this->assertSame(['topic-2'], array_column(array_column($this->client->calls, 'variables'), 'topicId'));
-        $this->assertSame(['lesson-1' => 1, 'lesson-3' => 3, 'lesson-4' => 4],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($known->id)));
-        $this->assertSame(['lesson-1' => 1, 'lesson-2' => 2, 'lesson-gone' => 0],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($unknown->id)));
+        $this->assertSame(
+            ['lesson-1' => 1, 'lesson-3' => 3, 'lesson-4' => 4],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($known->id))
+        );
+        $this->assertSame(
+            ['lesson-1' => 1, 'lesson-2' => 2, 'lesson-gone' => 0],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $this->lessons($unknown->id))
+        );
     }
 
     public function test_backfill_task_does_nothing_when_the_plugin_is_not_configured(): void {
@@ -267,8 +283,10 @@ final class lesson_codes_test extends skilland_testcase {
         (new backfill_lesson_positions())->execute();
 
         $this->assertSame(0, $this->client->count_calls('GET topics/{id}/contents'));
-        $this->assertSame([0, 0, 0],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id))));
+        $this->assertSame(
+            [0, 0, 0],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id)))
+        );
     }
 
     public function test_upgrade_step_is_idempotent_and_queues_one_backfill_task(): void {
@@ -292,8 +310,10 @@ final class lesson_codes_test extends skilland_testcase {
         $this->assertEquals(2026100209, get_config('mod_skilland', 'version'));
         $this->assertCount(1, \core\task\manager::get_adhoc_tasks('\\mod_skilland\\task\\backfill_lesson_positions'));
         // Existing positions are untouched by the step itself.
-        $this->assertSame([1, 3, 4],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id))));
+        $this->assertSame(
+            [1, 3, 4],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id)))
+        );
     }
 
     public function test_upgrade_step_adds_the_field_as_unknown_on_an_older_site(): void {
@@ -317,8 +337,10 @@ final class lesson_codes_test extends skilland_testcase {
             }
         }
 
-        $this->assertSame([0, 0, 0],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id))));
+        $this->assertSame(
+            [0, 0, 0],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, array_values($this->lessons($skilland->id)))
+        );
         $this->assertCount(1, \core\task\manager::get_adhoc_tasks('\\mod_skilland\\task\\backfill_lesson_positions'));
     }
 }

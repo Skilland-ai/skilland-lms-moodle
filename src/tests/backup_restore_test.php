@@ -114,8 +114,10 @@ final class backup_restore_test extends skilland_testcase {
         $lessons = $this->lessons($restored->id);
         $this->assertSame(['lesson-1', 'lesson-2'], array_keys($lessons));
         // The Skilland position (the lesson code, SKL-694) travels with the lesson.
-        $this->assertSame(['lesson-1' => 1, 'lesson-2' => 2],
-            array_map(fn($lesson) => (int) $lesson->skillandposition, $lessons));
+        $this->assertSame(
+            ['lesson-1' => 1, 'lesson-2' => 2],
+            array_map(fn($lesson) => (int) $lesson->skillandposition, $lessons)
+        );
         foreach ($lessons as $lessonid => $lesson) {
             $this->assertEquals(
                 $DB->get_field('scorm_scoes', 'id', ['scorm' => $scormid, 'identifier' => 'sco-' . $lessonid]),
