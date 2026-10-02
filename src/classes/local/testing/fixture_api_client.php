@@ -287,6 +287,7 @@ class fixture_api_client implements api_client {
     public const REST_ROUTES = [
         '#^GET /api/moodle/skills$#' => ['GET skills', null],
         '#^POST /api/moodle/skills$#' => ['POST skills', null],
+        '#^POST /api/moodle/connection-check$#' => ['POST connection-check', null],
         '#^GET /api/moodle/users/courses$#' => ['GET users/courses', null],
         '#^GET /api/moodle/skills/([^/]+)/topics$#' => ['GET skills/{id}/topics', 'skillId'],
         '#^GET /api/moodle/topics/([^/]+)/contents$#' => ['GET topics/{id}/contents', 'topicId'],
