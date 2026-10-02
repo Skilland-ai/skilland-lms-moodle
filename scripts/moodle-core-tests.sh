@@ -86,7 +86,7 @@ fi
 
 if [[ "$mode" == "phpunit" ]]; then
   # init.php re-runs cheaply once the phpunit tables exist and picks up new plugin files.
-  run php admin/tool/phpunit/cli/init.php
+  run env COMPOSER_HOME=/tmp/composer php admin/tool/phpunit/cli/init.php
   args=(--testsuite mod_skilland_testsuite --fail-on-warning)
   [[ -n "$filter" ]] && args+=(--filter "$filter")
   run vendor/bin/phpunit "${args[@]}"
