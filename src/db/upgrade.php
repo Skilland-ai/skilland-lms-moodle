@@ -297,5 +297,20 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026100203, 'skilland');
     }
 
+    // For version 2026100209 (SKL-694): lessons carry their position in the topic in Skilland,
+    // the number in their lesson code. Existing lessons start unknown (0, the code falls back
+    // to orderindex) until the ad-hoc task backfills them from Skilland.
+    if ($oldversion < 2026100209) {
+        $table = new xmldb_table('skilland_lesson');
+        $field = new xmldb_field('skillandposition', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'visible');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        \core\task\manager::queue_adhoc_task(new \mod_skilland\task\backfill_lesson_positions(), true);
+
+        upgrade_mod_savepoint(true, 2026100209, 'skilland');
+    }
+
     return true;
 }

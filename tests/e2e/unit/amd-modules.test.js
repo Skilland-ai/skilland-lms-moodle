@@ -15,11 +15,11 @@ const TOPICS = [
 
 const LESSONS = {
   'topic-1': [
-    { id: 'l1', name: 'Lesson one', updatedAt: '2026-09-01T10:00:00Z' },
-    { id: 'l2', name: 'Lesson <two>', updatedAt: '2026-09-02T10:00:00Z' }
+    { id: 'l1', name: 'Lesson one', updatedAt: '2026-09-01T10:00:00Z', position: 1 },
+    { id: 'l2', name: 'Lesson <two>', updatedAt: '2026-09-02T10:00:00Z', position: 2 }
   ],
   'topic-2': [
-    { id: 'l3', name: 'Lesson three', updatedAt: '2026-09-03T10:00:00Z' }
+    { id: 'l3', name: 'Lesson three', updatedAt: '2026-09-03T10:00:00Z', position: 1 }
   ]
 }
 
@@ -170,7 +170,7 @@ describe('mod_form.js', () => {
 
     change(select(env), 'topic-2')
     await env.flush()
-    assert.deepEqual(hiddenSelection(env), { l3: { updatedAt: '2026-09-03T10:00:00Z', name: 'Lesson three' } })
+    assert.deepEqual(hiddenSelection(env), { l3: { updatedAt: '2026-09-03T10:00:00Z', name: 'Lesson three', position: 1 } })
     const meta = env.document.querySelector('#id_lessons_container .skilland-lesson-meta span')
     assert.ok(meta.textContent.startsWith('updated_on'), meta.textContent)
   })
@@ -324,7 +324,7 @@ describe('mod_form.js', () => {
     const second = env.document.getElementById('lesson_l2')
     second.checked = false
     second.dispatchEvent(new Event('change', { bubbles: true }))
-    assert.deepEqual(hiddenSelection(env), { l1: { updatedAt: '2026-09-01T10:00:00Z', name: 'Lesson one' } })
+    assert.deepEqual(hiddenSelection(env), { l1: { updatedAt: '2026-09-01T10:00:00Z', name: 'Lesson one', position: 1 } })
 
     env.document.getElementById('skilland-select-none').click()
     assert.deepEqual(hiddenSelection(env), {})
@@ -340,6 +340,53 @@ describe('mod_form.js', () => {
     change(select(env), 'topic-1')
     await env.flush()
     assert.deepEqual(Object.keys(hiddenSelection(env)), ['l1'])
+  })
+
+  test('lesson codes are the Skilland positions and a left-out lesson leaves a gap (SKL-694)', async () => {
+    const four = [1, 2, 3, 4].map(n => ({ id: 'q' + n, name: 'Lesson ' + n, updatedAt: '2026-09-01T10:00:00Z', position: n }))
+    const env = await startForm({
+      ajax: topicsAjax({ mod_skilland_fetch_lessons_ajax: () => ({ lessons: four }) })
+    })
+
+    change(select(env), 'topic-1')
+    await env.flush()
+    const second = env.document.getElementById('lesson_q2')
+    second.checked = false
+    second.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const titles = env.document.querySelectorAll('#id_lessons_container .skilland-lesson-title')
+    assert.deepEqual(titles.map(title => title.textContent),
+      ['L1.1 - Lesson 1', 'L1.2 - Lesson 2', 'L1.3 - Lesson 3', 'L1.4 - Lesson 4'])
+    const selection = hiddenSelection(env)
+    assert.deepEqual(Object.keys(selection), ['q1', 'q3', 'q4'])
+    assert.deepEqual(Object.values(selection).map(lesson => lesson.position), [1, 3, 4])
+  })
+
+  test('a lesson answer without a position falls back to its place in the list', async () => {
+    const env = await startForm({
+      ajax: topicsAjax({
+        mod_skilland_fetch_lessons_ajax: () => ({ lessons: [{ id: 'x1', name: 'One', updatedAt: '' }, { id: 'x2', name: 'Two', updatedAt: '' }] })
+      })
+    })
+
+    change(select(env), 'topic-1')
+    await env.flush()
+
+    const titles = env.document.querySelectorAll('#id_lessons_container .skilland-lesson-title')
+    assert.deepEqual(titles.map(title => title.textContent), ['L1.1 - One', 'L1.2 - Two'])
+    assert.deepEqual(Object.values(hiddenSelection(env)).map(lesson => lesson.position), [1, 2])
+  })
+
+  test('a saved lesson missing from the API keeps its stored position', async () => {
+    const saved = {
+      l1: { name: 'Lesson one', updatedAt: '2026-09-01T10:00:00Z', position: 1 },
+      lgone: { name: 'Gone lesson', updatedAt: '2026-01-01T00:00:00Z', position: 3 }
+    }
+    const env = await startForm({ ajax: topicsAjax() },
+      { savedTopic: 'topic-1', savedLessons: saved, selectedLessons: JSON.stringify(saved) },
+      { currenttopicid: 'topic-1' })
+
+    assert.deepEqual(hiddenSelection(env).lgone, { updatedAt: '2026-01-01T00:00:00Z', name: 'Gone lesson', position: 3 })
   })
 
   test('a saved lesson missing from the API stays selected until the teacher removes it', async () => {

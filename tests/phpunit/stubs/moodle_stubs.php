@@ -440,6 +440,12 @@ if (!class_exists('core_customfield\\handler')) {
     require_once __DIR__ . '/customfield_stub.php';
 }
 
+if (!function_exists('mtrace')) {
+    function mtrace($string, $eol = "\n", $sleep = 0) {
+        $GLOBALS['_test_mtrace'][] = $string;
+    }
+}
+
 // Scheduled task base class loaded from separate file (namespaces can't be in if blocks).
 if (!class_exists('core\task\scheduled_task')) {
     require_once __DIR__ . '/scheduled_task_stub.php';

@@ -117,13 +117,13 @@ class backup_restore_test extends TestCase {
         $this->db->seed('skilland_lesson', [
             (object) ['id' => 1, 'skillandid' => self::SKILLAND_ID, 'skilland_lessonid' => 'L1', 'title' => 'One',
                 'orderindex' => 1, 'scoid' => 501, 'sco_identifier' => 'sco_1', 'snapshotid' => null,
-                'snapshotcreatedat' => null, 'updatedat' => 1700000000, 'visible' => 1],
+                'snapshotcreatedat' => null, 'updatedat' => 1700000000, 'visible' => 1, 'skillandposition' => 1],
             (object) ['id' => 2, 'skillandid' => self::SKILLAND_ID, 'skilland_lessonid' => 'L2', 'title' => 'Two',
                 'orderindex' => 2, 'scoid' => 502, 'sco_identifier' => 'sco_2', 'snapshotid' => null,
-                'snapshotcreatedat' => null, 'updatedat' => 1700000000, 'visible' => 1],
+                'snapshotcreatedat' => null, 'updatedat' => 1700000000, 'visible' => 1, 'skillandposition' => 3],
             (object) ['id' => 3, 'skillandid' => self::SKILLAND_ID, 'skilland_lessonid' => 'L3', 'title' => 'Three',
                 'orderindex' => 3, 'scoid' => null, 'sco_identifier' => null, 'snapshotid' => null,
-                'snapshotcreatedat' => null, 'updatedat' => 1700000000, 'visible' => 0],
+                'snapshotcreatedat' => null, 'updatedat' => 1700000000, 'visible' => 0, 'skillandposition' => 2],
         ]);
         $this->db->seed('skilland_course', [(object) [
             'id' => 1, 'course' => self::SOURCE_COURSE, 'skilland_courseid' => 'skill-a', 'skilland_orgid' => 'org1',
@@ -328,6 +328,31 @@ class backup_restore_test extends TestCase {
         $this->assertSame('skill-a', $backup['skilland']['skilland_courseid']);
         $this->assertSame([501, 502, null], array_column($backup['lessons'], 'scoid'));
         $this->assertSame(['sco_1', 'sco_2', null], array_column($backup['lessons'], 'sco_identifier'));
+    }
+
+    public function test_restore_keeps_the_skilland_position_of_each_lesson(): void {
+        $backup = $this->backup_activity();
+        $this->assertSame([1, 3, 2], array_column($backup['lessons'], 'skillandposition'));
+
+        $result = $this->restore(['scorm', 'skilland'], 8, $backup);
+
+        $this->assertSame(1, (int) $this->restored_lesson($result, 'L1')->skillandposition);
+        $this->assertSame(3, (int) $this->restored_lesson($result, 'L2')->skillandposition);
+        $this->assertSame(2, (int) $this->restored_lesson($result, 'L3')->skillandposition);
+    }
+
+    public function test_a_backup_without_positions_restores_them_as_unknown(): void {
+        $backup = $this->backup_activity();
+        foreach ($backup['lessons'] as &$lesson) {
+            unset($lesson['skillandposition']);
+        }
+        unset($lesson);
+
+        $result = $this->restore(['scorm', 'skilland'], 8, $backup);
+
+        foreach (['L1', 'L2', 'L3'] as $lessonid) {
+            $this->assertSame(0, $this->restored_lesson($result, $lessonid)->skillandposition);
+        }
     }
 
     // ---------------------------------------------------------------

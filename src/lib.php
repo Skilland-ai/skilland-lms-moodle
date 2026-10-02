@@ -624,11 +624,28 @@ function skilland_unlink_scorm(int $skillandid): void {
 }
 
 /**
+ * The Skilland position a selected lesson was submitted with: an integer >= 1, else 0 (unknown).
+ *
+ * @param mixed $value The submitted `position`.
+ * @return int
+ */
+function skilland_submitted_lesson_position($value): int {
+    if (is_string($value) && preg_match('/^[0-9]{1,9}$/', $value)) {
+        $value = (int) $value;
+    }
+    return is_int($value) && $value >= 1 && $value <= 999999999 ? $value : 0;
+}
+
+/**
  * Process and save selected lessons.
  *
  * `updatedat` is owned by the SCORM build (skilland_update_topic_scorm()): it is the version of
  * the lesson inside the installed package. Existing rows (visible or hidden) never take the
  * submitted `updatedAt`; only newly inserted lessons do.
+ *
+ * `skillandposition` is the lesson's 1-based position in the topic in Skilland (its lesson code,
+ * skilland_lesson_label()), as the form shows it. A missing or invalid one is stored as 0 on a
+ * new row and leaves an existing row's position unchanged.
  *
  * @param int $skillandid The Skilland activity instance ID.
  * @param string $json The JSON string containing selected lessons.
@@ -646,7 +663,7 @@ function skilland_process_selected_lessons($skillandid, $json) {
         'skilland_lesson',
         ['skillandid' => $skillandid],
         '',
-        'skilland_lessonid, id, visible, orderindex'
+        'skilland_lessonid, id, visible, orderindex, skillandposition'
     );
 
     $processedids = [];
@@ -667,6 +684,7 @@ function skilland_process_selected_lessons($skillandid, $json) {
         $processedids[$lessonid] = true;
 
         $name = isset($data['name']) ? core_text::substr($data['name'], 0, 255) : '';
+        $position = skilland_submitted_lesson_position($data['position'] ?? null);
 
         if (isset($existing[$lessonid])) {
             // Update existing record.
@@ -675,6 +693,9 @@ function skilland_process_selected_lessons($skillandid, $json) {
             $rec->orderindex = $orderindex;
             if ($name) {
                 $rec->title = $name;
+            }
+            if ($position > 0) {
+                $rec->skillandposition = $position;
             }
             $DB->update_record('skilland_lesson', $rec);
         } else {
@@ -688,6 +709,7 @@ function skilland_process_selected_lessons($skillandid, $json) {
             $rec->updatedat = $updatedat;
             $rec->visible = 1;
             $rec->orderindex = $orderindex;
+            $rec->skillandposition = $position;
             $DB->insert_record('skilland_lesson', $rec);
         }
 

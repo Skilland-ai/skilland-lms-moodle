@@ -29,6 +29,16 @@ Feature: Learners see the lessons of a Skilland activity
     And I should see "Lesson two"
     And "Lesson one" "link" should exist
 
+  Scenario: A lesson left out of the activity leaves a gap in the lesson codes
+    Given the following "activities" exist:
+      | activity | name             | course | idnumber | provisioned | selected_lessons                                                                 |
+      | skilland | Fixture activity | C1     | skl1     | 1           | {"lesson-2":{"name":"Lesson two","updatedAt":"2026-01-02T10:00:00Z","position":2}} |
+    When I am on the "skl1" "Activity" page logged in as "student1"
+    Then I should see "L1.2"
+    And I should see "Lesson two"
+    And I should not see "L1.1"
+    And I should not see "Lesson one"
+
   Scenario: A student waits while the content of an activity is not provisioned yet
     Given the following "activities" exist:
       | activity | name             | course | idnumber |

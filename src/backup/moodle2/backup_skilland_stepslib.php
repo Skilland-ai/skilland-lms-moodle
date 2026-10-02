@@ -46,7 +46,7 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         $lesson = new backup_nested_element('lesson', ['id'], [
             'skilland_lessonid', 'title', 'orderindex',
             'scoid', 'sco_identifier', 'snapshotid', 'snapshotcreatedat',
-            'updatedat', 'visible',
+            'updatedat', 'visible', 'skillandposition',
         ]);
 
         // Build the tree.

@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.51-beta]
+
+### Fixed
+- Students now see the same lesson codes as the activity form: the lesson
+  list, the player header and the fullscreen navigation number each lesson by
+  its position in the topic in Skilland, so a lesson left out of the activity
+  leaves a gap (lessons 1, 3 and 4 show as L1.1, L1.3 and L1.4 everywhere).
+  The position is stored with each lesson and refreshed by Update From
+  Skilland; existing activities are backfilled by an ad-hoc task after the
+  upgrade and keep their current numbering until it runs (SKL-694).
+
 ## [0.9.48-beta]
 
 ### Added

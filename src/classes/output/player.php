@@ -22,6 +22,10 @@ use renderer_base;
 use stdClass;
 use templatable;
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once(__DIR__ . '/../../locallib.php');
+
 /**
  * The fullscreen SCORM player of one lesson, or the notice that it cannot be played.
  *
@@ -80,7 +84,11 @@ class player implements renderable, templatable {
         }
 
         $position = lesson_navigation::position_of($this->lesson, $this->alllessons);
-        $label = 'L' . $this->topicorderindex . '.' . (($position ?? count($this->alllessons)) + 1);
+        $label = skilland_lesson_label(
+            $this->topicorderindex,
+            $this->lesson,
+            ($position ?? count($this->alllessons)) + 1
+        );
         $title = format_string($this->lesson->title);
         $navigation = new lesson_navigation(
             $this->lesson,

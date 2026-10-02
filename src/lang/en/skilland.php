@@ -254,6 +254,7 @@ $string['skilland_course_id_required'] = 'Skilland Course ID must be set for thi
 $string['skilland_course_id_required_message'] = 'Before you can create a Skilland activity, you must first set the Skilland Course ID for this course in the course settings.';
 $string['sso_continue'] = 'Continue to Skilland';
 $string['sso_redirecting'] = 'Signing you in to Skilland…';
+$string['task_backfill_lesson_positions'] = 'Backfill the Skilland positions of lessons';
 $string['task_sync_content'] = 'Sync Skilland content for auto-update activities';
 $string['toggle_fullscreen'] = 'Toggle fullscreen';
 $string['topic_change_confirm'] = 'Changing the topic replaces the content for this activity.';

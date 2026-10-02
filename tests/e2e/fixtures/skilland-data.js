@@ -66,13 +66,13 @@ function topics(courseId = SKILL_ID) {
 }
 
 /**
- * mod_skilland_fetch_lessons_ajax: {lessons: [{id, name, updatedAt}], error?}
+ * mod_skilland_fetch_lessons_ajax: {lessons: [{id, name, updatedAt, position}], error?}
  */
 function lessons() {
   return {
     lessons: [
-      { id: 'skl-e2e-lesson-1', name: 'What is testing?', updatedAt: '2026-09-01T10:00:00.000Z' },
-      { id: 'skl-e2e-lesson-2', name: 'Writing a first test', updatedAt: '2026-09-02T10:00:00.000Z' }
+      { id: 'skl-e2e-lesson-1', name: 'What is testing?', updatedAt: '2026-09-01T10:00:00.000Z', position: 1 },
+      { id: 'skl-e2e-lesson-2', name: 'Writing a first test', updatedAt: '2026-09-02T10:00:00.000Z', position: 2 }
     ]
   }
 }

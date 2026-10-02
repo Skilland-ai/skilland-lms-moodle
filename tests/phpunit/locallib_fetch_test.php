@@ -404,8 +404,8 @@ class locallib_fetch_test extends TestCase {
 
         $this->assertSame(['https://localhost:8000/api/moodle/topics/t%201/contents'], $GLOBALS['_test_curl_requests']);
         $this->assertSame([
-            ['id' => 'l1', 'name' => 'Lesson 1', 'updatedAt' => '2024-01-01T00:00:00.000Z'],
-            ['id' => 'l3', 'name' => 'Lesson 3', 'updatedAt' => '2024-01-02T00:00:00.000Z'],
+            ['id' => 'l1', 'name' => 'Lesson 1', 'updatedAt' => '2024-01-01T00:00:00.000Z', 'position' => 1],
+            ['id' => 'l3', 'name' => 'Lesson 3', 'updatedAt' => '2024-01-02T00:00:00.000Z', 'position' => 2],
         ], $lessons);
         $this->assertSame(strtotime('2024-01-02T00:00:00Z'), strtotime($lessons[1]['updatedAt']));
     }

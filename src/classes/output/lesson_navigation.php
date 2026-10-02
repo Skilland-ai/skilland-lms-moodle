@@ -22,6 +22,10 @@ use renderer_base;
 use stdClass;
 use templatable;
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once(__DIR__ . '/../../locallib.php');
+
 /**
  * The previous / next lesson links around the lesson being played.
  *
@@ -134,7 +138,7 @@ class lesson_navigation implements renderable, templatable {
         if (!$lesson || empty($lesson->scoid) || empty($this->skilland->scormcmid)) {
             return false;
         }
-        $label = 'L' . $this->topicorderindex . '.' . ($index + 1);
+        $label = skilland_lesson_label($this->topicorderindex, $lesson, $index + 1);
         $text = empty($this->skilland->hidelabels)
             ? $label . ' - ' . format_string($lesson->title)
             : format_string($lesson->title);

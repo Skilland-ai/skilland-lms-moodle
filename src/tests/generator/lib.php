@@ -180,6 +180,7 @@ class mod_skilland_generator extends testing_module_generator {
             'skilland_lessonid' => 'generated-lesson-' . $n,
             'title' => 'Generated lesson ' . $n,
             'orderindex' => $n,
+            'skillandposition' => 0,
             'visible' => 1,
             'updatedat' => time(),
         ];
@@ -232,7 +233,11 @@ class mod_skilland_generator extends testing_module_generator {
             if ($lesson['type'] !== 'lesson') {
                 continue;
             }
-            $selected[$lesson['id']] = ['name' => $lesson['name'], 'updatedAt' => $lesson['updatedAt']];
+            $selected[$lesson['id']] = [
+                'name' => $lesson['name'],
+                'updatedAt' => $lesson['updatedAt'],
+                'position' => count($selected) + 1,
+            ];
         }
         return json_encode($selected);
     }

@@ -254,6 +254,7 @@ $string['skilland_course_id_required'] = 'El ID de Curso de Skilland debe estar 
 $string['skilland_course_id_required_message'] = 'Antes de crear una actividad de Skilland, primero debe establecer el ID de Curso de Skilland en la configuración del curso.';
 $string['sso_continue'] = 'Continuar a Skilland';
 $string['sso_redirecting'] = 'Iniciando sesión en Skilland…';
+$string['task_backfill_lesson_positions'] = 'Completar las posiciones de Skilland de las lecciones';
 $string['task_sync_content'] = 'Sincronizar contenido de Skilland para actividades con actualización automática';
 $string['toggle_fullscreen'] = 'Alternar pantalla completa';
 $string['topic_change_confirm'] = 'Cambiar el tema reemplaza el contenido de esta actividad.';
