@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.45-beta]
+
+### Fixed
+- The Frontend URL setting no longer defaults to `https://app.skilland.ai`, which
+  silently overrode the Skilland URL; it is empty by default and the setting text
+  says to leave it empty unless Skilland support asks. The upgrade clears Frontend
+  URL when it equals the old default `https://app.skilland.ai`; custom values and
+  empty values are kept. The sync task treats an empty Frontend URL as configured
+  when the Skilland URL is set. The Skilland URL, API Key and Organization ID help
+  texts say where to find each value in Skilland, and the release notes name
+  Moodle 4.5 and the ZIP install steps (SKL-991).
+
 ## [0.9.44-beta]
 
 ### Fixed

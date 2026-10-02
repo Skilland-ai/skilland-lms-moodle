@@ -82,9 +82,9 @@ When creating an activity (Topic), you can now **select exactly which lessons** 
 ### 1. Global Settings (Administrator)
 Go to **Site administration → Plugins → Activity modules → Skilland content**.
 
-- **API Key**: Your private key from the Skilland platform.
-- **Organization ID**: Your institution's ID.
-- **Skilland URL**: The address of the Skilland site (default: `https://app.skilland.ai`). Every call the plugin makes goes to the SkilLand REST API under it (`{Skilland URL}/api/moodle/...`, authenticated with the API key as a Bearer token): the course list, the courses a teacher can edit, course creation, topics, lessons, topic SCORM packages and their content hashes. A value saved with a trailing `/graphql` or `/api/moodle` (from older versions) still works; the suffix is ignored.
+- **API Key**: From Skilland › Settings › Integrations › Moodle, **Generate New Key** (shown once).
+- **Organization ID**: The **Organization ID** on the same card.
+- **Skilland URL**: The address of the Skilland site (as shown in Skilland › Settings › Integrations › Moodle, with nothing after it). Every call the plugin makes goes to the SkilLand REST API under it (`{Skilland URL}/api/moodle/...`, authenticated with the API key as a Bearer token): the course list, the courses a teacher can edit, course creation, topics, lessons, topic SCORM packages and their content hashes. A value saved with a trailing `/graphql` or `/api/moodle` (from older versions) still works; the suffix is ignored.
   - For local development: `http://localhost:3100`
 - **Frontend URL** (optional): Overrides the Skilland URL for the REST API, the SSO handoff and the Studio links. Leave it empty to use the Skilland URL.
 - **SSO Shared Secret**: Your organization's Moodle SSO secret, copied from SkilLand › Settings › Integrations › Moodle. SkilLand derives a secret for each organization, so it only works together with this site's **Organization ID**. It must be at least 32 bytes long.

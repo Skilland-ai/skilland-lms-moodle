@@ -287,5 +287,16 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092800, 'skilland');
     }
 
+    // For version 2026100203 (SKL-991): the Frontend URL used to default to https://app.skilland.ai and
+    // silently overrode the Skilland URL. Clear it when it still holds that old default; custom values stay.
+    if ($oldversion < 2026100203) {
+        $frontendurl = \mod_skilland\local\skilland_url::normalise((string) get_config('mod_skilland', 'frontend_url'));
+        if ($frontendurl === 'https://app.skilland.ai') {
+            set_config('frontend_url', '', 'mod_skilland');
+        }
+
+        upgrade_mod_savepoint(true, 2026100203, 'skilland');
+    }
+
     return true;
 }

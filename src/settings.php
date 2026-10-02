@@ -107,7 +107,7 @@ if ($ADMIN->fulltree) {
         'mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),
         get_string('settings_frontend_url_desc', 'mod_skilland'),
-        'https://app.skilland.ai'
+        ''
     ));
 
     // SSO shared secret setting.
