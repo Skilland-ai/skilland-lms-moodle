@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100204;   // YYYYMMDDHH - SSO courseAccess lists only teaching courses (SKL-999).
+$plugin->version   = 2026100205;   // YYYYMMDDHH - Studio deep link resolves Edukami ids, string_loader AMD build (SKL-998).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.46-beta';
+$plugin->release   = '0.9.47-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
