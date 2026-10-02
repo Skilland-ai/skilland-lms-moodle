@@ -33,7 +33,7 @@ container with this plugin.
    | **API Key** | (from backend) | Your Skilland API key |
    | **Organization ID** | (from backend) | Your organization ID |
    | **Skilland URL** | `http://host.docker.internal:3100` | Address of the SkilLand site; the REST API lives under `/api/moodle` (config key `graphql_endpoint`; a stored `/graphql` or `/api/moodle` suffix is ignored) |
-   | **Frontend URL** | (empty) | Optional override of the Skilland URL |
+   | **Frontend URL** | (empty, the default) | Empty uses the Skilland URL; set it only when Moodle must reach Skilland through a different address than browsers |
    | **SSO Shared Secret** | (from SkilLand › Settings › Integrations › Moodle) | Your organization's SSO secret, which SkilLand derives from `MOODLE_SSO_SECRET` |
 
 3. Click **Save changes**

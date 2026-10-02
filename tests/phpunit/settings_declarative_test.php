@@ -44,6 +44,32 @@ class settings_declarative_test extends TestCase {
         );
     }
 
+    /** The Frontend URL defaults to empty, so the Skilland URL applies unless an admin overrides it (SKL-991). */
+    public function test_frontend_url_defaults_to_empty(): void {
+        $this->assertMatchesRegularExpression(
+            "/'mod_skilland\\/frontend_url',\\s*get_string\\([^)]*\\),\\s*get_string\\([^)]*\\),\\s*''\\s*\\)\\s*\\)\\s*;/s",
+            self::source('src/settings.php')
+        );
+    }
+
+    /** The connection settings say where in Skilland each value comes from, in both languages. */
+    public function test_connection_setting_descriptions_point_to_the_integrations_page(): void {
+        $where = [
+            'en' => ['Settings › Integrations › Moodle', 'Generate New Key', 'Show'],
+            'es' => ['Ajustes › Integraciones › Moodle', 'Generar nueva clave', 'Mostrar'],
+        ];
+        foreach ($where as $lang => [$page, $generate, $show]) {
+            $string = [];
+            require __DIR__ . '/../../src/lang/' . $lang . '/skilland.php';
+            $this->assertStringContainsString($page, $string['settings_apikey_desc'], "$lang apikey");
+            $this->assertStringContainsString($generate, $string['settings_apikey_desc'], "$lang apikey");
+            $this->assertStringContainsString($page, $string['settings_orgid_desc'], "$lang orgid");
+            $this->assertStringContainsString($page, $string['settings_sso_secret_desc'], "$lang sso_secret");
+            $this->assertStringContainsString($show, $string['settings_sso_secret_desc'], "$lang sso_secret");
+            $this->assertStringNotContainsString('app.skilland.ai', $string['settings_frontend_url_desc'], "$lang frontend_url");
+        }
+    }
+
     public function test_settings_has_gpl_header_and_package(): void {
         $source = self::source('src/settings.php');
         $this->assertStringContainsString('GNU General Public License', $source);

@@ -103,11 +103,12 @@ if ($ADMIN->fulltree) {
     ));
 
     // Optional override of the Skilland URL for SSO redirects, Studio links and the REST API.
+    // Empty (the default) uses the Skilland URL.
     $settings->add(new \mod_skilland\admin_setting_https_url(
         'mod_skilland/frontend_url',
         get_string('settings_frontend_url', 'mod_skilland'),
         get_string('settings_frontend_url_desc', 'mod_skilland'),
-        'https://app.skilland.ai'
+        ''
     ));
 
     // SSO shared secret setting.

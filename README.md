@@ -82,11 +82,11 @@ When creating an activity (Topic), you can now **select exactly which lessons** 
 ### 1. Global Settings (Administrator)
 Go to **Site administration → Plugins → Activity modules → Skilland content**.
 
-- **API Key**: Your private key from the Skilland platform.
-- **Organization ID**: Your institution's ID.
+- **API Key**: In Skilland, go to **Settings › Integrations › Moodle** and click **Generate New Key**. The key is shown only once.
+- **Organization ID**: The Organization ID shown on the same Skilland page; it must be the organization the API key belongs to.
 - **Skilland URL**: The address of the Skilland site (default: `https://app.skilland.ai`). Every call the plugin makes goes to the SkilLand REST API under it (`{Skilland URL}/api/moodle/...`, authenticated with the API key as a Bearer token): the course list, the courses a teacher can edit, course creation, topics, lessons, topic SCORM packages and their content hashes. A value saved with a trailing `/graphql` or `/api/moodle` (from older versions) still works; the suffix is ignored.
   - For local development: `http://localhost:3100`
-- **Frontend URL** (optional): Overrides the Skilland URL for the REST API, the SSO handoff and the Studio links. Leave it empty to use the Skilland URL.
+- **Frontend URL** (optional, empty by default): Leave it empty to use the Skilland URL for everything (the REST API, the SSO handoff and the Studio links). Set it only when Moodle must reach Skilland through a different address than browsers use. Up to 0.9.44-beta it defaulted to `https://app.skilland.ai`, which overrode a Skilland URL pointing at another server; the 0.9.45-beta upgrade removes that stored default and keeps any other value.
 - **SSO Shared Secret**: Your organization's Moodle SSO secret, copied from SkilLand › Settings › Integrations › Moodle. SkilLand derives a secret for each organization, so it only works together with this site's **Organization ID**. It must be at least 32 bytes long.
 
 #### SSO handoff

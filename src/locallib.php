@@ -2503,6 +2503,24 @@ function skilland_get_frontend_url(): string {
 }
 
 /**
+ * Drop a Frontend URL that only holds the old default, so the Skilland URL applies (SKL-991).
+ *
+ * Until 0.9.45-beta the Frontend URL defaulted to https://app.skilland.ai, so a site that only
+ * set the Skilland URL to its own Skilland server kept sending every request to that default.
+ * A value an administrator chose (any other address) is kept.
+ *
+ * @return bool True when the stored value was the old default and was removed.
+ */
+function mod_skilland_clear_default_frontend_url(): bool {
+    $stored = \mod_skilland\local\skilland_url::normalise((string) get_config('mod_skilland', 'frontend_url'));
+    if (strtolower($stored) !== MOD_SKILLAND_DEFAULT_URL) {
+        return false;
+    }
+    unset_config('frontend_url', 'mod_skilland');
+    return true;
+}
+
+/**
  * Get the audience of SSO tokens: the origin (scheme://host[:port]) of the SkilLand frontend.
  *
  * @return string

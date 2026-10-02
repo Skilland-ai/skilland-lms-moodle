@@ -32,7 +32,7 @@ async function goToSkillandSettings(page) {
 
 /**
  * Make sure the plugin can sign SSO tokens: set an organization id and, unless
- * config.php forces one, an SSO secret. Returns the frontend URL SSO redirects to,
+ * config.php forces one, an SSO secret. Returns the URL SSO redirects to (the Frontend URL, else the Skilland URL),
  * so the caller can stub that origin.
  * @param {import('@playwright/test').Page} page Admin page
  * @returns {Promise<{ orgId: string, frontendUrl: string }>}
@@ -61,7 +61,10 @@ async function configureSkillandSso(page) {
   }
 
   const orgId = await orgInput.inputValue()
+  const skillandUrlInput = page.locator('input#id_s_mod_skilland_graphql_endpoint')
+  // An empty Frontend URL means the Skilland URL (SKL-991).
   const frontendUrl = (await frontendInput.count() > 0 && await frontendInput.inputValue()) ||
+    (await skillandUrlInput.count() > 0 && await skillandUrlInput.inputValue()) ||
     'https://app.skilland.ai'
   return { orgId, frontendUrl }
 }

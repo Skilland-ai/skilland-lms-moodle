@@ -471,6 +471,16 @@ if (!function_exists('set_config')) {
     }
 }
 
+if (!function_exists('unset_config')) {
+    function unset_config(string $name, ?string $plugin = null): bool {
+        $plugin = $plugin ?? 'core';
+        if (isset($GLOBALS['_test_plugin_config'][$plugin])) {
+            unset($GLOBALS['_test_plugin_config'][$plugin]->$name);
+        }
+        return true;
+    }
+}
+
 
 if (!defined('ANY_VERSION')) {
     define('ANY_VERSION', 'any');
