@@ -45,7 +45,8 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
      * @return void
      */
     protected function process_skilland($data) {
-        global $DB;
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/mod/skilland/locallib.php');
 
         $data = (object)$data;
         $data->course = $this->get_courseid();
@@ -67,29 +68,24 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         // restored after this one, so its mapping is resolved in
         // restore_skilland_activity_task::after_restore(), once every activity has been restored.
 
-        // Handle Skilland Course Mapping.
+        // The course mapping lives in the skilland_course_id course custom field: an empty field
+        // takes the backup's value, a field that already holds another value is kept.
         if (!empty($data->skilland_courseid)) {
-            $existingmap = $DB->get_record('skilland_course', ['course' => $data->course]);
-            if (!$existingmap) {
-                // Create new course mapping.
-                $map = new stdClass();
-                $map->course = $data->course;
-                $map->skilland_courseid = $data->skilland_courseid;
-                $map->skilland_orgid = isset($data->skilland_orgid) ? $data->skilland_orgid : '';
-                $map->timecreated = time();
-                $map->timemodified = time();
-                try {
-                    $DB->insert_record('skilland_course', $map);
-                } catch (Exception $e) {
-                    debugging('Failed to create Skilland course mapping: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            $backupcourseid = (string) $data->skilland_courseid;
+            try {
+                $existing = skilland_get_course_customfield_value((int) $data->course);
+                if (empty($existing)) {
+                    if (!skilland_set_course_customfield_value((int) $data->course, $backupcourseid)) {
+                        debugging('mod_skilland: could not map restored course id ' . $data->course .
+                            ' to its Skilland course', DEBUG_DEVELOPER);
+                    }
+                } else if ((string) $existing !== $backupcourseid) {
+                    debugging('mod_skilland: restored course id ' . $data->course .
+                        ' is already mapped to another Skilland course; its mapping is kept', DEBUG_DEVELOPER);
                 }
-            } else if ($existingmap->skilland_courseid != $data->skilland_courseid) {
-                // Warn if course is already mapped to a different Skilland course.
-                debugging(
-                    'Course already mapped to different Skilland course (existing: ' .
-                         $existingmap->skilland_courseid . ', backup: ' . $data->skilland_courseid . ')',
-                    DEBUG_DEVELOPER
-                );
+            } catch (\Throwable $e) {
+                debugging('mod_skilland: could not map restored course id ' . $data->course .
+                    ' to its Skilland course', DEBUG_DEVELOPER);
             }
         }
 

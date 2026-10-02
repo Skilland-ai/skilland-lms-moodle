@@ -52,11 +52,8 @@ if (isguestuser()) {
 require_capability('mod/skilland:accessstudio', $context);
 $role = skilland_sso_role_for_context($context);
 
-// Resolve the Skilland skill ID from the Moodle course mapping.
-$skillandcourseid = skilland_get_course_customfield_value($courseid);
-if (empty($skillandcourseid)) {
-    $skillandcourseid = skilland_get_skilland_courseid($courseid) ?: '';
-}
+// Resolve the Skilland skill ID from the Moodle course custom field.
+$skillandcourseid = skilland_get_mapped_courseid($courseid) ?? '';
 
 try {
     // Get organization ID from plugin settings.

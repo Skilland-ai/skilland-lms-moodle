@@ -50,7 +50,7 @@ $topicorderindex = isset($skilland->topic_orderindex) ? $skilland->topic_orderin
 $PAGE->set_url('/mod/skilland/view.php', ['id' => $cm->id]);
 $pagetitle = format_string($skilland->name);
 if (!empty($skilland->hidelabels)) {
-    $pagetitle = preg_replace('/^T\d+\s*-\s*/', '', $pagetitle);
+    $pagetitle = skilland_strip_topic_label($pagetitle);
 }
 $PAGE->set_title($pagetitle);
 $PAGE->set_heading(format_string($course->fullname));

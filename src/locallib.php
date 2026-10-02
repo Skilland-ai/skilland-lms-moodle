@@ -45,104 +45,6 @@ function skilland_is_enabled(): bool {
 }
 
 /**
- * Get the Skilland course mapping for a given Moodle course.
- *
- * @param int $courseid Moodle course ID
- * @return stdClass|false Skilland course mapping record or false if not found
- */
-function skilland_get_course_mapping($courseid) {
-    global $DB;
-    return $DB->get_record('skilland_course', ['course' => $courseid]);
-}
-
-/**
- * Check if a Moodle course has a Skilland course mapping.
- *
- * @param int $courseid Moodle course ID
- * @return bool True if mapping exists, false otherwise
- */
-function skilland_course_has_mapping($courseid) {
-    global $DB;
-    return $DB->record_exists('skilland_course', ['course' => $courseid]);
-}
-
-/**
- * Create or update Skilland course mapping.
- *
- * @param int $courseid Moodle course ID
- * @param string $skillandcourseid Skilland course ID
- * @param string $orgid Skilland organization ID (optional, uses global setting if not provided)
- * @return int|false The mapping record ID on success, false on failure
- */
-function skilland_set_course_mapping($courseid, $skillandcourseid, $orgid = null) {
-    global $DB, $CFG;
-
-    // Use global org ID if not provided.
-    if (empty($orgid)) {
-        $orgid = get_config('mod_skilland', 'orgid');
-    }
-
-    // Check if mapping already exists.
-    $existing = $DB->get_record('skilland_course', ['course' => $courseid]);
-
-    $now = time();
-
-    if ($existing) {
-        // Update existing mapping.
-        $existing->skilland_courseid = $skillandcourseid;
-        $existing->skilland_orgid = $orgid;
-        $existing->timemodified = $now;
-
-        if ($DB->update_record('skilland_course', $existing)) {
-            return $existing->id;
-        }
-        return false;
-    } else {
-        // Create new mapping.
-        $mapping = new stdClass();
-        $mapping->course = $courseid;
-        $mapping->skilland_courseid = $skillandcourseid;
-        $mapping->skilland_orgid = $orgid;
-        $mapping->timesynced = null;
-        $mapping->timecreated = $now;
-        $mapping->timemodified = $now;
-
-        return $DB->insert_record('skilland_course', $mapping);
-    }
-}
-
-/**
- * Update the last sync time for a course mapping.
- *
- * @param int $courseid Moodle course ID
- * @return bool True on success, false on failure
- */
-function skilland_update_course_sync($courseid) {
-    global $DB;
-
-    $mapping = $DB->get_record('skilland_course', ['course' => $courseid]);
-    if (!$mapping) {
-        return false;
-    }
-
-    $mapping->timesynced = time();
-    $mapping->timemodified = time();
-
-    return $DB->update_record('skilland_course', $mapping);
-}
-
-/**
- * Get the Skilland course ID for a given Moodle course.
- *
- * @param int $courseid Moodle course ID
- * @return string|false Skilland Course ID or false if not mapped
- */
-function skilland_get_skilland_courseid($courseid) {
-    $mapping = skilland_get_course_mapping($courseid);
-    return $mapping ? $mapping->skilland_courseid : false;
-}
-
-/**
  * Studio deep-link path for the SSO handoff.
  *
  * Goes through /skills-studio/, which resolves SkilLand UUIDs and Edukami ObjectIds in the
@@ -161,18 +63,6 @@ function skilland_studio_redirect_path($skillid, $topicid = '') {
         $path .= '/topics/' . rawurlencode((string)$topicid);
     }
     return $path;
-}
-
-/**
- * Delete Skilland course mapping.
- * Note: This should be used carefully as it will affect all activities in the course.
- *
- * @param int $courseid Moodle course ID
- * @return bool True on success, false on failure
- */
-function skilland_delete_course_mapping($courseid) {
-    global $DB;
-    return $DB->delete_records('skilland_course', ['course' => $courseid]);
 }
 
 /**
@@ -337,20 +227,14 @@ function skilland_get_course_customfield_value($courseid) {
 /**
  * Resolve the Skilland course (skill) mapped to a Moodle course.
  *
- * The locked course custom field is authoritative; the legacy `skilland_course`
- * table is the fallback for courses mapped before the custom field existed.
+ * The locked course custom field `skilland_course_id` is the only course mapping.
  *
  * @param int $moodlecourseid Moodle course ID
  * @return string|null The mapped Skilland course ID, or null when the course is not mapped
  */
 function skilland_get_mapped_courseid(int $moodlecourseid): ?string {
     $value = skilland_get_course_customfield_value($moodlecourseid);
-    if (!empty($value)) {
-        return (string)$value;
-    }
-
-    $legacy = skilland_get_skilland_courseid($moodlecourseid);
-    return !empty($legacy) ? (string)$legacy : null;
+    return !empty($value) ? (string)$value : null;
 }
 
 /**
@@ -1156,14 +1040,67 @@ function skilland_require_scorm_apis(): void {
 }
 
 /**
+ * Strip the leading topic code ("T1 - ", "T12-") from an activity name.
+ *
+ * @param string $name The activity name.
+ * @return string The name without its leading topic code.
+ */
+function skilland_strip_topic_label(string $name): string {
+    return preg_replace('/^T\d+\s*-\s*/', '', $name);
+}
+
+/**
  * Name of the hidden SCORM activity for a topic, capped at the 255 characters Moodle stores.
  *
  * @param string $name The skilland activity name.
+ * @param bool $hidelabels Whether the activity hides Skilland codes: the topic code is stripped first.
  * @return string
  */
-function skilland_scorm_module_name(string $name): string {
+function skilland_scorm_module_name(string $name, bool $hidelabels = false): string {
+    if ($hidelabels) {
+        $name = skilland_strip_topic_label($name);
+    }
     $suffix = ' (SCORM)';
     return core_text::substr($name, 0, 255 - core_text::strlen($suffix)) . $suffix;
+}
+
+/**
+ * Rename the hidden topic SCORM after the Skilland activity, honouring hidelabels.
+ *
+ * Updates scorm.name when it differs from the expected name, refreshes the SCORM grade item so
+ * the gradebook follows, and rebuilds the course cache. A missing SCORM is a no-op.
+ *
+ * @param stdClass $skilland The skilland activity record (id, course, name, hidelabels, scormcmid).
+ * @return void
+ */
+function skilland_sync_scorm_module_name(stdClass $skilland): void {
+    global $DB;
+
+    if (empty($skilland->scormcmid)) {
+        return;
+    }
+    $scormcm = get_coursemodule_from_id('scorm', (int) $skilland->scormcmid, 0, false, IGNORE_MISSING);
+    if (!$scormcm) {
+        return;
+    }
+    $scorm = $DB->get_record('scorm', ['id' => $scormcm->instance], '*', IGNORE_MISSING);
+    if (!$scorm) {
+        return;
+    }
+
+    $expected = skilland_scorm_module_name((string) $skilland->name, !empty($skilland->hidelabels));
+    if ((string) $scorm->name === $expected) {
+        return;
+    }
+
+    $DB->set_field('scorm', 'name', $expected, ['id' => $scorm->id]);
+    $scorm->name = $expected;
+
+    skilland_require_scorm_apis();
+    $scorm->cmidnumber = $scormcm->idnumber ?? '';
+    scorm_grade_item_update($scorm);
+
+    rebuild_course_cache((int) $scormcm->course, true);
 }
 
 /**
@@ -1263,7 +1200,7 @@ function skilland_create_topic_scorm_module(
     $moduleinfo->visibleoncoursepage = 0;
     $moduleinfo->idnumber = $idnumber;
     $moduleinfo->cmidnumber = $idnumber;
-    $moduleinfo->name = skilland_scorm_module_name((string) $skilland->name);
+    $moduleinfo->name = skilland_scorm_module_name((string) $skilland->name, !empty($skilland->hidelabels));
     $moduleinfo->introeditor = ['text' => '', 'format' => FORMAT_HTML, 'itemid' => file_get_unused_draft_itemid()];
     $moduleinfo->groupmode = 0;
     $moduleinfo->groupingid = 0;
@@ -3210,7 +3147,7 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
  * @return string HTML output.
  */
 function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topicorderindex = 1) {
-    global $USER, $DB, $PAGE, $CFG;
+    global $PAGE;
 
     $renderer = skilland_view_renderer();
 
@@ -3229,16 +3166,6 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
             (int) $topicorderindex,
             null
         ));
-    }
-
-    // Build the SCORM player URL.
-    $scorm = $DB->get_record('scorm', ['id' => $scormcm->instance], '*', MUST_EXIST);
-
-    // Get or create a SCORM attempt for this user.
-    require_once($CFG->dirroot . '/mod/scorm/locallib.php');
-    $attempt = scorm_get_last_attempt($scorm->id, $USER->id);
-    if (empty($attempt)) {
-        $attempt = 1;
     }
 
     // Build the player URL with the specific SCO.
@@ -3268,27 +3195,6 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
     ]]);
 
     return $html;
-}
-
-/**
- * Render prev/next navigation for the player view.
- *
- * @param stdClass $currentlesson The current lesson record.
- * @param array $alllessons All lessons for this activity.
- * @param stdClass $cm The course module record.
- * @param int $topicorderindex The topic order index (T1, T2, etc.).
- * @param stdClass $skilland The skilland activity record.
- * @return string HTML output.
- */
-function skilland_render_player_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
-    return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation(
-        $currentlesson,
-        $alllessons,
-        $cm,
-        (int) $topicorderindex,
-        $skilland,
-        \mod_skilland\output\lesson_navigation::STYLE_PLAYER
-    ));
 }
 
 /**

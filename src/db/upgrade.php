@@ -312,5 +312,27 @@ function xmldb_skilland_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026100209, 'skilland');
     }
 
+    // For version 2026100210 (SKL-689): the skilland_course_id course custom field is the only
+    // course mapping. Rows of the legacy skilland_course table fill an empty field (a field that
+    // already holds a value wins), then the table is dropped. The table is kept when a write
+    // failed, so no mapping is lost.
+    if ($oldversion < 2026100210) {
+        require_once($CFG->dirroot . '/mod/skilland/db/upgradelib.php');
+
+        $counts = skilland_migrate_course_mapping_table();
+
+        $table = new xmldb_table('skilland_course');
+        if ($dbman->table_exists($table)) {
+            if ($counts['failed'] === 0) {
+                $dbman->drop_table($table);
+            } else {
+                debugging('mod_skilland: kept the skilland_course table, ' . $counts['failed'] .
+                    ' mapping(s) could not be copied to the course custom field', DEBUG_NORMAL);
+            }
+        }
+
+        upgrade_mod_savepoint(true, 2026100210, 'skilland');
+    }
+
     return true;
 }

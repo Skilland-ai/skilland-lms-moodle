@@ -19,10 +19,12 @@ class field_controller {
 class data_controller {
     private $field;
     private $value;
+    private $instanceid;
 
-    public function __construct(field_controller $field, $value) {
+    public function __construct(field_controller $field, $value, ?int $instanceid = null) {
         $this->field = $field;
         $this->value = $value;
+        $this->instanceid = $instanceid;
     }
 
     public function get_field(): field_controller {
@@ -61,6 +63,9 @@ class data_controller {
         if (array_key_exists($this->datafield(), $this->pending)) {
             $this->value = $this->pending[$this->datafield()];
             $GLOBALS['_test_customfield_saved'][] = $this->value;
+            if ($this->instanceid !== null) {
+                $GLOBALS['_test_customfield_value'][$this->instanceid] = $this->value;
+            }
         }
     }
 }
@@ -74,12 +79,17 @@ class handler {
         return [];
     }
 
+    // No category can be created in the standalone tests: skilland_ensure_course_customfield() fails soft.
+    public function create_category(string $name): int {
+        throw new \moodle_exception('nopermissions');
+    }
+
     public function get_instance_data(int $instanceid, bool $returnall = false): array {
         $values = $GLOBALS['_test_customfield_value'] ?? [];
         if (!array_key_exists($instanceid, $values)) {
             return [];
         }
         $field = new field_controller(['shortname' => 'skilland_course_id']);
-        return [new data_controller($field, $values[$instanceid])];
+        return [new data_controller($field, $values[$instanceid], $instanceid)];
     }
 }

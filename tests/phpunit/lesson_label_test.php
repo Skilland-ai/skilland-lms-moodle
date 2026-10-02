@@ -83,7 +83,7 @@ class lesson_label_test extends TestCase {
     public function test_navigation_links_show_the_gap(): void {
         $lessons = $this->lessons_with_a_gap();
 
-        $html = skilland_render_player_navigation($lessons[11], $lessons, (object) ['id' => 2], 1,
+        $html = skilland_render_fullscreen_navigation($lessons[11], $lessons, (object) ['id' => 2], 1,
             (object) ['scormcmid' => 40, 'hidelabels' => 0]);
 
         $this->assertStringContainsString('L1.1 - One', $html);

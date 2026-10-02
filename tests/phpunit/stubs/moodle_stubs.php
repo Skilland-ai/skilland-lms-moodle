@@ -136,6 +136,7 @@ if (!class_exists('cached_cm_info')) {
         public $name;
         public $icon;
         public $iconurl;
+        public $content;
         public $customdata;
     }
 }
@@ -675,6 +676,7 @@ foreach ([
     'FEATURE_GRADE_HAS_GRADE' => 'grade_has_grade',
     'FEATURE_MOD_PURPOSE' => 'mod_purpose',
     'FEATURE_BACKUP_MOODLE2' => 'backup_moodle2',
+    'FEATURE_SHOW_DESCRIPTION' => 'showdescription',
     'MOD_PURPOSE_CONTENT' => 'content',
     'GRADE_TYPE_NONE' => 0,
     'GRADE_TYPE_VALUE' => 1,
@@ -735,4 +737,20 @@ if (!isset($GLOBALS['SESSION'])) {
 require_once __DIR__ . '/output_stub.php';
 if (!isset($GLOBALS['PAGE'])) {
     $GLOBALS['PAGE'] = new \test_moodle_page();
+}
+
+// format_module_intro() fake: the intro wrapped so tests can tell it was formatted; calls are
+// recorded in $GLOBALS['_test_format_module_intro'].
+if (!function_exists('format_module_intro')) {
+    function format_module_intro($module, $activity, $cmid, $filter = true) {
+        $GLOBALS['_test_format_module_intro'][] = ['module' => $module, 'cmid' => $cmid, 'filter' => $filter];
+        return '<div class="intro">' . ($activity->intro ?? '') . '</div>';
+    }
+}
+
+// rebuild_course_cache() fake: records the course ids in $GLOBALS['_test_rebuilt_course_caches'].
+if (!function_exists('rebuild_course_cache')) {
+    function rebuild_course_cache($courseid = 0, $clearonly = false, $partialrebuild = false) {
+        $GLOBALS['_test_rebuilt_course_caches'][] = (int) $courseid;
+    }
 }

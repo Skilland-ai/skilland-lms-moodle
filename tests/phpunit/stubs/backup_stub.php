@@ -13,6 +13,14 @@ if (!class_exists('backup')) {
     }
 }
 
+if (!class_exists('backup_helper')) {
+    class backup_helper {
+        public static function is_sqlparam($value) {
+            return ['sqlparam' => $value];
+        }
+    }
+}
+
 if (!class_exists('backup_nested_element')) {
     class backup_nested_element {
         public $name;

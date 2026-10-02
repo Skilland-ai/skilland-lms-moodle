@@ -125,9 +125,8 @@ final class backup_restore_test extends skilland_testcase {
             );
         }
 
-        // The mapping travels with the course.
-        $this->assertSame('skill-1', skilland_get_mapped_courseid($newcourseid)
-            ?? (string) $DB->get_field('skilland_course', 'skilland_courseid', ['course' => $newcourseid]));
+        // The mapping travels with the course, in its custom field.
+        $this->assertSame('skill-1', skilland_get_mapped_courseid($newcourseid));
     }
 
     public function test_restore_without_the_scorm_provisions_a_new_one(): void {

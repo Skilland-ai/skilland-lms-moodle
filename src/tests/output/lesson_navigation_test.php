@@ -138,7 +138,7 @@ final class lesson_navigation_test extends \advanced_testcase {
         $this->assertSame('', $this->renderer()->render($navigation));
     }
 
-    public function test_renderer_picks_the_template_by_style(): void {
+    public function test_renderer_uses_the_fullscreen_template(): void {
         $this->resetAfterTest();
         $lessons = $this->lessons();
 
@@ -146,9 +146,5 @@ final class lesson_navigation_test extends \advanced_testcase {
         $this->assertStringContainsString('class="skilland-fullscreen-nav"', $fullscreen);
         $this->assertStringContainsString(get_string('no_previous_lesson', 'mod_skilland'), $fullscreen);
         $this->assertStringContainsString(get_string('no_next_lesson', 'mod_skilland'), $fullscreen);
-
-        $player = $this->renderer()->render($this->navigation($lessons[12], lesson_navigation::STYLE_PLAYER));
-        $this->assertStringContainsString('class="skilland-player-nav"', $player);
-        $this->assertStringNotContainsString('skilland-fullscreen-nav', $player);
     }
 }

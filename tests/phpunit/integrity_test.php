@@ -245,7 +245,8 @@ class integrity_test extends TestCase {
 
     public function test_install_xml_tables_exist(): void {
         $this->assertArrayHasKey('skilland', self::$dbColumns);
-        $this->assertArrayHasKey('skilland_course', self::$dbColumns);
+        // The course mapping lives in the skilland_course_id custom field; the table was dropped (SKL-689).
+        $this->assertArrayNotHasKey('skilland_course', self::$dbColumns);
         $this->assertArrayHasKey('skilland_lesson', self::$dbColumns);
     }
 

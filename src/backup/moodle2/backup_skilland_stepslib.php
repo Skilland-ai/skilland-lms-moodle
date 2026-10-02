@@ -38,7 +38,7 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
             'snapshotid', 'snapshotcreatedat', 'lastsynced',
             'autoupdate', 'lockafterfirstaccess', 'hidelabels', 'topic_orderindex',
             'scormcmid', 'scorm_provisioned', 'scomappings', 'completionlessons', 'grade', 'timecreated', 'timemodified',
-            'skilland_courseid', 'skilland_orgid', // From skilland_course join.
+            'skilland_courseid', 'skilland_orgid', // The course's skilland_course_id custom field; orgid kept empty.
         ]);
 
         $lessons = new backup_nested_element('lessons');
@@ -54,12 +54,24 @@ class backup_skilland_activity_structure_step extends backup_activity_structure_
         $lessons->add_child($lesson);
 
         // Define sources.
+        // The course mapping is the skilland_course_id course custom field (a text field: charvalue).
         $skilland->set_source_sql("
-            SELECT e.*, ec.skilland_courseid, ec.skilland_orgid
-            FROM {skilland} e
-            LEFT JOIN {skilland_course} ec ON ec.course = e.course
-            WHERE e.id = ?
-        ", [backup::VAR_ACTIVITYID]);
+            SELECT e.*, cd.charvalue AS skilland_courseid, '' AS skilland_orgid
+              FROM {skilland} e
+         LEFT JOIN (
+                    SELECT d.instanceid, d.charvalue
+                      FROM {customfield_data} d
+                      JOIN {customfield_field} f ON f.id = d.fieldid
+                      JOIN {customfield_category} c ON c.id = f.categoryid
+                     WHERE f.shortname = ? AND c.component = ? AND c.area = ?
+                   ) cd ON cd.instanceid = e.course
+             WHERE e.id = ?
+        ", [
+            backup_helper::is_sqlparam('skilland_course_id'),
+            backup_helper::is_sqlparam('core_course'),
+            backup_helper::is_sqlparam('course'),
+            backup::VAR_ACTIVITYID,
+        ]);
 
         $lesson->set_source_table('skilland_lesson', ['skillandid' => backup::VAR_PARENTID]);
 

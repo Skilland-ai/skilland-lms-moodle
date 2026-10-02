@@ -221,7 +221,7 @@ class privacy_provider_test extends TestCase {
         $seen = [];
         foreach ($xml->TABLES->TABLE as $table) {
             $name = (string) $table['NAME'];
-            if (!in_array($name, ['skilland', 'skilland_course', 'skilland_lesson'], true)) {
+            if (!in_array($name, ['skilland', 'skilland_lesson'], true)) {
                 continue;
             }
             $seen[] = $name;
@@ -229,7 +229,7 @@ class privacy_provider_test extends TestCase {
                 $this->assertNotSame('userid', (string) $field['NAME'], "$name must not hold a userid");
             }
         }
-        $this->assertCount(3, $seen);
+        $this->assertCount(2, $seen);
     }
 
     public function test_every_personal_sso_payload_key_is_declared(): void {
