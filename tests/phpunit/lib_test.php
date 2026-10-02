@@ -523,7 +523,7 @@ class lib_test extends TestCase {
         $this->assertEquals(2, $inserts[0]['data']->orderindex);
     }
 
-    public function test_process_lessons_invalid_date_string_returns_false(): void {
+    public function test_process_lessons_invalid_date_string_stores_zero(): void {
         $json = json_encode([
             'L1' => ['name' => 'Test', 'updatedAt' => 'not-a-date'],
         ]);
@@ -531,8 +531,7 @@ class lib_test extends TestCase {
         skilland_process_selected_lessons(1, $json);
 
         $inserts = $this->db->get_calls_for('insert_record');
-        // strtotime('not-a-date') returns false.
-        $this->assertFalse($inserts[0]['data']->updatedat);
+        $this->assertSame(0, $inserts[0]['data']->updatedat);
     }
 
     // ---------------------------------------------------------------

@@ -12,6 +12,18 @@ class FakeDatabaseManager {
     }
 }
 
+class FakeDelegatedTransaction {
+    public bool $allowed = false;
+
+    public function rollback(\Throwable $e): void {
+        throw $e;
+    }
+
+    public function allow_commit(): void {
+        $this->allowed = true;
+    }
+}
+
 class FakeDatabase {
     private $tables = [];
     private $calls = [];
@@ -21,6 +33,11 @@ class FakeDatabase {
 
     public function set_throw_on_get_record(?\Exception $exception): void {
         $this->throw_on_get_record = $exception;
+    }
+
+    public function start_delegated_transaction(): FakeDelegatedTransaction {
+        $this->calls[] = ['method' => 'start_delegated_transaction'];
+        return new FakeDelegatedTransaction();
     }
 
     public function __construct() {

@@ -391,6 +391,29 @@ final class topic_scorm_provisioning_test extends skilland_testcase {
         $this->assertEquals(strtotime('2026-01-02T10:00:00Z'), $lessons['lesson-2']->updatedat);
     }
 
+    public function test_update_stores_zero_for_an_unparseable_lesson_version(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->provision($skilland);
+        $DB->set_field('skilland_lesson', 'updatedat', 1, ['skillandid' => $skilland->id]);
+        $contents = \mod_skilland\local\testing\fixture_api_client::default_responses()['GET topics/{id}/contents']['contents'];
+        foreach ($contents as &$content) {
+            if ($content['id'] === 'lesson-1') {
+                $content['updatedAt'] = 'not a date';
+            }
+        }
+        unset($content);
+        $this->client->merge_response('GET topics/{id}/contents', ['contents' => $contents]);
+
+        $this->update($skilland);
+
+        $lessons = $this->lessons($skilland->id);
+        $this->assertSame(0, (int) $lessons['lesson-1']->updatedat);
+        $this->assertEquals(strtotime('2026-01-02T10:00:00Z'), $lessons['lesson-2']->updatedat);
+    }
+
     /**
      * Failures of a rebuild that must leave the installed SCORM as it was.
      *

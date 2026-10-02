@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100206;   // YYYYMMDDHH - cli/adopt_edukami.php turns mod_edukami activities into Skilland ones (SKL-997).
+$plugin->version   = 2026100207;   // YYYYMMDDHH - lesson dates and titles validated, saves transactional (SKL-684).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.48-beta';
+$plugin->release   = '0.9.49-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

@@ -225,7 +225,9 @@ class sync_content extends \core\task\scheduled_task {
             $DB->update_record('skilland', (object) [
                 'id' => $skilland->id,
                 'snapshotid' => $remotehash,
-                'snapshotcreatedat' => !empty($hashinfo['generatedAt']) ? strtotime($hashinfo['generatedAt']) : time(),
+                'snapshotcreatedat' => !empty($hashinfo['generatedAt'])
+                    ? skilland_parse_timestamp($hashinfo['generatedAt'])
+                    : time(),
                 'lastsynced' => time(),
             ]);
             logger::info('SyncContent', 'Activity ' . $skilland->id .
