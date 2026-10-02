@@ -188,7 +188,7 @@ class connection_check {
             default => self::result('ssosecret', self::STATUS_WARN, 'connectioncheck_unknown_answer'),
         };
 
-        logger::info('ConnectionCheck', 'Organization ID: ' . ($orgcheck !== '' ? $orgcheck : 'unknown') .
+        logger::debug('ConnectionCheck', 'Organization ID: ' . ($orgcheck !== '' ? $orgcheck : 'unknown') .
             ', SSO secret: ' . ($ssocheck !== '' ? $ssocheck : 'unknown'));
 
         if (self::all_ok($results)) {
