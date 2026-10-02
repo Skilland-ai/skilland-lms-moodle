@@ -103,6 +103,7 @@ class fetch_lessons extends base {
                     'id' => $lesson['id'],
                     'name' => $lesson['name'] ?? '',
                     'updatedAt' => $lesson['updatedAt'] ?? '',
+                    'position' => (int) ($lesson['position'] ?? 0),
                 ];
             }
 
@@ -130,6 +131,7 @@ class fetch_lessons extends base {
                     'id' => new external_value(PARAM_TEXT, 'Lesson ID'),
                     'name' => new external_value(PARAM_TEXT, 'Lesson name'),
                     'updatedAt' => new external_value(PARAM_TEXT, 'Last update timestamp'),
+                    'position' => new external_value(PARAM_INT, 'Position of the lesson in the topic in Skilland (1-based)'),
                 ])
             ),
             'error' => new external_value(PARAM_TEXT, 'Error message if any', VALUE_OPTIONAL),

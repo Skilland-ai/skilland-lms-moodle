@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100208;   // YYYYMMDDHH - PHPUnit init gets a writable COMPOSER_HOME in core-tests (SKL-1004).
+$plugin->version   = 2026100209;   // YYYYMMDDHH - Lessons store their Skilland position for the lesson code (SKL-694).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.50-beta';
+$plugin->release   = '0.9.51-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

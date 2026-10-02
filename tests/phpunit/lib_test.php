@@ -223,6 +223,80 @@ class lib_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
+    // skilland_process_selected_lessons() — Skilland position (SKL-694)
+    // ---------------------------------------------------------------
+
+    public function test_process_lessons_stores_the_submitted_skilland_position_with_a_gap(): void {
+        // Lesson 2 of 4 left out: the activity's order is 1, 2, 3, the Skilland positions 1, 3, 4.
+        skilland_process_selected_lessons(42, json_encode([
+            'l1' => ['name' => 'One', 'updatedAt' => 0, 'position' => 1],
+            'l3' => ['name' => 'Three', 'updatedAt' => 0, 'position' => 3],
+            'l4' => ['name' => 'Four', 'updatedAt' => 0, 'position' => 4],
+        ]));
+
+        $inserts = $this->db->get_calls_for('insert_record');
+        $this->assertSame([1, 2, 3], array_map(fn($c) => $c['data']->orderindex, $inserts));
+        $this->assertSame([1, 3, 4], array_map(fn($c) => $c['data']->skillandposition, $inserts));
+    }
+
+    public static function invalid_positions(): array {
+        return [
+            'missing' => [null],
+            'zero' => [0],
+            'negative' => [-2],
+            'float' => [2.5],
+            'text' => ['two'],
+            'array' => [[3]],
+            'too large' => [1000000000],
+        ];
+    }
+
+    /**
+     * @dataProvider invalid_positions
+     * @param mixed $position
+     */
+    public function test_process_lessons_stores_an_invalid_position_as_unknown(mixed $position): void {
+        $data = ['name' => 'One', 'updatedAt' => 0];
+        if ($position !== null) {
+            $data['position'] = $position;
+        }
+
+        skilland_process_selected_lessons(42, json_encode(['l1' => $data]));
+
+        $inserts = $this->db->get_calls_for('insert_record');
+        $this->assertCount(1, $inserts);
+        $this->assertSame(0, $inserts[0]['data']->skillandposition);
+    }
+
+    public function test_process_lessons_accepts_a_numeric_string_position(): void {
+        skilland_process_selected_lessons(42, json_encode(['l1' => ['name' => 'One', 'position' => '7']]));
+
+        $this->assertSame(7, $this->db->get_calls_for('insert_record')[0]['data']->skillandposition);
+    }
+
+    public function test_process_lessons_updates_the_position_of_an_existing_row(): void {
+        $this->db->seed('skilland_lesson', [
+            (object)['id' => 10, 'skilland_lessonid' => 'L1', 'skillandid' => 1, 'visible' => 1, 'orderindex' => 1,
+                'title' => 'One', 'skillandposition' => 1],
+        ]);
+
+        skilland_process_selected_lessons(1, json_encode(['L1' => ['name' => 'One', 'position' => 3]]));
+
+        $this->assertSame(3, $this->db->get_calls_for('update_record')[0]['data']->skillandposition);
+    }
+
+    public function test_process_lessons_keeps_the_stored_position_when_none_is_submitted(): void {
+        $this->db->seed('skilland_lesson', [
+            (object)['id' => 10, 'skilland_lessonid' => 'L1', 'skillandid' => 1, 'visible' => 1, 'orderindex' => 1,
+                'title' => 'One', 'skillandposition' => 4],
+        ]);
+
+        skilland_process_selected_lessons(1, json_encode(['L1' => ['name' => 'One']]));
+
+        $this->assertSame(4, $this->db->get_calls_for('update_record')[0]['data']->skillandposition);
+    }
+
+    // ---------------------------------------------------------------
     // skilland_process_selected_lessons() — updating existing lessons
     // ---------------------------------------------------------------
 

@@ -738,6 +738,10 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                 list.className = 'skilland-lessons-list';
 
                 lessons.forEach(function(lesson, lessonIndex) {
+                    // The lesson's position in the topic in Skilland: the same code students see
+                    // (skilland_lesson_label()), with a gap where a lesson is left out.
+                    var lessonPosition = parseInt(lesson.position, 10) > 0 ? parseInt(lesson.position, 10) : lessonIndex + 1;
+
                     var card = document.createElement('label');
                     card.className = 'skilland-lesson-card';
                     card.setAttribute('for', 'lesson_' + lesson.id);
@@ -748,6 +752,7 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                     checkbox.value = lesson.id;
                     checkbox.dataset.updatedAt = lesson.updatedAt;
                     checkbox.dataset.name = lesson.name;
+                    checkbox.dataset.position = String(lessonPosition);
                     checkbox.className = 'skilland-lesson-checkbox';
 
                     checkbox.checked = hasSavedSelection ? !!savedSelection[lesson.id] : true;
@@ -762,8 +767,8 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
 
                     var title = document.createElement('div');
                     title.className = 'skilland-lesson-title';
-                    // Format: L{topicIndex}.{lessonIndex} - {lessonName}
-                    var lessonLabel = 'L' + currentTopicOrderIndex + '.' + (lessonIndex + 1);
+                    // Format: L{topicIndex}.{position} - {lessonName}
+                    var lessonLabel = 'L' + currentTopicOrderIndex + '.' + lessonPosition;
                     title.textContent = lessonLabel + ' - ' + lesson.name;
                     content.appendChild(title);
 
@@ -822,7 +827,8 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                             var storedLesson = currentSelectedLessons[lessonId] || {};
                             missingLessonsByTopic[topicId][lessonId] = {
                                 updatedAt: storedLesson.updatedAt,
-                                name: storedLesson.name || ''
+                                name: storedLesson.name || '',
+                                position: storedLesson.position || 0
                             };
 
                             var row = document.createElement('div');
@@ -906,8 +912,8 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
             function updateSelectedState() {
                 // The hidden value is always the rendered topic's ticked checkboxes, rebuilt in DOM
                 // order (insertion order becomes orderindex), plus any lessons missing from Skilland
-                // that the teacher has not explicitly removed yet (SKL-688). Nothing else reaches
-                // the hidden input.
+                // that the teacher has not explicitly removed yet (SKL-688), which keep their stored
+                // Skilland position. Nothing else reaches the hidden input.
                 var state = {};
                 if (renderedTopicId !== null) {
                     var checkboxes = document.querySelectorAll('#id_lessons_container .skilland-lesson-checkbox');
@@ -918,7 +924,8 @@ define(['core/ajax', 'core/notification', 'core/str'], function(Ajax, Notificati
                             var stored = currentSelectedLessons[cb.value];
                             state[cb.value] = {
                                 updatedAt: stored ? stored.updatedAt : cb.dataset.updatedAt,
-                                name: cb.dataset.name || ''
+                                name: cb.dataset.name || '',
+                                position: parseInt(cb.dataset.position, 10) || 0
                             };
                         }
                     });

@@ -285,13 +285,14 @@ class mod_skilland_mod_form extends moodleform_mod {
                         'skilland_lesson',
                         ['skillandid' => $this->_instance, 'visible' => 1],
                         '',
-                        'skilland_lessonid, updatedat, title'
+                        'skilland_lessonid, updatedat, title, skillandposition'
                     );
 
                     foreach ($records as $record) {
                         $currentselectedlessons[$record->skilland_lessonid] = [
                             'updatedAt' => $record->updatedat,
                             'name' => $record->title,
+                            'position' => (int) ($record->skillandposition ?? 0),
                         ];
                     }
                 }
@@ -462,7 +463,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                 'skilland_lesson',
                 ['skillandid' => $this->_instance, 'visible' => 1],
                 'orderindex ASC',
-                'skilland_lessonid, title, updatedat'
+                'skilland_lessonid, title, updatedat, skillandposition'
             );
 
             if (!empty($records)) {
@@ -471,6 +472,7 @@ class mod_skilland_mod_form extends moodleform_mod {
                     $lessons[$record->skilland_lessonid] = [
                         'name' => $record->title,
                         'updatedAt' => $record->updatedat,
+                        'position' => (int) ($record->skillandposition ?? 0),
                     ];
                 }
                 $defaultvalues['selected_lessons'] = json_encode($lessons);

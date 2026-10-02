@@ -116,6 +116,10 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
         // Backups taken before SKL-661 still carry the dropped lesson-level scormcmid.
         unset($data->scormcmid);
 
+        // Backups taken before SKL-694 carry no Skilland position: unknown (0), the lesson code
+        // falls back to orderindex.
+        $data->skillandposition = max(0, (int) ($data->skillandposition ?? 0));
+
         // Scoid keeps the backup's (old) SCO id here; restore_skilland_activity_task::after_restore()
         // maps it, together with scormcmid, once the SCORM activity has been restored.
 

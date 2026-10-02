@@ -261,7 +261,7 @@ class integrity_test extends TestCase {
 
     public function test_skilland_lesson_table_has_required_columns(): void {
         $required = ['id', 'skillandid', 'skilland_lessonid', 'title', 'orderindex',
-                     'visible', 'scoid', 'updatedat'];
+                     'visible', 'scoid', 'updatedat', 'skillandposition'];
 
         foreach ($required as $col) {
             $this->assertContains($col, self::$dbColumns['skilland_lesson'],

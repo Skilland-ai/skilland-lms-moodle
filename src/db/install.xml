@@ -125,6 +125,8 @@
                        COMMENT="Last update timestamp from Skilland"/>
                 <FIELD NAME="visible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"
                        COMMENT="Whether this lesson is selected for visibility"/>
+                <FIELD NAME="skillandposition" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+                       COMMENT="1-based position of the lesson in its topic in Skilland (its lesson code); 0 = unknown, fall back to orderindex"/>
             </FIELDS>
 
             <KEYS>

@@ -22,6 +22,10 @@ use renderer_base;
 use stdClass;
 use templatable;
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once(__DIR__ . '/../../locallib.php');
+
 /**
  * The lesson list of a Skilland activity, each lesson with the viewer's progress.
  *
@@ -81,7 +85,7 @@ class lesson_list implements renderable, templatable {
      * Export one lesson card.
      *
      * @param stdClass $lesson The lesson record.
-     * @param int $lessonindex The 1-based position of the lesson in the topic.
+     * @param int $lessonindex The 1-based place of the lesson in the list (the label's fallback).
      * @return array The card's context.
      */
     protected function export_lesson(stdClass $lesson, int $lessonindex): array {
@@ -110,7 +114,7 @@ class lesson_list implements renderable, templatable {
             'playable' => $canplay,
             'url' => $url,
             'showlabel' => empty($this->skilland->hidelabels),
-            'label' => 'L' . $this->topicorderindex . '.' . $lessonindex,
+            'label' => skilland_lesson_label($this->topicorderindex, $lesson, $lessonindex),
             'title' => format_string($lesson->title),
             'meta' => implode(' · ', $meta),
             'scomissing' => $this->showscowarnings && empty($lesson->scoid),

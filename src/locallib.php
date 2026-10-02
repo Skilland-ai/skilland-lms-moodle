@@ -983,10 +983,12 @@ function mod_skilland_fetch_topics(string $courseid): array {
  *
  * GET /api/moodle/topics/{id}/contents, keeping the lessons (type "lesson") with a body, in the
  * route's order: the same lessons the topic's SCORM package turns into SCOs. updatedAt stays the
- * ISO 8601 string the route returns. A topic outside the organization (HTTP 404) has no lessons.
+ * ISO 8601 string the route returns. position is the lesson's 1-based index in the returned list,
+ * the number in its lesson code (skilland_lesson_label()). A topic outside the organization
+ * (HTTP 404) has no lessons.
  *
  * @param string $topicid Skilland topic ID
- * @return array Array of lesson arrays with id, name, and updatedAt
+ * @return array Array of lesson arrays with id, name, updatedAt and position
  * @throws moodle_exception If API call fails
  */
 function mod_skilland_fetch_lessons(string $topicid): array {
@@ -1018,6 +1020,7 @@ function mod_skilland_fetch_lessons(string $topicid): array {
             'id' => (string) $content['id'],
             'name' => is_scalar($content['name'] ?? null) ? (string) $content['name'] : '',
             'updatedAt' => is_scalar($content['updatedAt'] ?? null) ? (string) $content['updatedAt'] : '',
+            'position' => count($lessons) + 1,
         ];
     }
     return $lessons;
@@ -1802,14 +1805,20 @@ function skilland_update_topic_scorm($skilland, $course, $sectionnum = 0, ?strin
 
         // Step 5: updatedat = version of the lesson in the installed package; only a successful
         // build advances it.
+        // The Skilland position (the lesson code) is refreshed too, so a reorder lands here.
         foreach ($lessons as $lesson) {
             $updatedat = !empty($lesson['updatedAt']) ? skilland_parse_timestamp($lesson['updatedAt']) : time();
-            $DB->set_field('skilland_lesson', 'updatedat', $updatedat, [
+            $where = [
                 'skillandid' => $current->id,
                 'skilland_lessonid' => $lesson['id'],
-            ]);
+            ];
+            $DB->set_field('skilland_lesson', 'updatedat', $updatedat, $where);
+            $position = (int) ($lesson['position'] ?? 0);
+            if ($position > 0) {
+                $DB->set_field('skilland_lesson', 'skillandposition', $position, $where);
+            }
         }
-        logger::debug('SCORM', 'Updated lesson timestamps from Skilland API');
+        logger::debug('SCORM', 'Updated lesson timestamps and positions from Skilland API');
     } finally {
         $lock->release();
     }
@@ -3117,6 +3126,29 @@ function skilland_detect_missing_scorm(stdClass $skilland): bool {
     }
     $skilland->scormcmid = null;
     return true;
+}
+
+/**
+ * The code of a lesson, `L<topic>.<position>`, the same one the activity form shows.
+ *
+ * The position is the lesson's 1-based place in the topic in Skilland (`skillandposition`), so a
+ * lesson left out of the activity leaves a gap. An activity saved before positions were stored
+ * (0, unknown) falls back to its order in the activity (`orderindex`), then to `$fallback`.
+ *
+ * @param int $topicorderindex The topic order index (T1, T2, etc.).
+ * @param stdClass $lesson The skilland_lesson record.
+ * @param int $fallback The number to use when the record carries neither position.
+ * @return string The lesson code, e.g. L1.3.
+ */
+function skilland_lesson_label(int $topicorderindex, stdClass $lesson, int $fallback = 0): string {
+    $position = (int) ($lesson->skillandposition ?? 0);
+    if ($position <= 0) {
+        $position = (int) ($lesson->orderindex ?? 0);
+    }
+    if ($position <= 0) {
+        $position = $fallback;
+    }
+    return 'L' . $topicorderindex . '.' . $position;
 }
 
 /**
