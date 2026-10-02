@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.46-beta]
+
+### Fixed
+- Signing in to Skilland from Moodle now lists only the courses where the user
+  can add Skilland activities (teaching courses). A teacher who is enrolled as
+  a student in a colleague's course no longer becomes a collaborator on that
+  course's skill; the next sign-in removes any such synced collaborator
+  (SKL-999).
+
 ## [0.9.45-beta]
 
 ### Added

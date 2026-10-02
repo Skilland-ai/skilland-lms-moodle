@@ -260,6 +260,48 @@ class locallib_sso_token_test extends TestCase {
         $this->assertEmpty($decoded->courseAccess);
     }
 
+    public function test_generate_token_course_access_lists_only_teaching_courses(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'sso_secret' => $this->ssoSecret,
+        ];
+        $GLOBALS['_test_enrolled_courses'] = [
+            10 => (object)['id' => 10],
+            20 => (object)['id' => 20],
+        ];
+        $GLOBALS['_test_customfield_value'] = [10 => 'skill-teach', 20 => 'skill-study'];
+        // The user teaches course 10 and is only a student in course 20.
+        $GLOBALS['_test_capability_course_ids'] = [10];
+
+        try {
+            $token = skilland_generate_sso_token($this->makeUser(), 'org1', 'Expert');
+        } finally {
+            unset($GLOBALS['_test_customfield_value'], $GLOBALS['_test_capability_course_ids']);
+        }
+
+        $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
+        $this->assertCount(1, $decoded->courseAccess);
+        $this->assertSame(10, $decoded->courseAccess[0]->moodleCourseId);
+        $this->assertSame('skill-teach', $decoded->courseAccess[0]->skillandSkillId);
+    }
+
+    public function test_generate_token_course_access_is_empty_for_student_only_enrolments(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
+            'sso_secret' => $this->ssoSecret,
+        ];
+        $GLOBALS['_test_enrolled_courses'] = [20 => (object)['id' => 20]];
+        $GLOBALS['_test_customfield_value'] = [20 => 'skill-study'];
+        $GLOBALS['_test_capability_course_ids'] = [];
+
+        try {
+            $token = skilland_generate_sso_token($this->makeUser(), 'org1', 'Learner');
+        } finally {
+            unset($GLOBALS['_test_customfield_value'], $GLOBALS['_test_capability_course_ids']);
+        }
+
+        $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
+        $this->assertSame([], $decoded->courseAccess);
+    }
+
     public function test_generate_token_preserves_orgid(): void {
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)[
             'sso_secret' => $this->ssoSecret,
