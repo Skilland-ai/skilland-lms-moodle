@@ -70,33 +70,6 @@
             </INDEXES>
         </TABLE>
 
-        <!-- Maps Moodle course to a Skilland course (one Skilland course per Moodle course) -->
-        <TABLE NAME="skilland_course" COMMENT="Maps Moodle course to a Skilland course">
-            <FIELDS>
-                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-                <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true"
-                       COMMENT="Moodle course id"/>
-                <FIELD NAME="skilland_courseid" TYPE="char" LENGTH="64" NOTNULL="true"
-                       COMMENT="ID of the Skilland course corresponding to this Moodle course"/>
-                <FIELD NAME="skilland_orgid" TYPE="char" LENGTH="64" NOTNULL="true"
-                       COMMENT="Skilland organization ID (for audit/logging)"/>
-                <FIELD NAME="timesynced" TYPE="int" LENGTH="10" NOTNULL="false"
-                       COMMENT="Unix time when course was last synced with Skilland"/>
-                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
-                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
-            </FIELDS>
-
-            <KEYS>
-                <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-                <KEY NAME="course_unique" TYPE="unique" FIELDS="course"/>
-            </KEYS>
-
-            <INDEXES>
-                <INDEX NAME="skilland_courseid_idx" UNIQUE="false" FIELDS="skilland_courseid"
-                       COMMENT="Index on Skilland course ID"/>
-            </INDEXES>
-        </TABLE>
-
         <!-- Selected lessons for each Skilland activity and their SCORM link -->
         <TABLE NAME="skilland_lesson" COMMENT="Lessons imported from Skilland for a given activity">
             <FIELDS>

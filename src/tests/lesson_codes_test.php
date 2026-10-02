@@ -139,7 +139,7 @@ final class lesson_codes_test extends skilland_testcase {
         $this->assertSame('L1.1 - Lesson 1', $data['navigation']['prev']['text']);
         $this->assertSame('L1.4 - Lesson 4', $data['navigation']['next']['text']);
 
-        $navigation = (new lesson_navigation($ordered[2], $lessons, $cm, 1, $skilland, lesson_navigation::STYLE_PLAYER))
+        $navigation = (new lesson_navigation($ordered[2], $lessons, $cm, 1, $skilland))
             ->export_for_template($renderer);
         $this->assertSame('L1.3 - Lesson 3', $navigation['prev']['text']);
     }
@@ -307,7 +307,7 @@ final class lesson_codes_test extends skilland_testcase {
         }
 
         $this->assertTrue($dbman->field_exists($table, $field));
-        $this->assertEquals(2026100209, get_config('mod_skilland', 'version'));
+        $this->assertGreaterThanOrEqual(2026100209, (int) get_config('mod_skilland', 'version'));
         $this->assertCount(1, \core\task\manager::get_adhoc_tasks('\\mod_skilland\\task\\backfill_lesson_positions'));
         // Existing positions are untouched by the step itself.
         $this->assertSame(

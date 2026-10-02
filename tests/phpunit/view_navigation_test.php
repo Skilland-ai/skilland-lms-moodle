@@ -39,146 +39,6 @@ class view_navigation_test extends TestCase {
         return $skilland;
     }
 
-    // ---------------------------------------------------------------
-    // skilland_render_player_navigation() — unknown lesson
-    // ---------------------------------------------------------------
-
-    public function test_unknown_lesson_returns_empty(): void {
-        $unknown = new \stdClass();
-        $unknown->id = 999;
-
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'A', 'scoid' => 10],
-        ]);
-
-        $html = skilland_render_player_navigation($unknown, $lessons, $this->makeCm(), 1, $this->makeSkilland());
-
-        $this->assertEquals('', $html);
-    }
-
-    // ---------------------------------------------------------------
-    // First / Last / Middle lesson navigation
-    // ---------------------------------------------------------------
-
-    public function test_first_lesson_no_prev_has_next(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
-        ]);
-        $current = (object)['id' => 1];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland());
-
-        // Prev should be empty span, next should be a link.
-        $this->assertStringContainsString('skilland-nav-prev', $html);
-        $this->assertStringContainsString('skilland-nav-next', $html);
-        // Should not contain prev link (no href in the prev area).
-        $this->assertStringNotContainsString('← L1.', $html);
-        // Should contain next link with L1.2.
-        $this->assertStringContainsString('L1.2', $html);
-    }
-
-    public function test_last_lesson_has_prev_no_next(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
-        ]);
-        $current = (object)['id' => 2];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland());
-
-        // Should contain prev link with L1.1.
-        $this->assertStringContainsString('L1.1', $html);
-        $this->assertStringContainsString('← L1.', $html);
-        // Next should be empty span.
-        $this->assertDoesNotMatchRegularExpression('/L1\.3/', $html);
-    }
-
-    public function test_middle_lesson_has_both_prev_and_next(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'Middle', 'scoid' => 20],
-            ['id' => 3, 'title' => 'Last', 'scoid' => 30],
-        ]);
-        $current = (object)['id' => 2];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland());
-
-        // Should contain both prev (L1.1) and next (L1.3).
-        $this->assertStringContainsString('L1.1', $html);
-        $this->assertStringContainsString('L1.3', $html);
-    }
-
-    // ---------------------------------------------------------------
-    // Label format
-    // ---------------------------------------------------------------
-
-    public function test_label_format_uses_topic_orderindex(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
-        ]);
-        $current = (object)['id' => 1];
-
-        // Topic order index = 3.
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 3, $this->makeSkilland());
-
-        // Next label should be L3.2 (topicorderindex.lessonindex).
-        $this->assertStringContainsString('L3.2', $html);
-    }
-
-    // ---------------------------------------------------------------
-    // Lesson without scoid
-    // ---------------------------------------------------------------
-
-    public function test_lesson_without_scoid_shows_empty_span(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'No SCO', 'scoid' => null],
-        ]);
-        $current = (object)['id' => 1];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland());
-
-        // Next lesson has no scoid, so should be empty span.
-        $this->assertStringNotContainsString('No SCO', $html);
-        $this->assertStringContainsString('<span', $html);
-    }
-
-    // ---------------------------------------------------------------
-    // Missing scormcmid
-    // ---------------------------------------------------------------
-
-    public function test_no_scormcmid_means_no_links(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
-        ]);
-        $current = (object)['id' => 1];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland(0));
-
-        // With scormcmid=0 (empty), next should be empty span, not a link.
-        $this->assertStringNotContainsString('<a ', $html);
-    }
-
-    // ---------------------------------------------------------------
-    // Single lesson
-    // ---------------------------------------------------------------
-
-    public function test_single_lesson_no_prev_no_next(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'Only One', 'scoid' => 10],
-        ]);
-        $current = (object)['id' => 1];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland());
-
-        // Should have nav wrapper but no link elements.
-        $this->assertStringContainsString('skilland-player-nav', $html);
-        $this->assertStringNotContainsString('<a ', $html);
-    }
-
     // ===============================================================
     // skilland_render_fullscreen_navigation()
     // ===============================================================
@@ -252,6 +112,30 @@ class view_navigation_test extends TestCase {
         // Prev has no scoid, should be disabled span.
         $this->assertStringNotContainsString('No SCO', $html);
         $this->assertStringContainsString('skilland-fullscreen-nav-disabled', $html);
+    }
+
+    public function test_fullscreen_label_format_uses_topic_orderindex(): void {
+        $lessons = $this->makeLessons([
+            ['id' => 1, 'title' => 'First', 'scoid' => 10],
+            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
+        ]);
+        $current = (object)['id' => 1];
+
+        $html = skilland_render_fullscreen_navigation($current, $lessons, $this->makeCm(), 3, $this->makeSkilland());
+
+        $this->assertStringContainsString('L3.2', $html);
+    }
+
+    public function test_fullscreen_no_scormcmid_means_no_links(): void {
+        $lessons = $this->makeLessons([
+            ['id' => 1, 'title' => 'First', 'scoid' => 10],
+            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
+        ]);
+        $current = (object)['id' => 1];
+
+        $html = skilland_render_fullscreen_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland(0));
+
+        $this->assertStringNotContainsString('<a ', $html);
     }
 
     public function test_fullscreen_single_lesson_both_disabled(): void {
@@ -368,37 +252,6 @@ class view_navigation_test extends TestCase {
         $this->assertStringContainsString('L2.1', $html);
         $this->assertStringContainsString('skilland-lesson-number', $html);
         $this->assertStringContainsString('Test Lesson', $html);
-    }
-
-    public function test_player_nav_hides_labels_when_hidelabels(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
-            ['id' => 3, 'title' => 'Third', 'scoid' => 30],
-        ]);
-        $current = (object)['id' => 2];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland(100, 1));
-
-        // Titles should appear, but L1.x labels should not.
-        $this->assertStringContainsString('First', $html);
-        $this->assertStringContainsString('Third', $html);
-        $this->assertDoesNotMatchRegularExpression('/L\d+\.\d+/', $html);
-    }
-
-    public function test_player_nav_shows_labels_when_hidelabels_off(): void {
-        $lessons = $this->makeLessons([
-            ['id' => 1, 'title' => 'First', 'scoid' => 10],
-            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
-            ['id' => 3, 'title' => 'Third', 'scoid' => 30],
-        ]);
-        $current = (object)['id' => 2];
-
-        $html = skilland_render_player_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland(100, 0));
-
-        // Labels should appear alongside titles.
-        $this->assertStringContainsString('L1.1', $html);
-        $this->assertStringContainsString('L1.3', $html);
     }
 
     public function test_fullscreen_nav_hides_labels_when_hidelabels(): void {

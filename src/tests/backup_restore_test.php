@@ -78,6 +78,40 @@ final class backup_restore_test extends skilland_testcase {
         return (int) $newcourseid;
     }
 
+    /**
+     * Import a course's activities into an existing course, as Moodle's course import does.
+     *
+     * @param \stdClass $course The source course.
+     * @param int $targetcourseid The existing course the activities are added to.
+     */
+    private function import_into(\stdClass $course, int $targetcourseid): void {
+        global $USER;
+
+        $bc = new \backup_controller(
+            \backup::TYPE_1COURSE,
+            $course->id,
+            \backup::FORMAT_MOODLE,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_IMPORT,
+            $USER->id
+        );
+        $backupid = $bc->get_backupid();
+        $bc->execute_plan();
+        $bc->destroy();
+
+        $rc = new \restore_controller(
+            $backupid,
+            $targetcourseid,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_IMPORT,
+            $USER->id,
+            \backup::TARGET_EXISTING_ADDING
+        );
+        $this->assertTrue($rc->execute_precheck());
+        $rc->execute_plan();
+        $rc->destroy();
+    }
+
     public function test_restore_keeps_the_settings_lessons_and_linked_scorm(): void {
         global $DB;
 
@@ -125,9 +159,8 @@ final class backup_restore_test extends skilland_testcase {
             );
         }
 
-        // The mapping travels with the course.
-        $this->assertSame('skill-1', skilland_get_mapped_courseid($newcourseid)
-            ?? (string) $DB->get_field('skilland_course', 'skilland_courseid', ['course' => $newcourseid]));
+        // The mapping travels with the course, in its custom field.
+        $this->assertSame('skill-1', skilland_get_mapped_courseid($newcourseid));
     }
 
     public function test_restore_without_the_scorm_provisions_a_new_one(): void {
@@ -149,5 +182,62 @@ final class backup_restore_test extends skilland_testcase {
         foreach ($this->lessons($restored->id) as $lesson) {
             $this->assertNotEmpty($lesson->scoid);
         }
+    }
+
+    /**
+     * A course whose custom field holds no value backs up and restores; the new course stays unmapped.
+     */
+    public function test_backup_of_an_unmapped_course_restores_without_a_mapping(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->provision($skilland);
+        $DB->delete_records('customfield_data', ['id' => $this->course_mapping_row((int) $course->id)->id]);
+        $this->assertNull(skilland_get_mapped_courseid((int) $course->id));
+
+        $newcourseid = $this->backup_and_restore($course);
+
+        $restored = $DB->get_record('skilland', ['course' => $newcourseid], '*', MUST_EXIST);
+        $this->assertSame($this->scorm_cmids($newcourseid)[0], (int) $restored->scormcmid);
+        $this->assertNull(skilland_get_mapped_courseid($newcourseid));
+        $this->assertNull($this->course_mapping_row($newcourseid));
+    }
+
+    /**
+     * Importing into a course mapped to another skill keeps that course's own mapping.
+     */
+    public function test_import_into_a_course_mapped_elsewhere_keeps_its_mapping(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->provision($skilland);
+        $target = $this->getDataGenerator()->create_course();
+        $this->generator()->create_course_mapping((int) $target->id, 'skill-target');
+
+        $this->import_into($course, (int) $target->id);
+        $this->take_debugging();
+
+        $this->assertTrue($DB->record_exists('skilland', ['course' => $target->id]));
+        $this->assertSame('skill-target', skilland_get_mapped_courseid((int) $target->id));
+        $this->assertSame('skill-1', skilland_get_mapped_courseid((int) $course->id), 'The source course is untouched');
+    }
+
+    /**
+     * Importing into a course whose field holds only whitespace maps it to the backup's skill.
+     */
+    public function test_import_into_a_blank_course_takes_the_backup_mapping(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course);
+        $this->provision($skilland);
+        $target = $this->getDataGenerator()->create_course();
+        $this->generator()->create_course_mapping((int) $target->id, '   ');
+
+        $this->import_into($course, (int) $target->id);
+        $this->take_debugging();
+
+        $this->assertSame('skill-1', skilland_get_mapped_courseid((int) $target->id));
+        $this->assertSame('skill-1', $this->course_mapping_row((int) $target->id)->charvalue);
     }
 }

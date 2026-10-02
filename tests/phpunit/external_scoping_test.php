@@ -246,28 +246,23 @@ class external_scoping_test extends TestCase {
         $this->assertSame([], $result['topics']);
     }
 
-    public function test_fetch_topics_custom_field_wins_over_table(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
-        $this->stubCourseTopics('skill-table', ['topic-t1']);
+    public function test_fetch_topics_rejects_a_skill_other_than_the_custom_field(): void {
+        $this->stubCourseTopics('skill-other', ['topic-t1']);
 
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('error_course_not_mapped_to_skill');
 
-        \mod_skilland\external\fetch_topics::execute('skill-table', 10);
+        \mod_skilland\external\fetch_topics::execute('skill-other', 10);
     }
 
-    public function test_fetch_topics_uses_table_when_custom_field_empty_string(): void {
+    public function test_fetch_topics_rejects_a_course_whose_custom_field_is_empty(): void {
         $GLOBALS['_test_customfield_value'][40] = '';
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 40, 'skilland_courseid' => 'skill-table'],
-        ]);
-        $this->stubCourseTopics('skill-table', ['topic-t1']);
+        $this->stubCourseTopics('skill-a', ['topic-t1']);
 
-        $result = \mod_skilland\external\fetch_topics::execute('skill-table', 40);
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessageMatches('/^error_course_not_mapped$/');
 
-        $this->assertSame(['topic-t1'], array_column($result['topics'], 'id'));
+        \mod_skilland\external\fetch_topics::execute('skill-a', 40);
     }
 
     public function test_fetch_topics_rejects_empty_courseid(): void {

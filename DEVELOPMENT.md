@@ -103,7 +103,7 @@ script then probes `GET /api/moodle/skills`. An `http://` endpoint needs `--allo
 
 The course custom field (`skilland_course_id`) is created on install, recreated on every
 plugin upgrade and the first time a course is mapped; the settings page only reports
-whether it exists.
+whether it exists. It is the only course mapping: the legacy `skilland_course` table was migrated into it and dropped in 0.9.52-beta, and `hidelabels` also strips the topic code from the hidden SCORM's name (SKL-689).
 
 ## Testing SSO Login
 

@@ -29,8 +29,7 @@ require_once(__DIR__ . '/../../locallib.php');
 /**
  * The previous / next lesson links around the lesson being played.
  *
- * Rendered by mod_skilland/fullscreen_navigation (the fullscreen player's bottom bar) or
- * mod_skilland/player_navigation (a plain row), picked by the style.
+ * Rendered by mod_skilland/fullscreen_navigation (the fullscreen player's bottom bar).
  *
  * @package    mod_skilland
  * @copyright  2026 Skilland
@@ -39,9 +38,6 @@ require_once(__DIR__ . '/../../locallib.php');
 class lesson_navigation implements renderable, templatable {
     /** The fullscreen player's bottom bar, mod_skilland/fullscreen_navigation. */
     public const STYLE_FULLSCREEN = 'fullscreen';
-
-    /** A plain previous / next row, mod_skilland/player_navigation. */
-    public const STYLE_PLAYER = 'player';
 
     /** @var stdClass[] The lessons of the activity, re-indexed from 0. */
     protected array $lessons;

@@ -11,8 +11,7 @@ use PHPUnit\Framework\TestCase;
  */
 class view_templates_test extends TestCase {
 
-    private const TEMPLATES = ['lesson_list', 'lesson_card', 'player', 'fullscreen_navigation',
-        'player_navigation', 'provision'];
+    private const TEMPLATES = ['lesson_list', 'lesson_card', 'player', 'fullscreen_navigation', 'provision'];
 
     /** @var string|null The dirroot restored after a test that fakes mod/scorm. */
     private $originaldirroot;

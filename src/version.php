@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100209;   // YYYYMMDDHH - Lessons store their Skilland position for the lesson code (SKL-694).
+$plugin->version   = 2026100210;   // YYYYMMDDHH - Course mapping table migrated to the custom field and dropped (SKL-689).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.51-beta';
+$plugin->release   = '0.9.52-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

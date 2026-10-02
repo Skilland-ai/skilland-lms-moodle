@@ -56,10 +56,7 @@ class renderer extends plugin_renderer_base {
         if (!$navigation->has_current()) {
             return '';
         }
-        $template = $navigation->get_style() === lesson_navigation::STYLE_PLAYER
-            ? 'mod_skilland/player_navigation'
-            : 'mod_skilland/fullscreen_navigation';
-        return $this->render_from_template($template, $navigation->export_for_template($this));
+        return $this->render_from_template('mod_skilland/fullscreen_navigation', $navigation->export_for_template($this));
     }
 
     /**

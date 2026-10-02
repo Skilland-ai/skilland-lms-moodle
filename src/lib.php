@@ -35,6 +35,8 @@ function skilland_supports($feature) {
     switch ($feature) {
         case FEATURE_MOD_INTRO:
             return true;
+        case FEATURE_SHOW_DESCRIPTION:
+            return true;
         case FEATURE_COMPLETION_TRACKS_VIEWS:
             return true;
         case FEATURE_COMPLETION_HAS_RULES:
@@ -78,13 +80,15 @@ function skilland_view(stdClass $skilland, stdClass $course, $cm, context_module
  * Returns display information for the course page.
  *
  * When hidelabels is enabled, strips the "T1 - " prefix from the activity name
- * so students don't see Skilland codes on the Moodle course page.
+ * so students don't see Skilland codes on the Moodle course page. When the
+ * activity shows its description, the intro is shown on the course page.
  *
  * @param stdClass $coursemodule The course module record.
  * @return cached_cm_info|null Module info to cache, or null on failure.
  */
 function skilland_get_coursemodule_info($coursemodule) {
     global $CFG, $DB;
+    require_once(__DIR__ . '/locallib.php');
 
     $skilland = $DB->get_record('skilland', ['id' => $coursemodule->instance], '*', IGNORE_MISSING);
     if (!$skilland) {
@@ -93,7 +97,11 @@ function skilland_get_coursemodule_info($coursemodule) {
 
     $info = new cached_cm_info();
     if (!empty($skilland->hidelabels)) {
-        $info->name = preg_replace('/^T\d+\s*-\s*/', '', $skilland->name);
+        $info->name = skilland_strip_topic_label((string) $skilland->name);
+    }
+
+    if (!empty($coursemodule->showdescription)) {
+        $info->content = format_module_intro('skilland', $skilland, $coursemodule->id, false);
     }
 
     require_once($CFG->libdir . '/completionlib.php');
@@ -138,9 +146,7 @@ function skilland_add_instance($skilland, $mform = null) {
         $skilland->topic_orderindex = 1;
     }
 
-    // Handle Skilland course mapping.
-    // Note: Skilland Course ID is stored in course custom fields, not in the skilland table.
-    // The legacy mapping table may still be used for additional metadata.
+    // The Skilland Course ID lives in the course custom field skilland_course_id, not in the skilland table.
 
     // Remove any form fields that are not in the skilland table.
     unset($skilland->skilland_courseid);
@@ -215,7 +221,8 @@ function skilland_update_instance($skilland, $mform = null) {
         $skilland->completionlessons = empty($skilland->completionlessons) ? 0 : 1;
     }
 
-    $old = $DB->get_record('skilland', ['id' => $skilland->id], 'id, skilland_topicid, scormcmid, grade', IGNORE_MISSING);
+    $oldfields = 'id, name, hidelabels, skilland_topicid, scormcmid, grade';
+    $old = $DB->get_record('skilland', ['id' => $skilland->id], $oldfields, IGNORE_MISSING);
     $topicchanged = $old && (string) $old->skilland_topicid !== (string) ($skilland->skilland_topicid ?? '');
     if ($topicchanged) {
         // The stored snapshot belongs to the old topic; cron must never compare the new one against it.
@@ -239,11 +246,39 @@ function skilland_update_instance($skilland, $mform = null) {
         skilland_reconcile_scorm_after_update((int) $skilland->id, $topicchanged);
     }
 
+    $namechanged = $old && isset($skilland->name) && (string) $old->name !== (string) $skilland->name;
+    $hidelabelschanged = $old && isset($skilland->hidelabels) && (int) $old->hidelabels !== (int) $skilland->hidelabels;
+    if ($result && ($namechanged || $hidelabelschanged)) {
+        skilland_rename_scorm_after_update((int) $skilland->id);
+    }
+
     if ($result && isset($skilland->grade)) {
         skilland_sync_grades_after_update((int) $skilland->id, (int) ($old->grade ?? 0));
     }
 
     return $result;
+}
+
+/**
+ * Rename the hidden topic SCORM after the activity's name or hidelabels changed.
+ *
+ * Runs after the save, outside any transaction, and never fails the save: an error is logged with ids only.
+ *
+ * @param int $skillandid The skilland activity id.
+ * @return void
+ */
+function skilland_rename_scorm_after_update(int $skillandid): void {
+    global $DB;
+
+    try {
+        $current = $DB->get_record('skilland', ['id' => $skillandid], '*', IGNORE_MISSING);
+        if ($current) {
+            skilland_sync_scorm_module_name($current);
+        }
+    } catch (\Throwable $e) {
+        logger::error('SCORM', 'Renaming the SCORM of skilland id ' . $skillandid . ' failed: ' . get_class($e));
+        debugging('mod_skilland: renaming the SCORM of skilland id ' . $skillandid . ' failed', DEBUG_DEVELOPER);
+    }
 }
 
 /**

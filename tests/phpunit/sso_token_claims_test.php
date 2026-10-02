@@ -74,6 +74,19 @@ class sso_token_claims_test extends TestCase {
         $this->assertSame('7', $claims->sub);
     }
 
+    public function test_course_access_skips_a_whitespace_only_mapping(): void {
+        $GLOBALS['_test_customfield_value'] = [10 => '   ', 11 => ' skill-a '];
+        $GLOBALS['_test_enrolled_courses'] = [10 => (object) ['id' => 10], 11 => (object) ['id' => 11]];
+
+        try {
+            $claims = $this->mint(['frontend_url' => 'https://app.example.com/']);
+        } finally {
+            unset($GLOBALS['_test_customfield_value']);
+        }
+
+        $this->assertEquals([(object) ['moodleCourseId' => 11, 'skillandSkillId' => 'skill-a']], $claims->courseAccess);
+    }
+
     public function test_existing_claims_unchanged(): void {
         $GLOBALS['_test_enrolled_courses'] = [];
         $claims = $this->mint(['frontend_url' => 'https://app.example.com/']);

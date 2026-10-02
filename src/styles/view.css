@@ -354,15 +354,6 @@
   display: block;
 }
 
-.skilland-player-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-}
-
 /* ========================================
    Lesson View (Single Lesson) - DEPRECATED
    ======================================== */

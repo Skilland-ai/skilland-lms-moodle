@@ -932,18 +932,19 @@ class lib_test extends TestCase {
         skilland_add_instance($data);
     }
 
-    public function test_add_instance_uses_table_mapping_when_custom_field_empty(): void {
+    public function test_add_instance_rejects_a_course_whose_custom_field_is_empty(): void {
         $GLOBALS['_test_customfield_value'][10] = '';
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
         $data = new \stdClass();
         $data->course = 10;
         $data->skilland_topicid = 'topic1';
 
-        skilland_add_instance($data);
-
-        $this->assertCount(1, $this->db->get_calls_for('insert_record'));
+        try {
+            skilland_add_instance($data);
+            $this->fail('An unmapped course must be rejected');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertCount(0, $this->db->get_calls_for('insert_record'));
     }
 
     public function test_update_instance_accepts_same_valid_saved_topic(): void {

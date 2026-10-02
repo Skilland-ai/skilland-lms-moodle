@@ -41,168 +41,23 @@ class locallib_course_mapping_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
-    // skilland_get_course_mapping()
+    // skilland_get_mapped_courseid(): the custom field is the only mapping (SKL-661, SKL-689)
     // ---------------------------------------------------------------
 
-    public function test_get_course_mapping_returns_record(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'EK-100', 'skilland_orgid' => 'org1'],
-        ]);
-
-        $result = skilland_get_course_mapping(10);
-
-        $this->assertIsObject($result);
-        $this->assertEquals('EK-100', $result->skilland_courseid);
-    }
-
-    public function test_get_course_mapping_returns_false_when_not_found(): void {
-        $result = skilland_get_course_mapping(999);
-
-        $this->assertFalse($result);
-    }
-
-    // ---------------------------------------------------------------
-    // skilland_course_has_mapping()
-    // ---------------------------------------------------------------
-
-    public function test_course_has_mapping_returns_true(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'EK-100'],
-        ]);
-
-        $this->assertTrue(skilland_course_has_mapping(10));
-    }
-
-    public function test_course_has_mapping_returns_false(): void {
-        $this->assertFalse(skilland_course_has_mapping(999));
-    }
-
-    // ---------------------------------------------------------------
-    // skilland_set_course_mapping() — create new
-    // ---------------------------------------------------------------
-
-    public function test_set_course_mapping_creates_new(): void {
-        $before = time();
-        $result = skilland_set_course_mapping(10, 'EK-200', 'org1');
-
-        $this->assertIsInt($result);
-        $inserts = $this->db->get_calls_for('insert_record');
-        $this->assertCount(1, $inserts);
-        $rec = $inserts[0]['data'];
-        $this->assertEquals(10, $rec->course);
-        $this->assertEquals('EK-200', $rec->skilland_courseid);
-        $this->assertEquals('org1', $rec->skilland_orgid);
-        $this->assertGreaterThanOrEqual($before, $rec->timecreated);
-        $this->assertNull($rec->timesynced);
-    }
-
-    public function test_set_course_mapping_updates_existing(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 5, 'course' => 10, 'skilland_courseid' => 'OLD', 'skilland_orgid' => 'org1', 'timemodified' => 1000],
-        ]);
-
-        $result = skilland_set_course_mapping(10, 'NEW', 'org2');
-
-        $this->assertEquals(5, $result);
-        $updates = $this->db->get_calls_for('update_record');
-        $this->assertCount(1, $updates);
-        $this->assertEquals('NEW', $updates[0]['data']->skilland_courseid);
-        $this->assertEquals('org2', $updates[0]['data']->skilland_orgid);
-    }
-
-    public function test_set_course_mapping_uses_config_orgid_when_null(): void {
-        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['orgid' => 'config-org'];
-
-        skilland_set_course_mapping(10, 'EK-300');
-
-        $inserts = $this->db->get_calls_for('insert_record');
-        $this->assertEquals('config-org', $inserts[0]['data']->skilland_orgid);
-    }
-
-    public function test_set_course_mapping_uses_provided_orgid(): void {
-        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['orgid' => 'config-org'];
-
-        skilland_set_course_mapping(10, 'EK-300', 'explicit-org');
-
-        $inserts = $this->db->get_calls_for('insert_record');
-        $this->assertEquals('explicit-org', $inserts[0]['data']->skilland_orgid);
-    }
-
-    // ---------------------------------------------------------------
-    // skilland_update_course_sync()
-    // ---------------------------------------------------------------
-
-    public function test_update_course_sync_sets_timestamps(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'timesynced' => null, 'timemodified' => 1000],
-        ]);
-
-        $before = time();
-        $result = skilland_update_course_sync(10);
-
-        $this->assertTrue($result);
-        $updates = $this->db->get_calls_for('update_record');
-        $this->assertGreaterThanOrEqual($before, $updates[0]['data']->timesynced);
-        $this->assertGreaterThanOrEqual($before, $updates[0]['data']->timemodified);
-    }
-
-    public function test_update_course_sync_returns_false_when_no_mapping(): void {
-        $this->assertFalse(skilland_update_course_sync(999));
-    }
-
-    // ---------------------------------------------------------------
-    // skilland_get_skilland_courseid()
-    // ---------------------------------------------------------------
-
-    public function test_get_skilland_courseid_returns_id(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'EK-100'],
-        ]);
-
-        $this->assertEquals('EK-100', skilland_get_skilland_courseid(10));
-    }
-
-    public function test_get_skilland_courseid_returns_false_when_unmapped(): void {
-        $this->assertFalse(skilland_get_skilland_courseid(999));
-    }
-
-    // ---------------------------------------------------------------
-    // skilland_delete_course_mapping()
-    // ---------------------------------------------------------------
-
-    public function test_delete_course_mapping_delegates_to_delete_records(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10],
-        ]);
-
-        $result = skilland_delete_course_mapping(10);
-
-        $this->assertTrue($result);
-        $deletes = $this->db->get_calls_for('delete_records');
-        $this->assertCount(1, $deletes);
-        $this->assertEquals('skilland_course', $deletes[0]['table']);
-        $this->assertEquals(['course' => 10], $deletes[0]['conditions']);
-    }
-
-    // ---------------------------------------------------------------
-    // skilland_get_mapped_courseid() (SKL-661)
-    // ---------------------------------------------------------------
-
-    public function test_get_mapped_courseid_prefers_custom_field(): void {
+    public function test_get_mapped_courseid_reads_the_custom_field(): void {
         $GLOBALS['_test_customfield_value'][10] = 'skill-field';
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
 
         $this->assertSame('skill-field', skilland_get_mapped_courseid(10));
     }
 
-    public function test_get_mapped_courseid_falls_back_to_table(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
+    public function test_get_mapped_courseid_never_reads_a_table(): void {
+        $GLOBALS['_test_customfield_value'][10] = 'skill-field';
 
-        $this->assertSame('skill-table', skilland_get_mapped_courseid(10));
+        skilland_get_mapped_courseid(10);
+        skilland_get_mapped_courseid(11);
+
+        $this->assertSame([], $this->db->get_calls_for('get_record'));
+        $this->assertSame([], $this->db->get_calls_for('record_exists'));
     }
 
     public function test_get_mapped_courseid_returns_null_when_unmapped(): void {
@@ -235,24 +90,13 @@ class locallib_course_mapping_test extends TestCase {
         skilland_require_mapped_course(10, 'skill-a');
     }
 
-    public function test_require_mapped_course_uses_custom_field_over_table(): void {
-        $GLOBALS['_test_customfield_value'][10] = 'skill-field';
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
+    public function test_require_mapped_course_throws_when_the_custom_field_is_empty(): void {
+        $GLOBALS['_test_customfield_value'][10] = '';
 
         $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('error_course_not_mapped_to_skill');
+        $this->expectExceptionMessageMatches('/^error_course_not_mapped$/');
 
-        skilland_require_mapped_course(10, 'skill-table');
-    }
-
-    public function test_require_mapped_course_uses_table_when_no_custom_field(): void {
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
-
-        $this->assertSame('skill-table', skilland_require_mapped_course(10, 'skill-table'));
+        skilland_require_mapped_course(10, 'skill-a');
     }
 
     // ---------------------------------------------------------------
@@ -278,29 +122,34 @@ class locallib_course_mapping_test extends TestCase {
         $this->assertFalse(skilland_topic_belongs_to_course('topic-1', ''));
     }
 
-    public function test_get_mapped_courseid_empty_custom_field_falls_back_to_table(): void {
+    public function test_get_mapped_courseid_empty_custom_field_is_unmapped(): void {
         $GLOBALS['_test_customfield_value'][10] = '';
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
 
-        $this->assertSame('skill-table', skilland_get_mapped_courseid(10));
+        $this->assertNull(skilland_get_mapped_courseid(10));
     }
 
-    public function test_get_mapped_courseid_null_custom_field_falls_back_to_table(): void {
+    // ---------------------------------------------------------------
+    // skilland_get_course_customfield_value(): blank mappings fail closed at the source
+    // ---------------------------------------------------------------
+
+    public function test_customfield_value_treats_whitespace_only_as_not_set(): void {
+        $GLOBALS['_test_customfield_value'] = [10 => '   ', 11 => "\t\n", 12 => '', 13 => null];
+
+        foreach ([10, 11, 12, 13, 999] as $courseid) {
+            $this->assertNull(skilland_get_course_customfield_value($courseid), "course $courseid");
+            $this->assertNull(skilland_get_mapped_courseid($courseid), "course $courseid");
+        }
+    }
+
+    public function test_customfield_value_is_trimmed(): void {
+        $GLOBALS['_test_customfield_value'][10] = "  skill-a \n";
+
+        $this->assertSame('skill-a', skilland_get_course_customfield_value(10));
+        $this->assertSame('skill-a', skilland_get_mapped_courseid(10));
+    }
+
+    public function test_get_mapped_courseid_null_custom_field_is_unmapped(): void {
         $GLOBALS['_test_customfield_value'][10] = null;
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-table'],
-        ]);
-
-        $this->assertSame('skill-table', skilland_get_mapped_courseid(10));
-    }
-
-    public function test_get_mapped_courseid_empty_everywhere_is_unmapped(): void {
-        $GLOBALS['_test_customfield_value'][10] = '';
-        $this->db->seed('skilland_course', [
-            (object)['id' => 1, 'course' => 10, 'skilland_courseid' => ''],
-        ]);
 
         $this->assertNull(skilland_get_mapped_courseid(10));
     }
@@ -352,5 +201,81 @@ class locallib_course_mapping_test extends TestCase {
         $this->expectException(\moodle_exception::class);
 
         skilland_topic_belongs_to_course('topic-1', 'skill-a');
+    }
+
+    // ---------------------------------------------------------------
+    // Fail closed on a blank field (SKL-689)
+    // ---------------------------------------------------------------
+
+    /**
+     * A field holding only whitespace is unmapped.
+     */
+    public function test_get_mapped_courseid_whitespace_custom_field_is_unmapped(): void {
+        $GLOBALS['_test_customfield_value'][10] = " \t\n ";
+
+        $this->assertNull(skilland_get_mapped_courseid(10));
+    }
+
+    /**
+     * The mapped value is returned without the whitespace around it.
+     */
+    public function test_get_mapped_courseid_trims_the_custom_field(): void {
+        $GLOBALS['_test_customfield_value'][10] = ' skill-a ';
+
+        $this->assertSame('skill-a', skilland_get_mapped_courseid(10));
+    }
+
+    /**
+     * A whitespace field never authorizes a request, even one naming the same whitespace.
+     */
+    public function test_require_mapped_course_whitespace_field_fails_closed(): void {
+        $GLOBALS['_test_customfield_value'][10] = '   ';
+
+        foreach (['   ', '', 'skill-a'] as $requested) {
+            try {
+                skilland_require_mapped_course(10, $requested);
+                $this->fail('A whitespace field must not authorize ' . json_encode($requested));
+            } catch (\moodle_exception $e) {
+                $this->assertSame('error_course_not_mapped', $e->errorcode);
+            }
+        }
+    }
+
+    /**
+     * A course with no custom field data at all fails closed.
+     */
+    public function test_require_mapped_course_course_without_field_data_fails_closed(): void {
+        // Course 10 is not in _test_customfield_value: the handler returns no data for it.
+        try {
+            skilland_require_mapped_course(10, 'skill-a');
+            $this->fail('An unmapped course must be rejected');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertSame([], $this->db->get_calls_for('get_record'), 'No table is consulted as a fallback');
+    }
+
+    /**
+     * The SSO handoff of an unmapped course opens the skills list, never a skill or topic path.
+     */
+    public function test_sso_studio_path_of_an_unmapped_course_is_the_skills_list(): void {
+        $GLOBALS['_test_customfield_value'][10] = '';
+        $GLOBALS['_test_customfield_value'][11] = '  ';
+
+        $this->assertSame('/skills', skilland_studio_redirect_path(skilland_get_mapped_courseid(10) ?? '', 'topic-1'));
+        $this->assertSame('/skills', skilland_studio_redirect_path(skilland_get_mapped_courseid(11) ?? '', 'topic-1'));
+        $this->assertSame('/skills', skilland_studio_redirect_path(skilland_get_mapped_courseid(12) ?? '', 'topic-1'));
+    }
+
+    /**
+     * sso_redirect.php resolves the skill only through skilland_get_mapped_courseid().
+     */
+    public function test_sso_redirect_resolves_the_skill_only_from_the_custom_field(): void {
+        $source = file_get_contents(__DIR__ . '/../../src/sso_redirect.php');
+
+        $this->assertStringContainsString('$skillandcourseid = skilland_get_mapped_courseid($courseid) ?? \'\';', $source);
+        $this->assertSame(1, preg_match_all('/\$skillandcourseid\s*=/', $source));
+        $this->assertStringNotContainsString('skilland_get_course_customfield_value', $source);
+        $this->assertStringNotContainsString('skilland_get_skilland_courseid', $source);
     }
 }

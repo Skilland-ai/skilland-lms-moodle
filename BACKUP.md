@@ -18,8 +18,9 @@ The backup implementation is located in `src/backup/moodle2/` and follows standa
     - The package's lesson -> SCO identifier map (`scomappings`).
     - Snapshot metadata.
 
-2.  **Course Mapping (`skilland_course` table)**:
-    - When backing up an activity, we also include the `skilland_courseid` and `skilland_orgid` of the *current course* in the XML. This ensures that if the activity is restored into a new course that hasn't been linked to Skilland yet, the link is established automatically.
+2.  **Course Mapping (`skilland_course_id` course custom field)**:
+    - When backing up an activity, we also include the value of the *current course's* `skilland_course_id` custom field in the XML as `skilland_courseid` (`skilland_orgid` stays in the format, always empty). This ensures that if the activity is restored into a new course that hasn't been linked to Skilland yet, the link is established automatically.
+    - The legacy `skilland_course` table was migrated into the custom field and dropped in 0.9.52-beta (SKL-689).
 
 3.  **Selected Lessons (`skilland_lesson` table)**:
     - The list of lessons selected for the topic.
@@ -46,9 +47,9 @@ The Skilland activity links a hidden SCORM activity (`scormcmid`) and each lesso
 If provisioning fails (API unreachable, no visible lessons), the restore still completes and the activity has no SCORM; open it and re-provision from its settings.
 
 #### Course Mapping
-During restore, the plugin checks if the target course already has an entry in the `skilland_course` table.
-- **If YES:** It uses the existing mapping (assuming you are adding content to an already linked course).
-- **If NO:** It uses the `skilland_courseid` and `skilland_orgid` from the backup XML to create a new mapping for this course.
+During restore, the plugin checks whether the target course's `skilland_course_id` custom field already holds a value.
+- **If YES:** It keeps the existing mapping (assuming you are adding content to an already linked course); a different value in the backup only raises a developer debugging message.
+- **If NO:** It writes the backup's `skilland_courseid` into the custom field, mapping the course.
 
 This allows effortless "Course Copy" operations where the new copy becomes a valid Skilland-linked course immediately.
 
