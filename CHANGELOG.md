@@ -17,6 +17,10 @@ and this project's version follows Moodle's `$plugin->release` in `src/version.p
 - Hide Skilland labels now also strips the topic code from the hidden SCORM's
   name and its gradebook item; renaming the activity or toggling the setting
   renames the SCORM (SKL-689).
+- The course mapping is trimmed, and a `skilland_course_id` field holding only
+  whitespace counts as unmapped, so requests naming a skill fail closed; an
+  activity name that is only a topic code (`T1 - `) is kept whole instead of
+  becoming blank under Hide Skilland labels (SKL-689).
 
 ### Added
 - Skilland activities can show their description on the course page

@@ -227,14 +227,15 @@ function skilland_get_course_customfield_value($courseid) {
 /**
  * Resolve the Skilland course (skill) mapped to a Moodle course.
  *
- * The locked course custom field `skilland_course_id` is the only course mapping.
+ * The locked course custom field `skilland_course_id` is the only course mapping. Its value is
+ * trimmed, and a field holding only whitespace counts as unmapped, so it fails closed.
  *
  * @param int $moodlecourseid Moodle course ID
  * @return string|null The mapped Skilland course ID, or null when the course is not mapped
  */
 function skilland_get_mapped_courseid(int $moodlecourseid): ?string {
-    $value = skilland_get_course_customfield_value($moodlecourseid);
-    return !empty($value) ? (string)$value : null;
+    $value = trim((string) skilland_get_course_customfield_value($moodlecourseid));
+    return !empty($value) ? $value : null;
 }
 
 /**
@@ -1042,11 +1043,14 @@ function skilland_require_scorm_apis(): void {
 /**
  * Strip the leading topic code ("T1 - ", "T12-") from an activity name.
  *
+ * A name that is nothing but the code is kept as it is, so it never becomes empty.
+ *
  * @param string $name The activity name.
  * @return string The name without its leading topic code.
  */
 function skilland_strip_topic_label(string $name): string {
-    return preg_replace('/^T\d+\s*-\s*/', '', $name);
+    $stripped = preg_replace('/^T\d+\s*-\s*/', '', $name);
+    return trim($stripped) === '' ? $name : $stripped;
 }
 
 /**

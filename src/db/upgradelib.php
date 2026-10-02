@@ -66,9 +66,9 @@ function skilland_migrate_course_mapping_table(): array {
             continue;
         }
 
-        $current = skilland_get_course_customfield_value($courseid);
-        if (!empty($current)) {
-            if ((string) $current === $value) {
+        $current = skilland_get_mapped_courseid($courseid);
+        if ($current !== null) {
+            if ($current === $value) {
                 $counts['same']++;
             } else {
                 $counts['conflict']++;

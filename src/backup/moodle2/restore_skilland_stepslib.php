@@ -70,16 +70,16 @@ class restore_skilland_activity_structure_step extends restore_activity_structur
 
         // The course mapping lives in the skilland_course_id course custom field: an empty field
         // takes the backup's value, a field that already holds another value is kept.
-        if (!empty($data->skilland_courseid)) {
-            $backupcourseid = (string) $data->skilland_courseid;
+        $backupcourseid = trim((string) ($data->skilland_courseid ?? ''));
+        if ($backupcourseid !== '') {
             try {
-                $existing = skilland_get_course_customfield_value((int) $data->course);
-                if (empty($existing)) {
+                $existing = skilland_get_mapped_courseid((int) $data->course);
+                if ($existing === null) {
                     if (!skilland_set_course_customfield_value((int) $data->course, $backupcourseid)) {
                         debugging('mod_skilland: could not map restored course id ' . $data->course .
                             ' to its Skilland course', DEBUG_DEVELOPER);
                     }
-                } else if ((string) $existing !== $backupcourseid) {
+                } else if ($existing !== $backupcourseid) {
                     debugging('mod_skilland: restored course id ' . $data->course .
                         ' is already mapped to another Skilland course; its mapping is kept', DEBUG_DEVELOPER);
                 }
