@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100203;   // YYYYMMDDHH - Frontend URL default, Test connection, spelling (SKL-991/992/990).
+$plugin->version   = 2026100204;   // YYYYMMDDHH - SSO courseAccess lists only teaching courses (SKL-999).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.45-beta';
+$plugin->release   = '0.9.46-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

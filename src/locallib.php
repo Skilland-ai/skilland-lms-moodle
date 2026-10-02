@@ -2433,11 +2433,15 @@ function skilland_generate_sso_token($user, $orgid, string $role) {
         );
     }
 
-    // Get ALL courses user is enrolled in.
+    // Only courses the user can author in: a student enrolment must not make an Expert a
+    // collaborator on that course's skill (SKL-999), the same capability that derives the role.
     $enrolledcourses = enrol_get_users_courses($user->id, true);
 
     $courseaccess = [];
     foreach ($enrolledcourses as $course) {
+        if (!has_capability('mod/skilland:addinstance', context_course::instance($course->id), $user)) {
+            continue;
+        }
         // Get Skilland skill ID from course custom field.
         $skillandskillid = skilland_get_course_customfield_value($course->id);
 
