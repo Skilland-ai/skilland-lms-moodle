@@ -201,8 +201,11 @@ function skilland_ensure_course_customfield() {
 /**
  * Get the Skilland Course ID value from course custom fields.
  *
+ * The value is trimmed, and a field holding only whitespace counts as not set, so every caller
+ * fails closed on a blank mapping.
+ *
  * @param int $courseid Moodle course ID
- * @return string|null The Skilland Course ID value or null if not set
+ * @return string|null The trimmed Skilland Course ID value or null if not set
  */
 function skilland_get_course_customfield_value($courseid) {
     try {
@@ -212,7 +215,7 @@ function skilland_get_course_customfield_value($courseid) {
         foreach ($data as $datarecord) {
             $field = $datarecord->get_field();
             if ($field && $field->get('shortname') === 'skilland_course_id') {
-                $value = $datarecord->get_value();
+                $value = trim((string) $datarecord->get_value());
                 return !empty($value) ? $value : null;
             }
         }
@@ -227,15 +230,14 @@ function skilland_get_course_customfield_value($courseid) {
 /**
  * Resolve the Skilland course (skill) mapped to a Moodle course.
  *
- * The locked course custom field `skilland_course_id` is the only course mapping. Its value is
- * trimmed, and a field holding only whitespace counts as unmapped, so it fails closed.
+ * The locked course custom field `skilland_course_id` is the only course mapping; a blank or
+ * whitespace-only value counts as unmapped (see skilland_get_course_customfield_value()).
  *
  * @param int $moodlecourseid Moodle course ID
  * @return string|null The mapped Skilland course ID, or null when the course is not mapped
  */
 function skilland_get_mapped_courseid(int $moodlecourseid): ?string {
-    $value = trim((string) skilland_get_course_customfield_value($moodlecourseid));
-    return !empty($value) ? $value : null;
+    return skilland_get_course_customfield_value($moodlecourseid);
 }
 
 /**

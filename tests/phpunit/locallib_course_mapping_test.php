@@ -128,6 +128,26 @@ class locallib_course_mapping_test extends TestCase {
         $this->assertNull(skilland_get_mapped_courseid(10));
     }
 
+    // ---------------------------------------------------------------
+    // skilland_get_course_customfield_value(): blank mappings fail closed at the source
+    // ---------------------------------------------------------------
+
+    public function test_customfield_value_treats_whitespace_only_as_not_set(): void {
+        $GLOBALS['_test_customfield_value'] = [10 => '   ', 11 => "\t\n", 12 => '', 13 => null];
+
+        foreach ([10, 11, 12, 13, 999] as $courseid) {
+            $this->assertNull(skilland_get_course_customfield_value($courseid), "course $courseid");
+            $this->assertNull(skilland_get_mapped_courseid($courseid), "course $courseid");
+        }
+    }
+
+    public function test_customfield_value_is_trimmed(): void {
+        $GLOBALS['_test_customfield_value'][10] = "  skill-a \n";
+
+        $this->assertSame('skill-a', skilland_get_course_customfield_value(10));
+        $this->assertSame('skill-a', skilland_get_mapped_courseid(10));
+    }
+
     public function test_get_mapped_courseid_null_custom_field_is_unmapped(): void {
         $GLOBALS['_test_customfield_value'][10] = null;
 
