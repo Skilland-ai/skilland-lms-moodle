@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.48-beta]
+
+### Added
+- `cli/adopt_edukami.php` turns `mod_edukami` activities into Skilland
+  activities on a site moving from the Edukami plugin. Each adopted activity
+  keeps the Edukami topic SCORM, its learners' attempts, its snapshot hash and
+  its lesson→SCO mapping, sits right before the Edukami activity, which is
+  hidden (never deleted). Topics that are not in the migration are skipped and
+  left alone; a dry run is the default and `--apply` writes (SKL-997).
+
 ## [0.9.46-beta]
 
 ### Fixed
