@@ -87,7 +87,7 @@ final class edukami_adopter_test extends skilland_testcase {
         global $DB;
 
         $dbman = $DB->get_manager();
-        foreach (['edukami_lesson', 'edukami'] as $name) {
+        foreach (['edukami_lesson', 'edukami', 'edukami_course'] as $name) {
             $table = new \xmldb_table($name);
             if ($dbman->table_exists($table)) {
                 $dbman->drop_table($table);
@@ -323,6 +323,540 @@ final class edukami_adopter_test extends skilland_testcase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage('the edukami table does not exist');
         (new edukami_adopter(false))->run();
+    }
+
+    /**
+     * A site with no Edukami activity, or a course with none, gives no report and writes nothing.
+     */
+    public function test_no_edukami_activity_gives_no_report(): void {
+        global $DB;
+
+        $empty = $this->edukami_course();
+        $this->setAdminUser();
+
+        $this->assertSame([], (new edukami_adopter(false))->run());
+        $this->assertSame([], (new edukami_adopter(true))->run());
+        $this->assertSame([], (new edukami_adopter(true, (int) $empty->id))->run());
+
+        // Another course's activity is not adopted through a filter on the empty course.
+        $other = $this->edukami_course();
+        $edukami = $this->edukami_activity($other, self::TOPIC_OID);
+        $this->listing([self::topic_id()]);
+        $this->setAdminUser();
+        $this->assertSame([], (new edukami_adopter(true, (int) $empty->id))->run());
+        $this->assertSame(0, $DB->count_records('skilland'));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+        $this->assertSame(0, $this->client->count_calls('GET skills/{id}/topics'));
+    }
+
+    /**
+     * An Edukami activity whose course module is being deleted is not listed at all.
+     */
+    public function test_edukami_activity_being_deleted_is_ignored(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $DB->set_field('course_modules', 'deletioninprogress', 1, ['id' => $edukami->cmid]);
+        $this->listing([self::topic_id()]);
+        $this->setAdminUser();
+
+        $this->assertSame([], (new edukami_adopter(true))->run());
+        $this->assertSame(0, $DB->count_records('skilland'));
+    }
+
+    /**
+     * An Edukami activity with no lessons is adopted with none.
+     */
+    public function test_activity_without_lessons_is_adopted_with_none(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $DB->delete_records('edukami_lesson', ['edukamiid' => $edukami->id]);
+        $this->listing([self::topic_id()]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $this->assertStringContainsString('0 lesson(s)', $report['activities'][0]['reason']);
+        $skilland = $DB->get_record('skilland', ['course' => $course->id], '*', MUST_EXIST);
+        $this->assertSame($edukami->scormcmid, (int) $skilland->scormcmid);
+        $this->assertSame([], (array) json_decode($skilland->scomappings));
+        $this->assertSame(0, $DB->count_records('skilland_lesson', ['skillandid' => $skilland->id]));
+        $this->assertSame(0, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+    }
+
+    /**
+     * A topic shared by several Edukami skills is adopted under its scoped id when Skilland lists it.
+     */
+    public function test_shared_topic_is_adopted_under_its_scoped_id(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $this->edukami_activity($course, self::TOPIC_OID);
+        [$scoped, $unscoped] = edukami_ids::topic_id_candidates(self::TOPIC_OID, self::SKILL_OID);
+        $this->listing([$unscoped, $scoped]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $this->assertSame($scoped, $DB->get_field('skilland', 'skilland_topicid', ['course' => $course->id]));
+        $this->assertStringContainsString('topic ' . $scoped, $report['activities'][0]['reason']);
+    }
+
+    /**
+     * Several Edukami activities of one course each get their own Skilland activity right before them.
+     */
+    public function test_several_activities_of_a_course_are_each_adopted_in_place(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $first = $this->edukami_activity($course, self::TOPIC_OID);
+        $second = $this->edukami_activity($course, self::TOPIC2_OID);
+        $this->listing([self::topic_id(), self::topic_id(self::TOPIC2_OID)]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(['adopted' => 2, 'already adopted' => 0, 'skipped' => 0, 'failed' => 0], $report['counts']);
+        $this->assertSame(edukami_ids::skill_id(self::SKILL_OID), skilland_get_mapped_courseid((int) $course->id));
+        $sequence = array_map('intval', explode(',', (string) $DB->get_field(
+            'course_sections',
+            'sequence',
+            ['course' => $course->id, 'section' => 1]
+        )));
+        foreach ([[$first, self::topic_id()], [$second, self::topic_id(self::TOPIC2_OID)]] as [$edukami, $topicid]) {
+            $skilland = $DB->get_record('skilland', ['scormcmid' => $edukami->scormcmid], '*', MUST_EXIST);
+            $this->assertSame($topicid, $skilland->skilland_topicid);
+            $cm = get_coursemodule_from_instance('skilland', $skilland->id, $course->id, false, MUST_EXIST);
+            $this->assertSame(array_search($edukami->cmid, $sequence) - 1, array_search((int) $cm->id, $sequence));
+            $this->assertSame(0, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+        }
+        $this->assertSame(2, $DB->count_records('skilland'));
+        $this->assertSame(4, $DB->count_records('skilland_lesson'));
+    }
+
+    /**
+     * Two courses report apart, and --course adopts only the course it names.
+     */
+    public function test_two_courses_report_apart_and_the_course_filter_limits_the_run(): void {
+        global $DB;
+
+        $course1 = $this->edukami_course();
+        $edukami1 = $this->edukami_activity($course1, self::TOPIC_OID);
+        $course2 = $this->edukami_course();
+        $edukami2 = $this->edukami_activity($course2, self::TOPIC_OID);
+        $this->listing([self::topic_id()]);
+        $this->setAdminUser();
+
+        $only = (new edukami_adopter(true, (int) $course2->id))->run();
+        $this->take_debugging();
+
+        $this->assertCount(1, $only);
+        $this->assertSame((int) $course2->id, $only[0]['courseid']);
+        $this->assertSame(1, $only[0]['counts']['adopted']);
+        $this->assertFalse($DB->record_exists('skilland', ['course' => $course1->id]));
+        $this->assertNull(skilland_get_mapped_courseid((int) $course1->id));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami1->cmid]));
+
+        $all = (new edukami_adopter(true))->run();
+        $this->take_debugging();
+
+        $this->assertSame([(int) $course1->id, (int) $course2->id], array_column($all, 'courseid'));
+        $this->assertSame(1, $all[0]['counts']['adopted']);
+        $this->assertSame(1, $all[1]['counts']['already adopted']);
+        $this->assertSame($edukami1->scormcmid, (int) $DB->get_field('skilland', 'scormcmid', ['course' => $course1->id]));
+        $this->assertSame($edukami2->scormcmid, (int) $DB->get_field('skilland', 'scormcmid', ['course' => $course2->id]));
+        $lines = edukami_adopter::format($all, true);
+        $this->assertSame('Done: 2 course(s); adopted 1, already adopted 1, skipped 0, failed 0', end($lines));
+    }
+
+    /**
+     * A course with no Edukami skill is skipped; the legacy edukami_course table still names one.
+     */
+    public function test_course_skill_comes_from_the_custom_field_else_the_legacy_table(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course(['numsections' => 2]);
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $this->listing([self::topic_id()]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(['adopted' => 0, 'already adopted' => 0, 'skipped' => 1, 'failed' => 0], $report['counts']);
+        $this->assertSame('the course has no Edukami skill', $report['activities'][0]['reason']);
+        $this->assertNull($report['skillid']);
+        $this->assertSame(0, $this->client->count_calls('GET skills/{id}/topics'));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+
+        $table = new \xmldb_table('edukami_course');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('course', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('edukami_courseid', XMLDB_TYPE_CHAR, '64');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $DB->get_manager()->create_table($table);
+        $DB->insert_record('edukami_course', (object) ['course' => $course->id, 'edukami_courseid' => ' ' . self::SKILL_OID . ' ']);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $this->assertSame(edukami_ids::skill_id(self::SKILL_OID), $report['skillid']);
+        $this->assertSame(edukami_ids::skill_id(self::SKILL_OID), skilland_get_mapped_courseid((int) $course->id));
+    }
+
+    /**
+     * A course already mapped to the migrated skill id keeps that mapping.
+     */
+    public function test_course_mapped_to_the_migrated_skill_id_is_adopted(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $this->edukami_activity($course, self::TOPIC_OID);
+        $this->generator()->create_course_mapping((int) $course->id, edukami_ids::skill_id(self::SKILL_OID));
+        $this->listing([self::topic_id()]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $this->assertSame(edukami_ids::skill_id(self::SKILL_OID), skilland_get_mapped_courseid((int) $course->id));
+        $this->assertSame(1, $DB->count_records('skilland'));
+    }
+
+    /**
+     * Lessons Skilland does not list, and hidden Edukami lessons, are left out; none listed skips the activity.
+     */
+    public function test_lessons_not_in_the_migration_are_left_out(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $this->listing([self::topic_id()]);
+        $this->client->set_response('GET topics/{id}/contents', ['contents' => [
+            ['id' => self::lesson1_id(), 'name' => 'Lesson one', 'type' => 'lesson', 'content' => '<p>1</p>',
+                'updatedAt' => '2026-01-01T10:00:00Z'],
+        ]]);
+
+        // None of the lessons is listed: the whole activity is skipped.
+        $DB->set_field('edukami_lesson', 'visible', 0, ['edukamiid' => $edukami->id, 'edukami_lessonid' => self::LESSON1_OID]);
+        $report = $this->adopt(true);
+        $this->assertSame(1, $report['counts']['skipped']);
+        $this->assertStringContainsString('none of its lessons is in the migration', $report['activities'][0]['reason']);
+        $this->assertSame(0, $DB->count_records('skilland'));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+
+        // Lesson one visible again: adopted with it alone, lesson two reported.
+        $DB->set_field('edukami_lesson', 'visible', 1, ['edukamiid' => $edukami->id]);
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $warnings = $report['activities'][0]['warnings'];
+        $this->assertCount(1, $warnings);
+        $this->assertStringContainsString('lesson ' . self::LESSON2_OID . ' (Lesson two) is not in the migration', $warnings[0]);
+        $skilland = $DB->get_record('skilland', ['course' => $course->id], '*', MUST_EXIST);
+        $this->assertSame([self::lesson1_id()], array_keys($this->lessons((int) $skilland->id)));
+        $this->assertSame([self::lesson1_id() => 'sco-lesson-1'], json_decode($skilland->scomappings, true));
+    }
+
+    /**
+     * A stale scoid falls back to the SCO identifier; a lesson with no SCO is kept unplayable, with a warning.
+     */
+    public function test_lesson_sco_falls_back_to_its_identifier_and_a_missing_sco_is_reported(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $scos = $DB->get_records_menu('scorm_scoes', ['scorm' => $edukami->scormid], '', 'identifier, id');
+        $DB->set_field('edukami_lesson', 'scoid', 999999, ['edukamiid' => $edukami->id, 'edukami_lessonid' => self::LESSON1_OID]);
+        $DB->execute(
+            'UPDATE {edukami_lesson} SET scoid = NULL, sco_identifier = ? WHERE edukamiid = ? AND edukami_lessonid = ?',
+            ['sco-gone', $edukami->id, self::LESSON2_OID]
+        );
+        $this->listing([self::topic_id()]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $warnings = $report['activities'][0]['warnings'];
+        $this->assertCount(1, $warnings);
+        $this->assertStringContainsString('(Lesson two) has no SCO in the SCORM', $warnings[0]);
+        $skilland = $DB->get_record('skilland', ['course' => $course->id], '*', MUST_EXIST);
+        $lessons = $this->lessons((int) $skilland->id);
+        $this->assertSame((int) $scos['sco-lesson-1'], (int) $lessons[self::lesson1_id()]->scoid);
+        $this->assertNull($lessons[self::lesson2_id()]->scoid);
+        $this->assertNull($lessons[self::lesson2_id()]->sco_identifier);
+        $this->assertSame([self::lesson1_id() => 'sco-lesson-1'], json_decode($skilland->scomappings, true));
+    }
+
+    /**
+     * An Edukami activity with no SCORM, a SCORM that is gone or one being deleted is skipped.
+     */
+    public function test_activity_without_a_usable_scorm_is_skipped(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $nolink = $this->edukami_activity($course, self::TOPIC_OID);
+        $gone = $this->edukami_activity($course, self::TOPIC_OID);
+        $deleting = $this->edukami_activity($course, self::TOPIC_OID);
+        $DB->execute('UPDATE {edukami} SET scormcmid = NULL WHERE id = ?', [$nolink->id]);
+        $DB->set_field('edukami', 'scormcmid', 999999, ['id' => $gone->id]);
+        $DB->set_field('course_modules', 'deletioninprogress', 1, ['id' => $deleting->scormcmid]);
+        $this->listing([self::topic_id()]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(['adopted' => 0, 'already adopted' => 0, 'skipped' => 3, 'failed' => 0], $report['counts']);
+        foreach ($report['activities'] as $activity) {
+            $this->assertSame('the Edukami activity has no topic SCORM to keep', $activity['reason']);
+        }
+        $this->assertSame(0, $DB->count_records('skilland'));
+        $this->assertNull(skilland_get_mapped_courseid((int) $course->id));
+        foreach ([$nolink, $gone, $deleting] as $edukami) {
+            $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+        }
+    }
+
+    /**
+     * Skilland unreachable when listing the topics fails every activity of the course and writes nothing.
+     */
+    public function test_topic_listing_failure_fails_the_course_and_writes_nothing(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $first = $this->edukami_activity($course, self::TOPIC_OID);
+        $second = $this->edukami_activity($course, self::TOPIC2_OID);
+        $this->client->set_response(
+            'GET skills/{id}/topics',
+            new \moodle_exception('error_api_unavailable', 'mod_skilland')
+        );
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(['adopted' => 0, 'already adopted' => 0, 'skipped' => 0, 'failed' => 2], $report['counts']);
+        $this->assertStringStartsWith('Skilland did not list the topics', $report['activities'][0]['reason']);
+        $this->assertSame(0, $DB->count_records('skilland'));
+        $this->assertNull(skilland_get_mapped_courseid((int) $course->id));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $first->cmid]));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $second->cmid]));
+        $lines = edukami_adopter::format([$report], true);
+        $this->assertSame('Done: 1 course(s); adopted 0, already adopted 0, skipped 0, failed 2', end($lines));
+    }
+
+    /**
+     * Skilland failing mid-run on one topic's lessons fails that activity only; a rerun adopts it.
+     */
+    public function test_lesson_listing_failure_fails_one_activity_and_a_rerun_finishes_the_course(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $first = $this->edukami_activity($course, self::TOPIC_OID);
+        $second = $this->edukami_activity($course, self::TOPIC2_OID);
+        $this->listing([self::topic_id(), self::topic_id(self::TOPIC2_OID)]);
+        $broken = self::topic_id();
+        $this->client->set_response('GET topics/{id}/contents', function (array $variables) use ($broken): array {
+            if ($variables['topicId'] === $broken) {
+                throw new \moodle_exception('error_api_unavailable', 'mod_skilland');
+            }
+            return ['contents' => [
+                ['id' => self::lesson1_id(), 'name' => 'Lesson one', 'type' => 'lesson', 'content' => '<p>1</p>',
+                    'updatedAt' => '2026-01-01T10:00:00Z'],
+                ['id' => self::lesson2_id(), 'name' => 'Lesson two', 'type' => 'lesson', 'content' => '<p>2</p>',
+                    'updatedAt' => '2026-01-01T10:00:00Z'],
+            ]];
+        });
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(['adopted' => 1, 'already adopted' => 0, 'skipped' => 0, 'failed' => 1], $report['counts']);
+        $this->assertStringStartsWith('Skilland did not list the lessons of topic ' . $broken, $report['activities'][0]['reason']);
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $first->cmid]));
+        $this->assertSame(0, (int) $DB->get_field('course_modules', 'visible', ['id' => $second->cmid]));
+
+        // Skilland answers again: the rerun adopts the failed activity and leaves the other one as it is.
+        $this->lesson_listing();
+        $again = $this->adopt(true);
+
+        $this->assertSame(['adopted' => 1, 'already adopted' => 1, 'skipped' => 0, 'failed' => 0], $again['counts']);
+        $this->assertSame(2, $DB->count_records('skilland'));
+        $this->assertSame(1, $DB->count_records('skilland', ['scormcmid' => $first->scormcmid]));
+        $this->assertSame(1, $DB->count_records('skilland', ['scormcmid' => $second->scormcmid]));
+        $this->assertSame(0, (int) $DB->get_field('course_modules', 'visible', ['id' => $first->cmid]));
+    }
+
+    /**
+     * Dry run, apply, apply again; a dry run over an adopted activity shown again only reports the hide.
+     */
+    public function test_dry_run_then_apply_then_apply_again(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $this->listing([self::topic_id()]);
+
+        $dry = $this->adopt(false);
+        $applied = $this->adopt(true);
+        $again = $this->adopt(true);
+
+        $this->assertSame(1, $dry['counts']['adopted']);
+        $this->assertSame(1, $applied['counts']['adopted']);
+        $this->assertStringStartsWith('skilland ' . $applied['activities'][0]['skillandid'], $applied['activities'][0]['reason']);
+        $this->assertSame(1, $again['counts']['already adopted']);
+        $this->assertSame('', $again['activities'][0]['reason']);
+        $this->assertSame(1, $DB->count_records('skilland'));
+
+        set_coursemodule_visible($edukami->cmid, 1);
+        $dryagain = $this->adopt(false);
+
+        $this->assertSame(1, $dryagain['counts']['already adopted']);
+        $this->assertSame('the Edukami activity would be hidden', $dryagain['activities'][0]['reason']);
+        $this->assertSame($applied['activities'][0]['skillandid'], $dryagain['activities'][0]['skillandid']);
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+    }
+
+    /**
+     * Without mod_edukami in the modules table the run fails with a clear message.
+     */
+    public function test_unregistered_edukami_module_fails_clearly(): void {
+        global $DB;
+
+        $DB->delete_records('modules', ['name' => 'edukami']);
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('mod_edukami is not registered in the modules table');
+        (new edukami_adopter(false))->run();
+    }
+
+    /**
+     * The apply mode refuses to run inside an outer database transaction.
+     */
+    public function test_apply_refuses_to_run_inside_a_transaction(): void {
+        global $DB;
+
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            (new edukami_adopter(true))->run();
+            $this->fail('The adopter ran inside a transaction');
+        } catch (\coding_exception $e) {
+            $this->assertStringContainsString('must not run inside a database transaction', $e->getMessage());
+        }
+        $transaction->allow_commit();
+    }
+
+    /**
+     * The sync task finds an adopted activity current while Skilland serves its legacy hash, and
+     * announces an update once Skilland serves another one, without touching the SCORM.
+     */
+    public function test_sync_task_is_quiet_on_the_legacy_hash_and_announces_a_new_one(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $teacher = $this->enrol($course, 'editingteacher');
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $this->listing([self::topic_id()]);
+        $this->adopt(true);
+        $skilland = $DB->get_record('skilland', ['course' => $course->id], '*', MUST_EXIST);
+        $this->client->calls = [];
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'legacy-hash-1']);
+
+        $sink = $this->redirectMessages();
+        (new \mod_skilland\task\sync_content())->execute();
+        $this->take_debugging();
+        $quiet = $sink->get_messages();
+        $sink->clear();
+
+        $this->assertSame([], $quiet);
+        $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
+        $this->assertSame('legacy-hash-1', $record->snapshotid);
+        $this->assertNull($record->updateavailable);
+        $this->assertNotEmpty($record->lastsynced);
+        $this->assertSame(['GET topics/{id}/scorm-hash'], $this->client->operations());
+        $this->assertSame(self::topic_id(), $this->client->calls[0]['variables']['topicId']);
+
+        // Past the cooldown, Skilland serves new content: the update is announced, never imported.
+        $DB->set_field('skilland', 'lastsynced', time() - 3600, ['id' => $skilland->id]);
+        $this->client->merge_response('GET topics/{id}/scorm-hash', ['contentHash' => 'hash-v2']);
+        (new \mod_skilland\task\sync_content())->execute();
+        $this->take_debugging();
+        $messages = $sink->get_messages();
+        $sink->close();
+
+        $record = $DB->get_record('skilland', ['id' => $skilland->id], '*', MUST_EXIST);
+        $this->assertSame('hash-v2', $record->updateavailable);
+        $this->assertSame('legacy-hash-1', $record->snapshotid);
+        $this->assertSame($edukami->scormcmid, (int) $record->scormcmid);
+        $this->assertSame([$edukami->scormcmid], $this->scorm_cmids((int) $course->id));
+        $this->assertSame([], $this->client->downloads);
+        $this->assertCount(1, $messages);
+        $this->assertEquals($teacher->id, $messages[0]->useridto);
+    }
+
+    /**
+     * A learner opens the adopted activity: its lesson list and the kept SCORM's player render.
+     */
+    public function test_learner_views_the_adopted_activity(): void {
+        global $DB, $PAGE;
+
+        $course = $this->edukami_course();
+        $student = $this->enrol($course, 'student');
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $scos = $DB->get_records_menu('scorm_scoes', ['scorm' => $edukami->scormid], '', 'identifier, id');
+        scorm_insert_track($student->id, $edukami->scormid, $scos['sco-lesson-1'], 1, 'cmi.core.lesson_status', 'completed');
+        $this->take_debugging();
+        $this->listing([self::topic_id()]);
+        $this->adopt(true);
+        $skilland = $DB->get_record('skilland', ['course' => $course->id], '*', MUST_EXIST);
+        $cm = get_coursemodule_from_instance('skilland', $skilland->id, $course->id, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+
+        $this->setUser($student);
+        $this->assertTrue(has_capability('mod/skilland:view', $context));
+        $this->assertTrue(get_fast_modinfo($course->id, $student->id)->get_cm($cm->id)->uservisible);
+        $sink = $this->redirectEvents();
+        skilland_view($skilland, $course, $cm, $context);
+        $events = $sink->get_events();
+        $sink->close();
+        $this->assertInstanceOf(\mod_skilland\event\course_module_viewed::class, $events[0]);
+        $this->assertFalse(skilland_detect_missing_scorm($skilland));
+
+        $PAGE->set_url('/mod/skilland/view.php', ['id' => $cm->id]);
+        $PAGE->set_cm($cm, $course);
+        $lessons = $DB->get_records('skilland_lesson', ['skillandid' => $skilland->id, 'visible' => 1], 'orderindex ASC');
+        $list = skilland_render_lesson_list($skilland, $lessons, $cm, (int) $skilland->topic_orderindex);
+        $this->take_debugging();
+        $this->assertStringContainsString('Lesson one', $list);
+        $this->assertStringContainsString('Lesson two', $list);
+        $this->assertStringContainsString('skilland-lesson-completed', $list);
+
+        $lessons = $this->lessons((int) $skilland->id);
+        $player = skilland_render_player_view($skilland, $lessons[self::lesson1_id()], $cm, $lessons, 2);
+        $this->assertStringContainsString('/mod/scorm/player.php', $player);
+        $this->assertStringContainsString('scoid=' . $scos['sco-lesson-1'], str_replace('&amp;', '&', $player));
+        $this->assertStringContainsString('cm=' . $edukami->scormcmid, str_replace('&amp;', '&', $player));
+    }
+
+    /**
+     * Deleting the kept SCORM unlinks the adopted activity, and a rerun does not adopt the Edukami one again.
+     */
+    public function test_deleting_the_kept_scorm_unlinks_the_adopted_activity(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $this->listing([self::topic_id()]);
+        $this->adopt(true);
+        $skillandid = (int) $DB->get_field('skilland', 'id', ['course' => $course->id], MUST_EXIST);
+
+        course_delete_module($edukami->scormcmid);
+        $this->take_debugging();
+
+        $skilland = $DB->get_record('skilland', ['id' => $skillandid], '*', MUST_EXIST);
+        $this->assertNull($skilland->scormcmid);
+        $this->assertTrue($DB->record_exists('edukami', ['id' => $edukami->id]));
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['skipped']);
+        $this->assertSame('the Edukami activity has no topic SCORM to keep', $report['activities'][0]['reason']);
+        $this->assertSame(1, $DB->count_records('skilland'));
     }
 
     /**
