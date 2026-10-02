@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.45-beta]
+
+### Added
+- Site administration has a **Test connection** page, linked from the top of
+  the plugin settings. **Run check** asks Skilland, with the saved settings,
+  whether the Skilland URL / Frontend URL is reachable, the API key is
+  accepted, the Organization ID matches the key's organization and the SSO
+  shared secret matches, and names the setting to fix. The SSO secret never
+  leaves Moodle (SKL-992).
+
+### Fixed
+- The Frontend URL is now empty by default, which means "use the Skilland URL".
+  It used to default to `https://app.skilland.ai`, so a site that pointed the
+  Skilland URL at its own Skilland server still sent requests and sign-ins to
+  that address. Upgrading removes a stored copy of that old default and keeps
+  any other value. The API key, Organization ID and SSO shared secret settings
+  now say where in Skilland to find each value, and the release notes name
+  Moodle 4.5 and the Install plugins page (SKL-991).
+
+### Changed
+- The product name is spelled "Skilland" throughout the plugin's texts and
+  documentation (SKL-990).
+
 ## [0.9.44-beta]
 
 ### Fixed
