@@ -13,7 +13,9 @@ Feature: Administrators test the connection to Skilland
 
   Scenario: The settings page links to the check and the check reports a working connection
     Given I log in as "admin"
-    And I navigate to "Plugins > Activity modules > Skilland content" in site administration
+    # Open the settings page by URL: navigating by name also matches "Skilland content: test connection".
+    And I visit "/admin/settings.php?section=modsettingskilland"
+    And I should see "SSO Shared Secret"
     When I follow "Test connection"
     Then I should see "Run check"
     And I should not see "Connected to"
