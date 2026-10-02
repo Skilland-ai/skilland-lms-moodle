@@ -143,6 +143,27 @@ function skilland_get_skilland_courseid($courseid) {
 }
 
 /**
+ * Studio deep-link path for the SSO handoff.
+ *
+ * Goes through /skills-studio/, which resolves SkilLand UUIDs and Edukami ObjectIds in the
+ * session's organization; /skills/<id> only knows UUIDs and shows "Skill not found" on a migrated course.
+ *
+ * @param string|int|false|null $skillid Skilland skill ID stored for the course (empty = skills list)
+ * @param string|null $topicid Optional topic ID to open
+ * @return string Relative path
+ */
+function skilland_studio_redirect_path($skillid, $topicid = '') {
+    if (empty($skillid)) {
+        return '/skills';
+    }
+    $path = '/skills-studio/' . rawurlencode((string)$skillid);
+    if (!empty($topicid)) {
+        $path .= '/topics/' . rawurlencode((string)$topicid);
+    }
+    return $path;
+}
+
+/**
  * Delete Skilland course mapping.
  * Note: This should be used carefully as it will affect all activities in the course.
  *

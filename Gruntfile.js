@@ -49,7 +49,7 @@ module.exports = function(grunt) {
                 files: [{
                     expand: true,
                     cwd: 'src/amd/src',
-                    src: ['*.js'],
+                    src: ['**/*.js'],
                     dest: 'dist/amd/build',
                     ext: '.min.js'
                 }]

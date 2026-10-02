@@ -176,10 +176,10 @@ jobs:
             fi
           done
 
-          AMD_BUILT=$(find skilland/amd/build -maxdepth 1 -name '*.min.js' | wc -l)
-          AMD_SRC=$(find "$GITHUB_WORKSPACE/src/amd/src" -maxdepth 1 -name '*.js' | wc -l)
+          AMD_BUILT=$(find skilland/amd/build -name '*.min.js' | wc -l)
+          AMD_SRC=$(find "$GITHUB_WORKSPACE/src/amd/src" -name '*.js' | wc -l)
           if [ "$AMD_BUILT" -ne "$AMD_SRC" ]; then
-            echo "::error::Release zip has $AMD_BUILT amd/build/*.min.js files, expected $AMD_SRC (one per src/amd/src/*.js)"
+            echo "::error::Release zip has $AMD_BUILT amd/build/*.min.js files, expected $AMD_SRC (one per src/amd/src/**/*.js)"
             FAIL=1
           fi
 

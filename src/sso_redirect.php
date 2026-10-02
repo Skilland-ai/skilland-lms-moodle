@@ -68,14 +68,9 @@ try {
     // Generate SSO token.
     $token = skilland_generate_sso_token($USER, $orgid, $role);
 
-    // Construct the native Studio path: /skills/:skillId, ?topic=:topicId to open one topic.
-    $redirect = '/skills';
-    if (!empty($skillandcourseid)) {
-        $redirect .= '/' . rawurlencode($skillandcourseid);
-        if (!empty($topicid)) {
-            $redirect .= '?topic=' . rawurlencode($topicid);
-        }
-    }
+    // Construct the Studio deep link: /skills-studio/:skillId[/topics/:topicId]. That route resolves
+    // SkilLand UUIDs and Edukami ObjectIds inside the session's organization (SKL-998).
+    $redirect = skilland_studio_redirect_path($skillandcourseid, $topicid);
     if ($pending) {
         $pendingpath = mod_skilland_take_pending_studio_path($courseid);
         if ($pendingpath !== null) {
