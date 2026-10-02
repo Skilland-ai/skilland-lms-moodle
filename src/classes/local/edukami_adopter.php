@@ -154,7 +154,8 @@ class edukami_adopter {
             return $this->all($report, $rows, self::SKIPPED, 'the course has no Edukami skill');
         }
         $skilloid = edukami_ids::is_object_id($skillvalue) ? strtolower($skillvalue) : null;
-        $skillid = $skilloid !== null ? edukami_ids::skill_id($skilloid) : $skillvalue;
+        // UUIDs and ObjectIds are case-insensitive: compare and ask Skilland in lower case.
+        $skillid = $skilloid !== null ? edukami_ids::skill_id($skilloid) : strtolower($skillvalue);
 
         $mapped = skilland_get_mapped_courseid($courseid);
         if ($mapped !== null && !self::same_skill($mapped, $skillid, $skilloid)) {
@@ -168,13 +169,13 @@ class edukami_adopter {
         $report['skillid'] = $mapped ?? $skillid;
 
         try {
-            $topics = mod_skilland_fetch_topics($report['skillid'])['topics'] ?? [];
+            $topics = mod_skilland_fetch_topics(strtolower($report['skillid']))['topics'] ?? [];
         } catch (\Throwable $e) {
             return $this->all($report, $rows, self::FAILED, 'Skilland did not list the topics: ' . $e->getMessage());
         }
         $topicids = [];
         foreach ($topics as $topic) {
-            $topicids[(string) $topic['id']] = true;
+            $topicids[strtolower((string) $topic['id'])] = (string) $topic['id'];
         }
 
         $ismapped = $mapped !== null;
@@ -189,7 +190,7 @@ class edukami_adopter {
      *
      * @param \stdClass $row The edukami row with its course module fields.
      * @param string|null $skilloid The course's Edukami skill ObjectId, null when it is not one.
-     * @param array $topicids Topic ids Skilland lists for the skill, as keys.
+     * @param array $topicids Topic ids Skilland lists for the skill: lower-case id => id as listed.
      * @param string $skillid Skilland skill id the course is mapped to when it is not yet.
      * @param bool $ismapped Whether the course is mapped to the skill; set once this call maps it.
      * @return array The activity's report entry.
@@ -253,7 +254,7 @@ class edukami_adopter {
         try {
             $lessonids = [];
             foreach (mod_skilland_fetch_lessons($topicid) as $lesson) {
-                $lessonids[$lesson['id']] = true;
+                $lessonids[strtolower((string) $lesson['id'])] = (string) $lesson['id'];
             }
         } catch (\Throwable $e) {
             $entry['outcome'] = self::FAILED;
@@ -369,6 +370,9 @@ class edukami_adopter {
                 'selected_lessons' => json_encode($selected),
             ]);
             $skillandid = (int) $info->instance;
+            // Core add_moduleinfo() drops the availability while $CFG->enableavailability is off: keep the
+            // Edukami activity's restrictions verbatim, so they still apply once it is switched on.
+            $DB->set_field('course_modules', 'availability', $row->cmavailability, ['id' => $info->coursemodule]);
 
             // The same fields skilland_link_topic_scorm() writes, with the Edukami snapshot hash kept
             // verbatim so the sync task finds the topic current (SKL-966).
@@ -530,23 +534,24 @@ class edukami_adopter {
      */
     private static function candidates(string $id, ?string $skilloid, string $kind): array {
         if (!edukami_ids::is_object_id($id)) {
-            return [$id];
+            return [strtolower($id)];
         }
         return $kind === 'topic' ? edukami_ids::topic_id_candidates($id, $skilloid)
             : edukami_ids::content_id_candidates($id, $skilloid);
     }
 
     /**
-     * The first candidate Skilland lists.
+     * The first candidate Skilland lists, compared in lower case.
      *
      * @param string[] $candidates Candidate ids, best first.
-     * @param array $listed Listed ids, as keys.
-     * @return string|null
+     * @param array $listed Listed ids: lower-case id => id as listed.
+     * @return string|null The id as Skilland listed it.
      */
     private static function first_listed(array $candidates, array $listed): ?string {
         foreach ($candidates as $candidate) {
-            if (isset($listed[$candidate])) {
-                return $candidate;
+            $key = strtolower($candidate);
+            if (isset($listed[$key])) {
+                return $listed[$key];
             }
         }
         return null;

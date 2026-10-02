@@ -860,6 +860,105 @@ final class edukami_adopter_test extends skilland_testcase {
     }
 
     /**
+     * The new activity copies the Edukami activity's visibility, stealth, availability and description.
+     */
+    public function test_new_activity_copies_visibility_availability_and_description(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $stealth = $this->edukami_activity($course, self::TOPIC_OID);
+        $hidden = $this->edukami_activity($course, self::TOPIC2_OID);
+        $availability = '{"op":"&","c":[{"type":"date","d":">=","t":1700000000}],"showc":[true]}';
+        $DB->update_record('course_modules', (object) ['id' => $stealth->cmid, 'visible' => 1, 'visibleoncoursepage' => 0,
+            'availability' => $availability, 'showdescription' => 1]);
+        $DB->update_record('course_modules', (object) ['id' => $hidden->cmid, 'visible' => 0, 'visibleold' => 0,
+            'visibleoncoursepage' => 1, 'availability' => null, 'showdescription' => 0]);
+        rebuild_course_cache($course->id, true);
+        $this->listing([self::topic_id(), self::topic_id(self::TOPIC2_OID)]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(2, $report['counts']['adopted']);
+        $stealthcm = $this->adopted_cm($stealth);
+        $this->assertSame(1, (int) $stealthcm->visible);
+        $this->assertSame(0, (int) $stealthcm->visibleoncoursepage);
+        $this->assertSame($availability, $stealthcm->availability);
+        $this->assertSame(1, (int) $stealthcm->showdescription);
+        $hiddencm = $this->adopted_cm($hidden);
+        $this->assertSame(0, (int) $hiddencm->visible);
+        $this->assertSame(1, (int) $hiddencm->visibleoncoursepage);
+        $this->assertNull($hiddencm->availability);
+        $this->assertSame(0, (int) $hiddencm->showdescription);
+        // Both Edukami activities end up hidden; the one that was hidden stays hidden.
+        $this->assertSame(0, (int) $DB->get_field('course_modules', 'visible', ['id' => $stealth->cmid]));
+        $this->assertSame(0, (int) $DB->get_field('course_modules', 'visible', ['id' => $hidden->cmid]));
+    }
+
+    /**
+     * Availability is copied verbatim even while the site has availability switched off.
+     */
+    public function test_availability_is_copied_while_availability_is_disabled(): void {
+        global $CFG, $DB;
+
+        $course = $this->edukami_course();
+        $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $availability = '{"op":"&","c":[{"type":"date","d":">=","t":1700000000}],"showc":[true]}';
+        $DB->set_field('course_modules', 'availability', $availability, ['id' => $edukami->cmid]);
+        rebuild_course_cache($course->id, true);
+        set_config('enableavailability', 0);
+        $this->assertEmpty($CFG->enableavailability);
+        $this->listing([self::topic_id()]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $this->assertSame($availability, $this->adopted_cm($edukami)->availability);
+    }
+
+    /**
+     * Upper-case UUIDs (course mapping, Edukami topic id) are asked and matched in lower case.
+     */
+    public function test_upper_case_ids_are_matched_in_lower_case(): void {
+        global $DB;
+
+        $course = $this->edukami_course();
+        $skillid = edukami_ids::skill_id(self::SKILL_OID);
+        $edukami = $this->edukami_activity($course, strtoupper(self::topic_id()));
+        $this->generator()->create_course_mapping((int) $course->id, strtoupper($skillid));
+        // Skilland accepts a UUID in any case and lists ids in lower case.
+        $this->client->set_response('GET skills/{id}/topics', fn(array $variables): array => [
+            'topics' => strcasecmp($variables['skillId'], $skillid) === 0 ? [['id' => self::topic_id(), 'name' => 'Topic']] : [],
+        ]);
+        $this->lesson_listing();
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(1, $report['counts']['adopted']);
+        $topiccalls = array_values(array_filter(
+            $this->client->calls,
+            fn(array $call): bool => $call['operation'] === 'GET skills/{id}/topics'
+        ));
+        $this->assertSame($skillid, $topiccalls[0]['variables']['skillId']);
+        $skilland = $DB->get_record('skilland', ['scormcmid' => $edukami->scormcmid], '*', MUST_EXIST);
+        $this->assertSame(self::topic_id(), $skilland->skilland_topicid);
+        $this->assertSame(strtoupper($skillid), skilland_get_mapped_courseid((int) $course->id));
+    }
+
+    /**
+     * The course module of the Skilland activity that adopted an Edukami activity.
+     *
+     * @param \stdClass $edukami The edukami_activity() result.
+     * @return \stdClass The course_modules row.
+     */
+    private function adopted_cm(\stdClass $edukami): \stdClass {
+        global $DB;
+
+        $skillandid = $DB->get_field('skilland', 'id', ['scormcmid' => $edukami->scormcmid], MUST_EXIST);
+        $cm = get_coursemodule_from_instance('skilland', $skillandid, 0, false, MUST_EXIST);
+        return $DB->get_record('course_modules', ['id' => $cm->id], '*', MUST_EXIST);
+    }
+
+    /**
      * Run the adopter as the CLI does and return the only course report.
      *
      * @param bool $apply
