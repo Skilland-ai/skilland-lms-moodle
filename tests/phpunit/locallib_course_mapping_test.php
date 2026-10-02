@@ -182,4 +182,80 @@ class locallib_course_mapping_test extends TestCase {
 
         skilland_topic_belongs_to_course('topic-1', 'skill-a');
     }
+
+    // ---------------------------------------------------------------
+    // Fail closed on a blank field (SKL-689)
+    // ---------------------------------------------------------------
+
+    /**
+     * A field holding only whitespace is unmapped.
+     */
+    public function test_get_mapped_courseid_whitespace_custom_field_is_unmapped(): void {
+        $GLOBALS['_test_customfield_value'][10] = " \t\n ";
+
+        $this->assertNull(skilland_get_mapped_courseid(10));
+    }
+
+    /**
+     * The mapped value is returned without the whitespace around it.
+     */
+    public function test_get_mapped_courseid_trims_the_custom_field(): void {
+        $GLOBALS['_test_customfield_value'][10] = ' skill-a ';
+
+        $this->assertSame('skill-a', skilland_get_mapped_courseid(10));
+    }
+
+    /**
+     * A whitespace field never authorizes a request, even one naming the same whitespace.
+     */
+    public function test_require_mapped_course_whitespace_field_fails_closed(): void {
+        $GLOBALS['_test_customfield_value'][10] = '   ';
+
+        foreach (['   ', '', 'skill-a'] as $requested) {
+            try {
+                skilland_require_mapped_course(10, $requested);
+                $this->fail('A whitespace field must not authorize ' . json_encode($requested));
+            } catch (\moodle_exception $e) {
+                $this->assertSame('error_course_not_mapped', $e->errorcode);
+            }
+        }
+    }
+
+    /**
+     * A course with no custom field data at all fails closed.
+     */
+    public function test_require_mapped_course_course_without_field_data_fails_closed(): void {
+        // Course 10 is not in _test_customfield_value: the handler returns no data for it.
+        try {
+            skilland_require_mapped_course(10, 'skill-a');
+            $this->fail('An unmapped course must be rejected');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_course_not_mapped', $e->errorcode);
+        }
+        $this->assertSame([], $this->db->get_calls_for('get_record'), 'No table is consulted as a fallback');
+    }
+
+    /**
+     * The SSO handoff of an unmapped course opens the skills list, never a skill or topic path.
+     */
+    public function test_sso_studio_path_of_an_unmapped_course_is_the_skills_list(): void {
+        $GLOBALS['_test_customfield_value'][10] = '';
+        $GLOBALS['_test_customfield_value'][11] = '  ';
+
+        $this->assertSame('/skills', skilland_studio_redirect_path(skilland_get_mapped_courseid(10) ?? '', 'topic-1'));
+        $this->assertSame('/skills', skilland_studio_redirect_path(skilland_get_mapped_courseid(11) ?? '', 'topic-1'));
+        $this->assertSame('/skills', skilland_studio_redirect_path(skilland_get_mapped_courseid(12) ?? '', 'topic-1'));
+    }
+
+    /**
+     * sso_redirect.php resolves the skill only through skilland_get_mapped_courseid().
+     */
+    public function test_sso_redirect_resolves_the_skill_only_from_the_custom_field(): void {
+        $source = file_get_contents(__DIR__ . '/../../src/sso_redirect.php');
+
+        $this->assertStringContainsString('$skillandcourseid = skilland_get_mapped_courseid($courseid) ?? \'\';', $source);
+        $this->assertSame(1, preg_match_all('/\$skillandcourseid\s*=/', $source));
+        $this->assertStringNotContainsString('skilland_get_course_customfield_value', $source);
+        $this->assertStringNotContainsString('skilland_get_skilland_courseid', $source);
+    }
 }

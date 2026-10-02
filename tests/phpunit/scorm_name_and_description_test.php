@@ -209,6 +209,126 @@ class scorm_name_and_description_test extends TestCase {
     }
 
     // ---------------------------------------------------------------
+    // Boundaries (SKL-689)
+    // ---------------------------------------------------------------
+
+    /**
+     * A name that is nothing but the topic code keeps it, so it never becomes empty.
+     */
+    public function test_strip_topic_label_keeps_a_name_that_is_only_the_code(): void {
+        $this->assertSame('T1 - ', skilland_strip_topic_label('T1 - '));
+        $this->assertSame('T12-', skilland_strip_topic_label('T12-'));
+        $this->assertSame('T1 -   ', skilland_strip_topic_label('T1 -   '));
+    }
+
+    /**
+     * The SCORM of a code-only name keeps the code with hidelabels instead of becoming " (SCORM)".
+     */
+    public function test_scorm_module_name_of_a_code_only_name_with_hidelabels(): void {
+        $this->assertSame('T1 -  (SCORM)', skilland_scorm_module_name('T1 - ', true));
+        $this->assertNotSame(' (SCORM)', skilland_scorm_module_name('T1 - ', true));
+    }
+
+    /**
+     * The course page keeps a code-only name with hidelabels: the activity never shows blank.
+     */
+    public function test_coursemodule_info_keeps_a_code_only_name_with_hidelabels(): void {
+        $this->db->seed('skilland', [(object)['id' => 1, 'name' => 'T1 - ', 'hidelabels' => 1,
+            'intro' => '', 'introformat' => 1]]);
+
+        $info = skilland_get_coursemodule_info((object)['id' => 11, 'instance' => 1]);
+
+        $this->assertSame('T1 - ', $info->name);
+    }
+
+    /**
+     * Without hidelabels a 255-character multibyte name is capped too, code included.
+     */
+    public function test_scorm_module_name_caps_a_long_multibyte_name_without_hidelabels(): void {
+        $name = skilland_scorm_module_name('T1 - ' . str_repeat('ñ', 300));
+
+        $this->assertSame(255, \core_text::strlen($name));
+        $this->assertStringStartsWith('T1 - ñ', $name);
+        $this->assertStringEndsWith('ñ (SCORM)', $name);
+        $this->assertTrue(mb_check_encoding($name, 'UTF-8'));
+    }
+
+    /**
+     * With hidelabels, a name of exactly 255 multibyte characters after the code is capped at 255.
+     */
+    public function test_scorm_module_name_caps_exactly_at_255_with_hidelabels(): void {
+        $name = skilland_scorm_module_name('T9 - ' . str_repeat('漢', 255), true);
+
+        $this->assertSame(255, \core_text::strlen($name));
+        $this->assertSame(str_repeat('漢', 247) . ' (SCORM)', $name);
+    }
+
+    /**
+     * A SCORM course module whose scorm record is gone is a no-op.
+     */
+    public function test_sync_ignores_a_course_module_without_its_scorm_record(): void {
+        $this->seedProvisioned('T1 - Topic', 1, 'T1 - Topic (SCORM)');
+        $this->db->delete_records('scorm', ['id' => 60]);
+
+        skilland_sync_scorm_module_name($this->db->get_record('skilland', ['id' => 7]));
+
+        $this->assertEmpty($this->db->get_calls_for('set_field'));
+        $this->assertEmpty($GLOBALS['_test_scorm_grade_item_updates'] ?? []);
+        $this->assertEmpty($GLOBALS['_test_rebuilt_course_caches'] ?? []);
+    }
+
+    /**
+     * Saving the activity after its SCORM course module was deleted succeeds and renames nothing.
+     */
+    public function test_update_instance_with_a_deleted_scorm_still_saves(): void {
+        $this->seedProvisioned('T1 - Topic', 0, 'T1 - Topic (SCORM)');
+        $this->db->delete_records('course_modules', ['id' => 50]);
+
+        $this->assertTrue(skilland_update_instance($this->updateData(['name' => 'T1 - Renamed', 'hidelabels' => 1])));
+
+        $this->assertSame('T1 - Topic (SCORM)', $this->scormName());
+        $this->assertEmpty($GLOBALS['_test_scorm_grade_item_updates'] ?? []);
+    }
+
+    /**
+     * Hidelabels on, off and on again: each save leaves the SCORM named for the current setting.
+     */
+    public function test_update_instance_hidelabels_on_off_on(): void {
+        $this->seedProvisioned('T2 - Topic', 1, 'Topic (SCORM)');
+
+        $names = [];
+        foreach ([0, 1, 0, 1] as $hidelabels) {
+            $this->assertTrue(skilland_update_instance($this->updateData(['name' => 'T2 - Topic',
+                'hidelabels' => $hidelabels])));
+            $names[] = $this->scormName();
+        }
+
+        $this->assertSame(['T2 - Topic (SCORM)', 'Topic (SCORM)', 'T2 - Topic (SCORM)', 'Topic (SCORM)'], $names);
+    }
+
+    /**
+     * Renaming an activity that hides labels gives the SCORM the new name without its code.
+     */
+    public function test_update_instance_renaming_with_hidelabels_strips_the_new_code(): void {
+        $this->seedProvisioned('T1 - Topic', 1, 'Topic (SCORM)');
+
+        $this->assertTrue(skilland_update_instance($this->updateData(['name' => 'T3 - Moved topic', 'hidelabels' => 1])));
+
+        $this->assertSame('Moved topic (SCORM)', $this->scormName());
+    }
+
+    /**
+     * A save that sends no hidelabels and keeps the name leaves a hand-renamed SCORM alone.
+     */
+    public function test_update_instance_without_hidelabels_in_the_data_leaves_the_scorm(): void {
+        $this->seedProvisioned('T1 - Topic', 1, 'Custom (SCORM)');
+
+        $this->assertTrue(skilland_update_instance($this->updateData(['name' => 'T1 - Topic'])));
+
+        $this->assertSame('Custom (SCORM)', $this->scormName());
+    }
+
+    // ---------------------------------------------------------------
     // Show description on the course page
     // ---------------------------------------------------------------
 

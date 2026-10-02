@@ -149,4 +149,72 @@ final class scorm_name_test extends skilland_testcase {
         $this->assertStringContainsString('About the fixture topic', $modinfo->get_cm($shown->cmid)->get_formatted_content());
         $this->assertSame('', (string) $modinfo->get_cm($hidden->cmid)->get_formatted_content());
     }
+
+    /**
+     * A name that is only the topic code keeps it with hidelabels, on the SCORM and the course page.
+     */
+    public function test_a_code_only_name_is_never_blanked_by_hidelabels(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course, ['name' => 'T1 - ', 'hidelabels' => 1]);
+        $this->provision($skilland);
+
+        $stored = (string) $DB->get_field('skilland', 'name', ['id' => $skilland->id]);
+        $this->assertSame('T1 -', trim($stored));
+        $this->assertSame($stored . ' (SCORM)', $this->scorm($skilland->id)->name);
+        $this->assertSame('T1 -', trim(get_fast_modinfo($course->id)->get_cm($skilland->cmid)->name));
+    }
+
+    /**
+     * A 255-character multibyte name with hidelabels gives a stored SCORM name of exactly 255 characters.
+     */
+    public function test_a_long_multibyte_name_with_hidelabels_is_stored_whole(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $name = 'T1 - ' . str_repeat('漢', 250);
+        $skilland = $this->create_activity($course, ['name' => $name, 'hidelabels' => 1]);
+        $this->provision($skilland);
+
+        $stored = $this->scorm($skilland->id)->name;
+        $this->assertSame(str_repeat('漢', 247) . ' (SCORM)', $stored);
+        $this->assertSame(255, \core_text::strlen($stored));
+    }
+
+    /**
+     * Hidelabels on, off and on again: the SCORM follows each save.
+     */
+    public function test_hidelabels_on_off_on_follows_each_save(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course, ['name' => 'T2 - Fixture topic', 'hidelabels' => 1]);
+        $this->provision($skilland);
+
+        $names = [$this->scorm($skilland->id)->name];
+        foreach ([0, 1] as $hidelabels) {
+            $this->save($skilland, ['hidelabels' => $hidelabels]);
+            $names[] = $this->scorm($skilland->id)->name;
+        }
+
+        $this->assertSame(['Fixture topic (SCORM)', 'T2 - Fixture topic (SCORM)', 'Fixture topic (SCORM)'], $names);
+    }
+
+    /**
+     * Saving the activity after its hidden SCORM was deleted succeeds and creates no SCORM.
+     */
+    public function test_saving_after_the_scorm_was_deleted_is_a_no_op_for_the_scorm(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $skilland = $this->create_activity($course, ['name' => 'T1 - Fixture topic']);
+        $scormcmid = $this->provision($skilland);
+        course_delete_module($scormcmid);
+        $this->assertSame([], $this->scorm_cmids($course->id));
+
+        $this->save($skilland, ['name' => 'T1 - Renamed topic', 'hidelabels' => 1]);
+
+        $this->assertSame('T1 - Renamed topic', $DB->get_field('skilland', 'name', ['id' => $skilland->id]));
+        $this->assertSame([], $this->scorm_cmids($course->id));
+        foreach ($this->take_debugging() as $message) {
+            $this->assertStringNotContainsString('renaming the SCORM', $message);
+        }
+    }
 }

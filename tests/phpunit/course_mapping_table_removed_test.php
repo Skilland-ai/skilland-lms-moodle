@@ -155,6 +155,97 @@ class course_mapping_table_removed_test extends TestCase {
         $this->assertEmpty($this->db->get_calls_for('get_records'));
     }
 
+    /**
+     * Running the migration a second time changes nothing: every mapping is already in the field.
+     */
+    public function test_migration_run_twice_only_counts_the_same_values(): void {
+        $this->seedLegacyRows();
+        skilland_migrate_course_mapping_table();
+        $GLOBALS['_test_customfield_saved'] = [];
+
+        $counts = skilland_migrate_course_mapping_table();
+
+        $this->assertSame(
+            ['migrated' => 0, 'same' => 2, 'conflict' => 1, 'deletedcourse' => 1, 'empty' => 1, 'failed' => 0],
+            $counts
+        );
+        $this->assertSame([], $GLOBALS['_test_customfield_saved']);
+    }
+
+    /**
+     * Legacy values are trimmed: whitespace only counts as empty, padding is not copied.
+     */
+    public function test_migration_trims_legacy_values(): void {
+        $this->db->get_manager()->set_table_exists('skilland_course', true);
+        $this->db->seed('course', [(object) ['id' => 10], (object) ['id' => 11]]);
+        $this->db->seed('skilland_course', [
+            (object) ['id' => 1, 'course' => 10, 'skilland_courseid' => "  \t "],
+            (object) ['id' => 2, 'course' => 11, 'skilland_courseid' => ' skill-b '],
+        ]);
+        $GLOBALS['_test_customfield_value'] = [10 => null, 11 => null];
+
+        $counts = skilland_migrate_course_mapping_table();
+
+        $this->assertSame(1, $counts['empty']);
+        $this->assertSame(1, $counts['migrated']);
+        $this->assertNull($GLOBALS['_test_customfield_value'][10]);
+        $this->assertSame('skill-b', $GLOBALS['_test_customfield_value'][11]);
+    }
+
+    /**
+     * A field holding only whitespace is unmapped, so the legacy value fills it.
+     */
+    public function test_migration_fills_a_whitespace_field(): void {
+        $this->db->get_manager()->set_table_exists('skilland_course', true);
+        $this->db->seed('course', [(object) ['id' => 10]]);
+        $this->db->seed('skilland_course', [(object) ['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-a']]);
+        $GLOBALS['_test_customfield_value'] = [10 => '   '];
+
+        $counts = skilland_migrate_course_mapping_table();
+
+        $this->assertSame(1, $counts['migrated']);
+        $this->assertSame(0, $counts['conflict']);
+        $this->assertSame('skill-a', $GLOBALS['_test_customfield_value'][10]);
+    }
+
+    /**
+     * A field padded with whitespace around the same value is the same mapping, not a conflict.
+     */
+    public function test_migration_treats_a_padded_field_as_the_same_value(): void {
+        $this->db->get_manager()->set_table_exists('skilland_course', true);
+        $this->db->seed('course', [(object) ['id' => 10]]);
+        $this->db->seed('skilland_course', [(object) ['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-a']]);
+        $GLOBALS['_test_customfield_value'] = [10 => ' skill-a '];
+
+        $counts = skilland_migrate_course_mapping_table();
+
+        $this->assertSame(1, $counts['same']);
+        $this->assertSame(0, $counts['conflict']);
+        $this->assertSame([], $GLOBALS['_test_customfield_saved'] ?? []);
+    }
+
+    /**
+     * A write that fails is counted and logged with the course id only, never the value.
+     */
+    public function test_migration_counts_and_logs_a_failed_write(): void {
+        $this->db->get_manager()->set_table_exists('skilland_course', true);
+        $this->db->seed('course', [(object) ['id' => 10], (object) ['id' => 12]]);
+        $this->db->seed('skilland_course', [
+            (object) ['id' => 1, 'course' => 10, 'skilland_courseid' => 'skill-a'],
+            (object) ['id' => 2, 'course' => 12, 'skilland_courseid' => 'skill-secret'],
+        ]);
+        // Course 12 has no field data and the field cannot be created here: its write fails.
+        $GLOBALS['_test_customfield_value'] = [10 => null];
+
+        $counts = skilland_migrate_course_mapping_table();
+
+        $this->assertSame(1, $counts['migrated']);
+        $this->assertSame(1, $counts['failed']);
+        $output = implode("\n", $GLOBALS['_test_mtrace'] ?? []);
+        $this->assertStringContainsString('could not write the custom field of course ids 12', $output);
+        $this->assertStringNotContainsString('skill-secret', $output);
+    }
+
     public function test_upgrade_step_bumps_the_version_with_the_release(): void {
         $version = file_get_contents(__DIR__ . '/../../src/version.php');
         $this->assertSame(1, preg_match('/\$plugin->version\s*=\s*(\d+);/', $version, $m));

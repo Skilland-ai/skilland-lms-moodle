@@ -449,6 +449,90 @@ class backup_restore_test extends TestCase {
         $this->assertStringNotContainsString('skill-b', array_values($messages)[0]['message']);
     }
 
+    /**
+     * A backup taken before 0.9.52-beta carries the table's orgid too: the course id still maps the
+     * course and neither column reaches the skilland table.
+     */
+    public function test_restore_of_an_old_format_backup_maps_the_course(): void {
+        $backup = $this->backup_activity();
+        $backup['skilland']['skilland_orgid'] = 'org1';
+
+        $result = $this->restore(['skilland', 'scorm'], 8, $backup);
+
+        $this->assert_linked_to_restored_scorm($result, 8);
+        $this->assertSame('skill-a', skilland_get_mapped_courseid(8));
+        $row = $this->restored($result);
+        $this->assertObjectNotHasProperty('skilland_orgid', $row);
+        $this->assertObjectNotHasProperty('skilland_courseid', $row);
+    }
+
+    /**
+     * A backup of a course without a mapping writes no field and logs nothing about it.
+     */
+    public function test_restore_of_a_backup_without_a_mapping_writes_no_field(): void {
+        foreach ([null, '', '   '] as $value) {
+            $backup = $this->backup_activity();
+            $backup['skilland']['skilland_courseid'] = $value;
+            $GLOBALS['_test_debug_messages'] = [];
+
+            $result = $this->restore(['skilland', 'scorm'], 8, $backup);
+
+            $this->assertSame(8, (int) $this->restored($result)->course);
+            $this->assertNull(skilland_get_mapped_courseid(8));
+            $this->assertSame([], $GLOBALS['_test_customfield_saved'] ?? []);
+            $mapping = array_filter($GLOBALS['_test_debug_messages'],
+                fn($m) => str_contains($m['message'], 'Skilland course'));
+            $this->assertSame([], array_values($mapping));
+        }
+    }
+
+    /**
+     * A target field holding only whitespace is unmapped: the backup's value fills it.
+     */
+    public function test_restore_into_a_whitespace_field_takes_the_backup_value(): void {
+        $GLOBALS['_test_customfield_value'][9] = '   ';
+
+        $this->restore(['skilland', 'scorm'], 9, $this->backup_activity());
+
+        $this->assertSame('skill-a', skilland_get_mapped_courseid(9));
+        $this->assertSame(['skill-a'], $GLOBALS['_test_customfield_saved'] ?? []);
+    }
+
+    /**
+     * A backup value padded with whitespace is the same mapping as the target's, not a conflict.
+     */
+    public function test_restore_of_a_padded_value_into_the_same_mapping_is_quiet(): void {
+        $GLOBALS['_test_customfield_value'][9] = 'skill-a';
+        $backup = $this->backup_activity();
+        $backup['skilland']['skilland_courseid'] = ' skill-a ';
+
+        $this->restore(['skilland', 'scorm'], 9, $backup);
+
+        $this->assertSame([], $GLOBALS['_test_customfield_saved'] ?? []);
+        $conflicts = array_filter($GLOBALS['_test_debug_messages'],
+            fn($m) => str_contains($m['message'], 'already mapped'));
+        $this->assertSame([], array_values($conflicts));
+    }
+
+    /**
+     * A field that cannot be written never breaks the restore: the activity is restored and the
+     * failure is logged with the course id only.
+     */
+    public function test_restore_survives_a_field_that_cannot_be_written(): void {
+        // Course 10 has no custom field data and the field cannot be created here.
+        $result = $this->restore(['skilland', 'scorm'], 10, $this->backup_activity());
+
+        $row = $this->restored($result);
+        $this->assertSame(10, (int) $row->course);
+        $this->assertSame($result['scormcmid'], (int) $row->scormcmid);
+        $this->assertNull(skilland_get_mapped_courseid(10));
+        $failed = array_values(array_filter($GLOBALS['_test_debug_messages'],
+            fn($m) => str_contains($m['message'], 'could not map restored course id 10')));
+        $this->assertCount(1, $failed);
+        $this->assertSame(DEBUG_DEVELOPER, $failed[0]['level']);
+        $this->assertStringNotContainsString('skill-a', $failed[0]['message']);
+    }
+
     public function test_backup_reads_the_mapping_from_the_custom_field_not_a_table(): void {
         $step = new \backup_skilland_activity_structure_step('skilland_structure', 'skilland.xml', ['userinfo' => false]);
         [$sql, $params] = $step->build_structure()->sourcesql;

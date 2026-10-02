@@ -125,4 +125,74 @@ final class course_mapping_upgrade_test extends skilland_testcase {
         $this->assertSame('skill-field', skilland_get_mapped_courseid((int) $course->id));
         $this->assertEquals(2026100210, get_config('mod_skilland', 'version'));
     }
+
+    /**
+     * Running the migration twice copies each mapping once, and legacy values are trimmed:
+     * whitespace only is empty, padding is not copied, a whitespace field is filled.
+     */
+    public function test_migration_trims_values_and_is_idempotent(): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/mod/skilland/db/upgradelib.php');
+
+        $dbman = $DB->get_manager();
+        $table = $this->legacy_table();
+        $dbman->create_table($table);
+
+        try {
+            $blank = $this->getDataGenerator()->create_course();
+            $padded = $this->getDataGenerator()->create_course();
+            $whitespacefield = $this->getDataGenerator()->create_course();
+            $this->generator()->create_course_mapping((int) $whitespacefield->id, '   ');
+
+            $this->legacy_row((int) $blank->id, '   ');
+            $this->legacy_row((int) $padded->id, ' skill-padded ');
+            $this->legacy_row((int) $whitespacefield->id, 'skill-filled');
+
+            ob_start();
+            $first = skilland_migrate_course_mapping_table();
+            $second = skilland_migrate_course_mapping_table();
+            ob_end_clean();
+
+            $this->assertSame(
+                ['migrated' => 2, 'same' => 0, 'conflict' => 0, 'deletedcourse' => 0, 'empty' => 1, 'failed' => 0],
+                $first
+            );
+            $this->assertSame(
+                ['migrated' => 0, 'same' => 2, 'conflict' => 0, 'deletedcourse' => 0, 'empty' => 1, 'failed' => 0],
+                $second
+            );
+            $this->assertNull(skilland_get_mapped_courseid((int) $blank->id));
+            $this->assertNull($this->course_mapping_row((int) $blank->id));
+            $this->assertSame('skill-padded', $this->course_mapping_row((int) $padded->id)->charvalue);
+            $this->assertSame('skill-filled', skilland_get_mapped_courseid((int) $whitespacefield->id));
+            $this->assertTrue($dbman->table_exists('skilland_course'), 'The helper never drops the table');
+        } finally {
+            if ($dbman->table_exists('skilland_course')) {
+                $dbman->drop_table($table);
+            }
+        }
+    }
+
+    /**
+     * After the step the custom field is the only mapping: a course with no value, or only
+     * whitespace, fails closed everywhere a request names a skill.
+     */
+    public function test_an_unmapped_or_blank_course_fails_closed(): void {
+        $unmapped = $this->getDataGenerator()->create_course();
+        $blank = $this->getDataGenerator()->create_course();
+        $this->generator()->create_course_mapping((int) $blank->id, "  \t ");
+
+        foreach ([(int) $unmapped->id, (int) $blank->id] as $courseid) {
+            $this->assertNull(skilland_get_mapped_courseid($courseid));
+            foreach (['skill-1', '', "  \t "] as $requested) {
+                try {
+                    skilland_require_mapped_course($courseid, $requested);
+                    $this->fail('Course ' . $courseid . ' must not authorize ' . json_encode($requested));
+                } catch (\moodle_exception $e) {
+                    $this->assertSame('error_course_not_mapped', $e->errorcode);
+                }
+            }
+            $this->assertSame('/skills', skilland_studio_redirect_path(skilland_get_mapped_courseid($courseid) ?? '', 'topic-1'));
+        }
+    }
 }
