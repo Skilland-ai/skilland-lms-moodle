@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100412;   // YYYYMMDDHH - Scope pre-commit checks to staged files.
+$plugin->version   = 2026100413;   // YYYYMMDDHH - Uninstall cleanup (SKL-993).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.55-beta';
+$plugin->release   = '0.9.56-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
