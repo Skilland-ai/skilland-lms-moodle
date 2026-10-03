@@ -32,56 +32,13 @@
  * @return bool Always true so a failed cleanup part does not prevent uninstall.
  */
 function xmldb_skilland_uninstall(): bool {
-    global $CFG, $DB;
-
-    try {
-        $scormmodule = $DB->get_record('modules', ['name' => 'scorm'], 'id, visible');
-        if ($scormmodule && $scormmodule->visible &&
-                is_file($CFG->dirroot . '/mod/scorm/lib.php')) {
-            require_once($CFG->dirroot . '/course/lib.php');
-            $like = $DB->sql_like('cm.idnumber', ':idnumber');
-            $idnumber = $DB->sql_like_escape('skilland_topic_') . '%';
-            $cms = $DB->get_records_sql(
-                "SELECT cm.id, cm.idnumber
-                   FROM {course_modules} cm
-                  WHERE cm.module = :moduleid AND $like",
-                ['moduleid' => $scormmodule->id, 'idnumber' => $idnumber]
-            );
-            foreach ($cms as $cm) {
-                // The numeric suffix is the Skilland activity id; adopted Edukami SCORMs
-                // carry their own distinct idnumbers and are never owned by this plugin.
-                if (!preg_match('/^skilland_topic_[0-9]+$/D', $cm->idnumber)) {
-                    continue;
-                }
-                try {
-                    course_delete_module((int) $cm->id);
-                } catch (\Throwable $e) {
-                    debugging('mod_skilland: SCORM cleanup failed for cmid ' . $cm->id . ': ' .
-                        $e->getMessage(), DEBUG_NORMAL);
-                }
-            }
-        }
-    } catch (\Throwable $e) {
-        debugging('mod_skilland: SCORM cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
-    }
+    global $CFG;
 
     try {
         require_once($CFG->dirroot . '/mod/skilland/locallib.php');
-        $field = skilland_get_course_customfield();
-        $categoryid = $field ? (int) $field->get('categoryid') : 0;
-        if ($field && !$field->delete()) {
-            debugging('mod_skilland: course mapping field cleanup failed', DEBUG_NORMAL);
-        }
+        skilland_uninstall_cleanup();
     } catch (\Throwable $e) {
-        debugging('mod_skilland: course mapping field cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
-    }
-
-    try {
-        if (!empty($categoryid) && !$DB->record_exists('customfield_field', ['categoryid' => $categoryid])) {
-            \core_customfield\category_controller::create($categoryid)->delete();
-        }
-    } catch (\Throwable $e) {
-        debugging('mod_skilland: empty custom field category cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
+        debugging('mod_skilland: uninstall cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
     }
 
     return true;

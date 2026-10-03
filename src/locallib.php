@@ -1300,6 +1300,66 @@ function skilland_delete_scorm_module(int $cmid): void {
 }
 
 /**
+ * Remove plugin-owned SCORM modules and the course mapping field on uninstall.
+ *
+ * Each cleanup stage continues after a failure so Moodle can finish uninstalling.
+ */
+function skilland_uninstall_cleanup(): void {
+    global $CFG, $DB;
+
+    try {
+        $scormmodule = $DB->get_record('modules', ['name' => 'scorm'], 'id, visible');
+        if ($scormmodule && $scormmodule->visible &&
+                is_file($CFG->dirroot . '/mod/scorm/lib.php')) {
+            $like = $DB->sql_like('cm.idnumber', ':idnumber');
+            $idnumber = $DB->sql_like_escape('skilland_topic_') . '%';
+            $cms = $DB->get_records_sql(
+                "SELECT cm.id, cm.idnumber
+                   FROM {course_modules} cm
+                  WHERE cm.module = :moduleid AND $like",
+                ['moduleid' => $scormmodule->id, 'idnumber' => $idnumber]
+            );
+            foreach ($cms as $cm) {
+                // Adopted Edukami SCORMs keep their distinct idnumbers.
+                if (!preg_match('/^skilland_topic_[0-9]+$/D', $cm->idnumber)) {
+                    continue;
+                }
+                try {
+                    skilland_delete_scorm_module((int) $cm->id);
+                    if ($DB->record_exists('course_modules', ['id' => $cm->id])) {
+                        debugging('mod_skilland: SCORM cleanup left cmid ' . $cm->id, DEBUG_NORMAL);
+                    }
+                } catch (\Throwable $e) {
+                    debugging('mod_skilland: SCORM cleanup failed for cmid ' . $cm->id . ': ' .
+                        $e->getMessage(), DEBUG_NORMAL);
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        debugging('mod_skilland: SCORM cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
+    }
+
+    $categoryid = 0;
+    try {
+        $field = skilland_get_course_customfield();
+        $categoryid = $field ? (int) $field->get('categoryid') : 0;
+        if ($field && !$field->delete()) {
+            debugging('mod_skilland: course mapping field cleanup failed', DEBUG_NORMAL);
+        }
+    } catch (\Throwable $e) {
+        debugging('mod_skilland: course mapping field cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
+    }
+
+    try {
+        if ($categoryid && !$DB->record_exists('customfield_field', ['categoryid' => $categoryid])) {
+            \core_customfield\category_controller::create($categoryid)->delete();
+        }
+    } catch (\Throwable $e) {
+        debugging('mod_skilland: empty custom field category cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
+    }
+}
+
+/**
  * Map the activity's visible lessons to the SCOs Moodle parsed from the package.
  *
  * Every check runs before anything is written, so a failed check leaves the lessons untouched.
