@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.53-beta]
+
+### Changed
+- SSO tokens are signed with the php-jwt library bundled in Moodle core
+  (4.5.14 ships php-jwt 6.10.0 and autoloads `\Firebase\JWT\JWT`); the plugin
+  no longer bundles `vendor/` and ships no third-party PHP code (SKL-682).
+- `firebase/php-jwt` is now a dev dependency of the repository, used only by
+  the PHPUnit stub harness (SKL-682).
+
+### Removed
+- `composer.phar`, the committed `vendor/` directory, `src/vendor/autoload.php`,
+  `src/thirdpartylibs.xml` and the vendor drift guard (script, npm script,
+  pre-commit step and CI step) (SKL-682).
+
+### CI
+- `composer audit` runs in the Moodle plugin CI job; the release smoke check
+  now fails when the zip contains a `vendor` directory or `thirdpartylibs.xml`
+  (SKL-682).
+
 ## [0.9.52-beta]
 
 ### Changed

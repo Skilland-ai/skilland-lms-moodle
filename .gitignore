@@ -26,14 +26,9 @@ playwright/.cache/
 **/test-failed-*.png
 **/test-*.webm
 
-# Composer dev dependencies (PHPUnit + transitive)
-vendor/bin/
-vendor/myclabs/
-vendor/nikic/
-vendor/phar-io/
-vendor/phpunit/
-vendor/sebastian/
-vendor/theseer/
+# Composer dev dependencies (PHPUnit, php-jwt for the stub harness); tooling only, never shipped
+vendor/
+composer.phar
 
 # Isolated composer vendor dir used by test:unit, never committed
 vendor-test/

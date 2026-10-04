@@ -3,20 +3,17 @@
     "description": "Moodle plugin for Skilland integration",
     "type": "moodle-mod",
     "require": {
-        "php": ">=8.1",
-        "firebase/php-jwt": "^6.10"
+        "php": ">=8.1"
     },
     "require-dev": {
+        "firebase/php-jwt": "^6.10",
         "phpunit/phpunit": "^10.5"
-    },
-    "autoload": {
-        "psr-4": {
-            "mod_skilland\\": "classes/"
-        }
     },
     "config": {
         "audit": {
-            "block-insecure": false
+            "ignore": {
+                "GHSA-2x45-7fc3-mxwq": "php-jwt 6.x is a test-only dev dependency (stub harness); production signing uses Moodle core's php-jwt and a 64-hex-char secret."
+            }
         }
     }
 }

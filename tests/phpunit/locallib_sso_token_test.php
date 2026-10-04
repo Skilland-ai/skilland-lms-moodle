@@ -358,6 +358,23 @@ class locallib_sso_token_test extends TestCase {
         $this->assertStringNotContainsString($this->ssoSecret, $messages);
     }
 
+    public function test_generate_token_decodes_with_the_org_secret_as_hs256(): void {
+        $GLOBALS['_test_plugin_config']['mod_skilland'] = (object)['sso_secret' => $this->ssoSecret];
+        $token = skilland_generate_sso_token($this->makeUser(), 'org1', 'Learner');
+
+        $this->assertSame('HS256', json_decode(base64_decode(strtr(explode('.', $token)[0], '-_', '+/')))->alg);
+        $decoded = JWT::decode($token, new Key($this->ssoSecret, 'HS256'));
+        $this->assertSame('org1', $decoded->orgId);
+        $this->expectException(\Firebase\JWT\SignatureInvalidException::class);
+        JWT::decode($token, new Key('another-secret-key-for-jwt-signing', 'HS256'));
+    }
+
+    public function test_plugin_ships_no_third_party_php(): void {
+        $src = realpath(__DIR__ . '/../../src');
+        $this->assertDirectoryDoesNotExist($src . '/vendor');
+        $this->assertFileDoesNotExist($src . '/thirdpartylibs.xml');
+    }
+
     public function test_redact_url_strips_fragment_only_url(): void {
         $this->assertSame('https://example.com/pkg.zip?[redacted]', mod_skilland_redact_url('https://example.com/pkg.zip#token=abc'));
     }

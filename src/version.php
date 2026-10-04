@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100210;   // YYYYMMDDHH - Course mapping table migrated to the custom field and dropped (SKL-689).
+$plugin->version   = 2026100407;   // YYYYMMDDHH - SSO tokens use Moodle core's php-jwt, vendor/ no longer bundled (SKL-682).
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.52-beta';
+$plugin->release   = '0.9.53-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

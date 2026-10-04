@@ -2369,28 +2369,14 @@ function skilland_generate_sso_token($user, $orgid, string $role) {
         throw new moodle_exception('error_sso_user_not_allowed', 'mod_skilland');
     }
 
-    // Check if composer autoloader exists.
-    $autoloadpath = __DIR__ . '/vendor/autoload.php';
-    if (!file_exists($autoloadpath)) {
+    // Moodle core bundles php-jwt and autoloads it; the plugin ships no JWT library of its own.
+    if (!class_exists('\\Firebase\\JWT\\JWT')) {
         throw new moodle_exception(
             'error',
             'mod_skilland',
             '',
             null,
-            'JWT library not installed. Please run "composer install" in the plugin directory.'
-        );
-    }
-
-    require_once($autoloadpath);
-
-    // Check if JWT class is available.
-    if (!class_exists('\Firebase\JWT\JWT')) {
-        throw new moodle_exception(
-            'error',
-            'mod_skilland',
-            '',
-            null,
-            'JWT library not found. Please run "composer install" in the plugin directory.'
+            'JWT library not found in Moodle core.'
         );
     }
 
