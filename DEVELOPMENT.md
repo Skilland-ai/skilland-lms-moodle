@@ -280,7 +280,7 @@ The plugin has two PHPUnit layers. Use the stub suite for fast feedback and the 
 
 ### Stub suite (`tests/phpunit`)
 
-A fast smoke layer that needs no Moodle install: `npm run test:unit` (Composer and `php:8.2-cli` in Docker, config in the root `phpunit.xml`, bootstrap `tests/phpunit/bootstrap.php`). Moodle is replaced by hand-written stubs in `tests/phpunit/stubs`, so a passing run proves the plugin's own logic, not its integration with Moodle. In particular `FakeDatabase` answers raw SQL (`get_record_sql`, `get_records_sql`) with nothing unless a test installs a canned handler, and `get_records_select` with the whole unfiltered table, so SQL paths are only exercised on their empty path. It runs in the pre-commit hook and in the `test` job of `ci.yml`.
+A fast smoke layer that needs no Moodle install: `npm run test:unit` (Composer and `php:8.2-cli` in Docker; Composer installs PHPUnit and php-jwt into the git-ignored `vendor-test/`, config in the root `phpunit.xml`, bootstrap `tests/phpunit/bootstrap.php`). Moodle is replaced by hand-written stubs in `tests/phpunit/stubs`, so a passing run proves the plugin's own logic, not its integration with Moodle. In particular `FakeDatabase` answers raw SQL (`get_record_sql`, `get_records_sql`) with nothing unless a test installs a canned handler, and `get_records_select` with the whole unfiltered table, so SQL paths are only exercised on their empty path. It runs in the pre-commit hook and in the `test` job of `ci.yml`.
 
 ### Real Moodle suite (`src/tests`)
 
@@ -292,7 +292,7 @@ scripts/moodle-core-tests.sh behat [name]       # @mod_skilland, a scenario name
 scripts/moodle-core-tests.sh down               # stop the stack and drop its volumes
 ```
 
-The script is opt-in and self-contained: `core-tests/docker-compose.yml` brings up its own MariaDB 11, a Moodle 4.5 image (PHP 8.3, `core-tests/Dockerfile`) and, for Behat, `selenium/standalone-chrome`, in a separate Compose project (`skilland-core-tests`) that never touches the `00_development` site. Each run syncs `src/` into `mod/skilland` and stages the root `vendor/` into it, as CI does, then calls Moodle's own `admin/tool/phpunit/cli/init.php` / `admin/tool/behat/cli/init.php` and runs `vendor/bin/phpunit --testsuite mod_skilland_testsuite --fail-on-warning` or `vendor/bin/behat --profile chrome --tags=@mod_skilland`. The first run builds the image and initialises the test sites (several minutes, a few GB of Docker disk); later runs are much faster. Behat failure dumps land in `/var/behatdata/faildump` inside the `moodle` container. It does not cover phpcs, phpdoc or `validate` (the `lint` job of the same workflow).
+The script is opt-in and self-contained: `core-tests/docker-compose.yml` brings up its own MariaDB 11, a Moodle 4.5 image (PHP 8.3, `core-tests/Dockerfile`) and, for Behat, `selenium/standalone-chrome`, in a separate Compose project (`skilland-core-tests`) that never touches the `00_development` site. Each run syncs `src/` into `mod/skilland`, as CI does (the plugin ships no vendor code), then calls Moodle's own `admin/tool/phpunit/cli/init.php` / `admin/tool/behat/cli/init.php` and runs `vendor/bin/phpunit --testsuite mod_skilland_testsuite --fail-on-warning` or `vendor/bin/behat --profile chrome --tags=@mod_skilland`. The first run builds the image and initialises the test sites (several minutes, a few GB of Docker disk); later runs are much faster. Behat failure dumps land in `/var/behatdata/faildump` inside the `moodle` container. It does not cover phpcs, phpdoc or `validate` (the `lint` job of the same workflow).
 
 ### Seams instead of test hooks
 
@@ -345,7 +345,7 @@ Every spec creates its own Moodle course through the `moodleCourse` fixture, so 
 
 Every pull request to `main` runs `.github/workflows/ci.yml`:
 
-- **`test`**: `npm run lint` (ESLint over `tests/e2e` and the AMD sources in `src/amd/src`), `php -l` on every PHP file under `src/`, `cli/` and `scripts/` (vendor excluded) in a `php:8.2-cli` container, then PHPUnit via `npm run test:unit`.
+- **`test`**: `npm run lint` (ESLint over `tests/e2e` and the AMD sources in `src/amd/src`), `php -l` on every PHP file under `src/`, `cli/` and `scripts/` in a `php:8.2-cli` container, then PHPUnit via `npm run test:unit`.
 - **`version`** (pull requests only): `node scripts/check_version.js` against the PR base, then a gitleaks scan of the source tree.
 
 Every merge to `main` publishes a release, so the version check requires, against the base branch's `src/version.php`:
@@ -356,7 +356,7 @@ Every merge to `main` publishes a release, so the version check requires, agains
 
 Run it locally with `BASE_REF=origin/main node scripts/check_version.js` (without `BASE_REF` it compares against `HEAD`). `SKIP_VERSION_CHECK=1` skips it.
 
-`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files, one minified AMD module per source, no `tests/`, `node_modules/`, dev vendor packages or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit fails the run instead of skipping it. Actions are pinned by commit SHA and the gitleaks image by version tag.
+`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files, one minified AMD module per source, no `tests/`, `node_modules/`, `vendor/`, `thirdpartylibs.xml` or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit fails the run instead of skipping it. Actions are pinned by commit SHA and the gitleaks image by version tag.
 
 ## Git Hooks
 
@@ -371,3 +371,7 @@ On every commit, `.husky/pre-commit`:
 
 The version bump is enforced by CI on the pull request, not by the hook.
 
+
+## Third-party PHP
+
+SSO tokens are signed with the php-jwt library bundled in Moodle core (`\Firebase\JWT\JWT`, autoloaded by Moodle). The plugin ships no third-party PHP code: there is no `vendor/` or `thirdpartylibs.xml` in `src/` or the release zip. Composer is for dev tooling only (PHPUnit, and php-jwt for the stub harness, which has no Moodle core); the Moodle plugin CI job runs `composer audit` on it.

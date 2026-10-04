@@ -24,11 +24,6 @@ if [[ "$mode" == "down" ]]; then
   exit 0
 fi
 
-if [[ ! -f "$root/vendor/autoload.php" ]]; then
-  echo "vendor/ is missing: run 'composer install' (or npm run build) in the plugin repo first" >&2
-  exit 1
-fi
-
 if [[ "$mode" == "behat" ]]; then
   "${compose[@]}" --profile behat up -d --build --wait db moodle chrome
 else
@@ -37,15 +32,13 @@ fi
 
 run() { "${compose[@]}" exec -T -u www-data moodle "$@"; }
 
-# Mirror CI: the plugin is src/ installed as mod/skilland, with the root vendor/ staged into it
-# (src/vendor/autoload.php is a dev shim pointing at the repository root).
+# Mirror CI: the plugin is src/ installed as mod/skilland (JWT comes from Moodle core).
 # shellcheck disable=SC2016 # the script runs in the container, not here
 "${compose[@]}" exec -T moodle bash -c '
   set -e
   mkdir -p /var/www/html/mod/skilland /var/behatdata/faildump
   chown www-data:www-data /var/behatdata/faildump
   rsync -a --delete /plugin-src/ /var/www/html/mod/skilland/
-  rsync -a /plugin-vendor/ /var/www/html/mod/skilland/vendor/
   chown -R www-data:www-data /var/www/html/mod/skilland
   cat > /var/www/html/config.php <<PHP
 <?php

@@ -76,11 +76,12 @@ jobs:
           sudo locale-gen en_AU.UTF-8
           echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
 
-      # src/vendor/autoload.php is a dev shim pointing at the repository root's vendor/, which is not
-      # there once src/ is installed as mod/skilland. Stage the root vendor/ into the plugin as the
-      # release build does (Gruntfile copy:vendor), so the suites mint SSO tokens with the shipped JWT library.
-      - name: Stage the release vendor directory
-        run: cp -R plugin/vendor/. plugin/src/vendor/
+      # Dev tooling only: the plugin ships no third-party PHP code (JWT comes from Moodle core).
+      - name: Composer audit
+        working-directory: plugin
+        run: |
+          composer install --no-interaction --no-progress
+          composer audit --locked
 
       # The Moodle plugin is src/ (installed as mod/skilland); the repository root holds tooling.
       - name: Install moodle-plugin-ci

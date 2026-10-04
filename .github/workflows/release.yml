@@ -168,8 +168,7 @@ jobs:
           cd "$ZIPCHECK"
           FAIL=0
 
-          for f in skilland/version.php skilland/lib.php skilland/vendor/autoload.php \
-                   skilland/vendor/firebase/php-jwt/src/JWT.php; do
+          for f in skilland/version.php skilland/lib.php; do
             if [ ! -f "$f" ]; then
               echo "::error::Release zip is missing $f"
               FAIL=1
@@ -184,7 +183,7 @@ jobs:
           fi
 
           FORBIDDEN=$(find skilland \( -name tests -o -name node_modules -o -name .env \
-            -o -path 'skilland/vendor/phpunit' -o -path 'skilland/vendor/sebastian' -o -path 'skilland/vendor/bin' \) -print)
+            -o -name vendor -o -name thirdpartylibs.xml \) -print)
           if [ -n "$FORBIDDEN" ]; then
             echo "::error::Release zip contains dev-only paths:"
             echo "$FORBIDDEN"

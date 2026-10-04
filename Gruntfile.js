@@ -24,12 +24,6 @@ module.exports = function(grunt) {
                 src: ['**', '!tests/**', '!classes/local/testing/**'],
                 dest: 'dist/'
             },
-            vendor: {
-                expand: true,
-                cwd: '.',
-                src: ['vendor/**'],
-                dest: 'dist/'
-            },
             cli: {
                 expand: true,
                 cwd: '.',

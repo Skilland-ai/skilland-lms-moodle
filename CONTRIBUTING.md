@@ -11,7 +11,7 @@ tooling (npm scripts, CI, PHPUnit stub harness).
 git clone git@github.com:Skilland-ai/skilland-lms-moodle.git
 cd skilland-lms-moodle
 npm ci
-composer install
+composer install   # dev tooling only (PHPUnit, php-jwt for the stub harness); the plugin ships no vendor code
 ```
 
 See `DEVELOPMENT.md` for wiring the plugin up against a local Skilland stack (API key,
@@ -53,7 +53,7 @@ organization id, SSO secret) and `BACKUP.md` for the backup/restore contract.
 
 - **PHP syntax check** across the whole plugin:
   ```bash
-  find src cli scripts -name "*.php" -not -path "*/vendor/*" -print0 | xargs -0 -n1 php -l
+  find src cli scripts -name "*.php" -print0 | xargs -0 -n1 php -l
   ```
 
 ## Code style

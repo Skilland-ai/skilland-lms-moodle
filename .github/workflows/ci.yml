@@ -51,13 +51,10 @@ jobs:
       - name: PHP syntax check (php -l)
         run: |
           docker run --rm -v "$PWD":/app -w /app php:8.2-cli sh -c \
-            'find src cli scripts -name "*.php" -not -path "*/vendor/*" -print0 | xargs -0 -n1 php -l'
+            'find src cli scripts -name "*.php" -print0 | xargs -0 -n1 php -l'
 
       - name: PHPUnit
         run: npm run test:unit
-
-      - name: Vendor drift check
-        run: npm run check:vendor-drift
 
   version:
     name: Version bump & secret scan
