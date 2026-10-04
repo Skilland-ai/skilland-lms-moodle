@@ -14,10 +14,11 @@ This guide helps you set up the Skilland Moodle plugin for local development.
 From the monorepo root:
 
 ```bash
+(cd moodle && npm ci && npm run build)
 ./start.sh --plugin
 ```
 
-This builds the plugin and starts Skilland on port 3100 and Moodle on port 8081.
+Build the plugin first, then start Skilland on port 3100 and Moodle on port 8081.
 Moodle uses the pinned `v4.5.15` core tag; set `MOODLE_TAG` when deliberately testing
 another core release, then rebuild its image. A regular start without `--plugin`
 leaves both Moodle and its private MariaDB service off. MariaDB has no host port.
