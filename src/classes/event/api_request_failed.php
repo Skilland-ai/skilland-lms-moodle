@@ -38,6 +38,12 @@ class api_request_failed extends \core\event\base {
     }
 
     public function get_description() {
-        return 'A Skilland API request failed.';
+        $path = \mod_skilland\local\api_failure_event_recorder::safe_path((string) ($this->other['path'] ?? ''));
+        $httpcode = (int) ($this->other['httpcode'] ?? 0);
+        $errorclass = (string) ($this->other['errorclass'] ?? 'transport');
+        if (!in_array($errorclass, ['http', 'transport', 'redirect', 'decode', 'config'], true)) {
+            $errorclass = 'transport';
+        }
+        return 'A Skilland API request to ' . $path . ' failed (HTTP ' . $httpcode . ', ' . $errorclass . ').';
     }
 }

@@ -88,7 +88,8 @@ class locallib_rest_test extends TestCase {
             'errorclass' => 'http'], $event->other);
         $this->assertSame('r', $event->crud);
         $this->assertSame(\core\event\base::LEVEL_OTHER, $event->edulevel);
-        $this->assertSame('A Skilland API request failed.', $event->get_description());
+        $this->assertSame('A Skilland API request to /api/moodle/skills failed (HTTP 504, http).',
+            $event->get_description());
     }
 
     public function test_post_http_error_event_excludes_body_and_credentials(): void {
@@ -144,6 +145,10 @@ class locallib_rest_test extends TestCase {
         }
 
         $this->assertSame('/api/moodle/topics/[redacted]/scorm-hash', $this->failure_event()->other['path']);
+        $this->assertSame('A Skilland API request to /api/moodle/topics/[redacted]/scorm-hash failed ' .
+            '(HTTP 400, http).', $this->failure_event()->get_description());
+        $this->assertStringNotContainsString('teacher', $this->failure_event()->get_description());
+        $this->assertStringNotContainsString('secret', $this->failure_event()->get_description());
     }
 
     public function test_event_storage_failure_preserves_original_request_failure(): void {
