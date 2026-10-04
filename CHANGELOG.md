@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.55-beta]
+
+### Changed
+- Pre-commit checks now inspect only staged PHP and JavaScript files; PHPUnit remains available manually and in CI (SKL-693).
+
+### Removed
+- The obsolete `.githooks` hook and broken translation-check script (SKL-693).
+
 ## [0.9.54-beta]
 
 ### Added

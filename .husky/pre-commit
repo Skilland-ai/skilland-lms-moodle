@@ -1,5 +1,5 @@
-# Block commits that add or modify dist/ files (deletions are allowed)
-DIST_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '^dist/' || true)
+# Block commits that add or modify dist/ files (deletions are allowed).
+DIST_FILES=$(git diff --cached --name-only --diff-filter=ACM -- 'dist/*')
 if [ -n "$DIST_FILES" ]; then
   echo "ERROR: Commit blocked — dist/ files are staged:"
   echo "$DIST_FILES"
@@ -9,5 +9,35 @@ if [ -n "$DIST_FILES" ]; then
   exit 1
 fi
 
-npm run lint
-npm run test:unit
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+PHP_FILES=""
+JS_FILES=""
+
+while IFS= read -r FILE; do
+  case "$FILE" in
+    *.php) PHP_FILES="${PHP_FILES}${FILE}\n" ;;
+    src/amd/src/*.js|tests/e2e/*.js)
+      JS_FILES="${JS_FILES}${FILE}\n"
+      ;;
+  esac
+done <<EOF
+$STAGED_FILES
+EOF
+
+if [ -n "$PHP_FILES" ]; then
+  if command -v php >/dev/null 2>&1; then
+    printf '%b' "$PHP_FILES" | while IFS= read -r FILE; do
+      [ -n "$FILE" ] || continue
+      php -l "$FILE" || exit 1
+    done || exit 1
+  else
+    echo "Skipping PHP syntax checks: php is not available."
+  fi
+fi
+
+if [ -n "$JS_FILES" ]; then
+  printf '%b' "$JS_FILES" | while IFS= read -r FILE; do
+    [ -n "$FILE" ] || continue
+    npx eslint --max-warnings 0 "$FILE" || exit 1
+  done || exit 1
+fi
