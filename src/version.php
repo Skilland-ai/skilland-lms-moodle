@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100407;   // YYYYMMDDHH - SSO tokens use Moodle core's php-jwt, vendor/ no longer bundled (SKL-682).
+$plugin->version   = 2026100411;   // YYYYMMDDHH - Log terminal Skilland API failures as Moodle events.
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.53-beta';
+$plugin->release   = '0.9.54-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

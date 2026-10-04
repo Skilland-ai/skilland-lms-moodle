@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.54-beta]
+
+### Added
+- A terminal Skilland REST failure records one Moodle site log event after retries end.
+  The event stores a masked route path, HTTP status and fixed failure category;
+  it excludes response content, request secrets and query parameters (SKL-994).
+
 ## [0.9.53-beta]
 
 ### Changed
@@ -24,7 +31,6 @@ and this project's version follows Moodle's `$plugin->release` in `src/version.p
 - `composer audit` runs in the Moodle plugin CI job; the release smoke check
   now fails when the zip contains a `vendor` directory or `thirdpartylibs.xml`
   (SKL-682).
-
 ## [0.9.52-beta]
 
 ### Changed

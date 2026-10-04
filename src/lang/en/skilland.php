@@ -153,6 +153,7 @@ $string['error_sso_user_not_allowed'] = 'This Moodle account cannot sign in to S
 $string['error_topicid_required'] = 'A topic is required. Select one, or retry if the topic list failed to load.';
 $string['error_unknown'] = 'Unknown error';
 $string['error_url_https_required'] = 'This URL must use https://.';
+$string['eventapi_request_failed'] = 'Skilland API request failed';
 $string['failed'] = 'Failed';
 $string['general_autofill_note'] = 'Name and description are filled in from Skilland when you pick a topic. You can edit them.';
 $string['go_to_skilland'] = 'Go to Skilland';

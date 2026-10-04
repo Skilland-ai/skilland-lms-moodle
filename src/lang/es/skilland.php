@@ -153,6 +153,7 @@ $string['error_sso_user_not_allowed'] = 'Esta cuenta de Moodle no puede iniciar 
 $string['error_topicid_required'] = 'Se requiere un tema. Seleccione uno, o reintente si la lista de temas no se pudo cargar.';
 $string['error_unknown'] = 'Error desconocido';
 $string['error_url_https_required'] = 'Esta URL debe usar https://.';
+$string['eventapi_request_failed'] = 'Falló una solicitud a la API de Skilland';
 $string['failed'] = 'Fallido';
 $string['general_autofill_note'] = 'El nombre y la descripción se rellenan desde Skilland al elegir un tema. Puede editarlos.';
 $string['go_to_skilland'] = 'Ir a Skilland';
