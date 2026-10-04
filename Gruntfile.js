@@ -12,7 +12,10 @@ module.exports = function(grunt) {
 
         // Clean build directory
         clean: {
-            dist: ['dist']
+            dist: {
+                src: ['dist/*', 'dist/.*'],
+                options: { dot: true }
+            }
         },
 
         // Copy source files to dist
@@ -21,7 +24,7 @@ module.exports = function(grunt) {
                 expand: true,
                 cwd: 'src/',
                 // Moodle PHPUnit/Behat tests and their fixture API client are never shipped in the release.
-                src: ['**', '!tests/**', '!classes/local/testing/**'],
+                src: ['**', '!tests/**', '!classes/local/testing/**', '!amd/build/**'],
                 dest: 'dist/'
             },
             cli: {
@@ -53,8 +56,8 @@ module.exports = function(grunt) {
         // Watch for changes during development
         watch: {
             scripts: {
-                files: ['src/**/*.js', 'src/**/*.php', 'src/**/*.css', 'src/**/*.mustache'],
-                tasks: ['copy', 'uglify:amd'],
+                files: ['src/**/*', 'cli/**/*'],
+                tasks: ['build'],
                 options: {
                     spawn: false,
                 },

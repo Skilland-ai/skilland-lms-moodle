@@ -4,13 +4,12 @@ This guide helps you set up the Skilland Moodle plugin for local development.
 
 ## Prerequisites
 
-1. **Docker & Docker Compose** - for running the Skilland monorepo dev stack
-2. **Moodle** - local Moodle installation (4.2+)
-3. **SCORM module** - enabled in Moodle
+1. **Docker & Docker Compose** - for the local Moodle and Skilland services
+2. **Node.js 22 and npm** - for building and watching the plugin
 
 ## Quick Setup
 
-### 1. Start Skilland
+### 1. Start Skilland and Moodle
 
 From the monorepo root:
 
@@ -18,9 +17,54 @@ From the monorepo root:
 ./start.sh --plugin
 ```
 
-This starts the Skilland web app (Next.js) on port 3100, which serves the REST API the plugin
-calls (`/api/moodle/...`), the Studio and the SSO handoff (`/sso-login`), plus a Moodle
-container with this plugin.
+This builds the plugin and starts Skilland on port 3100 and Moodle on port 8081.
+Moodle uses the pinned `v4.5.15` core tag; set `MOODLE_TAG` when deliberately testing
+another core release, then rebuild its image. A regular start without `--plugin`
+leaves both Moodle and its private MariaDB service off. MariaDB has no host port.
+
+For a standalone plugin checkout:
+
+```bash
+npm ci
+npm run build
+# Set a distinct project and port for each simultaneous checkout.
+MOODLE_PORT=8082 docker compose -p skilland-plugin-dev -f 00_development/docker-compose.yml --profile plugin up -d --build
+```
+
+`MOODLE_PORT` defaults to 8081; `MOODLE_WWWROOT` defaults to
+`http://localhost:<MOODLE_PORT>`. Set both when the browser uses another hostname
+or a reverse proxy. These are the browser-facing URL and port; Moodle reaches the
+Skilland API via `SKILLAND_URL` (usually `http://host.docker.internal:3100`).
+
+The image owns Moodle core and config. Only MariaDB and `moodledata` persist in
+project-scoped volumes. The read-only `dist/` bind mount goes directly into
+`/var/www/html/mod/skilland`; there is no startup copy. Missing `dist/version.php`
+stops startup with a build instruction. Every start waits up to 120 seconds for
+MariaDB, installs a fresh site if needed, then runs Moodle upgrade and cache purge
+as `www-data`. Any CLI failure stops startup before Apache serves requests.
+
+### Development loop
+
+From `moodle/`, run `npm run watch` after the initial build. Changes and deletions
+under `src/` or `cli/` rebuild `dist/` while preserving its root directory inode, so
+the running container sees the current files immediately. AMD sources still get
+minified twins in `dist/amd/build`. The plugin uses Moodle core's JWT library; no
+vendor directory is shipped.
+
+PHP edits are visible on the next request. For cached templates, JavaScript and
+language strings, purge Moodle caches (use the same Compose project and env as
+startup):
+
+```bash
+docker compose -p skilland-plugin-dev -f 00_development/docker-compose.yml --profile plugin exec -u www-data moodle php admin/cli/purge_caches.php
+```
+
+After a version or database upgrade change, restart Moodle to run the upgrade and
+purge automatically. `docker compose ... down` keeps local data. A deliberate
+`docker compose ... down -v` resets that project's Moodle database and uploaded
+files. Switching away from an older checkout's core volume requires recreating
+the container with `up -d --build --force-recreate`; keep its MariaDB and
+moodledata volumes if retaining that development site.
 
 ### 2. Configure Moodle Plugin
 
@@ -296,7 +340,7 @@ The Playwright suite in `tests/e2e` needs **only a running Moodle** with the plu
 
 ```bash
 npx grunt build                                      # dist/, mounted into the Moodle container
-(cd 00_development && docker compose up -d --build)  # Moodle on http://localhost:8081
+(cd 00_development && docker compose --profile plugin up -d --build)  # Moodle on http://localhost:8081
 npm run test:e2e                                     # MOODLE_URL overrides the Moodle address
 node --test tests/e2e/unit/*.test.js                 # unit tests of the mock itself
 ```

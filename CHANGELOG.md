@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.58-beta]
+
+### Changed
+- The development Docker stack (`00_development/`) bind-mounts the built plugin
+  live, runs Moodle's upgrade and cache purge on every start, pins Moodle core
+  with the `MOODLE_TAG` build argument, starts only under the `plugin` profile
+  and publishes Moodle on `MOODLE_PORT` (default 8081) with no fixed container
+  names or database port, so two stacks can run side by side (SKL-698).
+- `grunt clean` empties `dist/` instead of deleting it, and `grunt watch`
+  removes deleted build outputs, so the live mount survives a rebuild (SKL-698).
+
 ## [0.9.57-beta]
 
 ### Changed

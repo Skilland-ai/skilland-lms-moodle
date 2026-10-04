@@ -1,5 +1,7 @@
 FROM php:8.1-apache
 
+ARG MOODLE_TAG=v4.5.15
+
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     libpng-dev \
@@ -11,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     git \
     unzip \
+    util-linux \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) gd zip intl mysqli pdo pdo_mysql opcache soap exif
 
@@ -32,7 +35,7 @@ RUN mkdir /var/moodledata && chown www-data:www-data /var/moodledata
 
 # Clone Moodle as www-data user (no chown -R needed)
 USER www-data
-RUN git clone --branch MOODLE_405_STABLE --depth 1 https://github.com/moodle/moodle.git .
+RUN git clone --branch "$MOODLE_TAG" --depth 1 https://github.com/moodle/moodle.git .
 
 # Copy config.php (use --chown to set ownership during copy)
 USER root
@@ -41,7 +44,7 @@ COPY --chown=www-data:www-data config.php /var/www/html/config.php
 # Install mariadb-client for database health checks
 RUN apt-get update && apt-get install -y mariadb-client && rm -rf /var/lib/apt/lists/*
 
-# Copy test user creation script to location outside the volume mount
+# Copy the development setup helper
 RUN mkdir -p /opt/moodle-setup
 COPY create_test_users.php /opt/moodle-setup/
 

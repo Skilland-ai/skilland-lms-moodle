@@ -1,7 +1,7 @@
 # Moodle Development Environment
 # Part of skillandUniverse - can be run standalone or included from parent
 #
-# Standalone usage: docker compose up -d
+# Standalone usage: docker compose --profile plugin up -d
 # Integrated usage: included from parent skillandUniverse docker-compose.yml
 #
 # Services:
@@ -11,9 +11,7 @@
 services:
   moodle-db:
     image: mariadb:10.11
-    container_name: moodle_db
-    ports:
-      - "3306:3306"
+    profiles: [plugin]
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: moodle
@@ -28,10 +26,13 @@ services:
   moodle:
     build:
       context: .
-    container_name: moodle_app
+      args:
+        MOODLE_TAG: ${MOODLE_TAG:-v4.5.15}
+    profiles: [plugin]
     ports:
-      - "8081:80"
+      - "${MOODLE_PORT:-8081}:80"
     environment:
+      MOODLE_WWWROOT: ${MOODLE_WWWROOT:-http://localhost:${MOODLE_PORT:-8081}}
       MOODLE_DB_HOST: moodle-db
       MOODLE_DB_NAME: moodle
       MOODLE_DB_USER: moodle
@@ -51,12 +52,9 @@ services:
       SKILLAND_GRAPHQL_ENDPOINT: ${SKILLAND_GRAPHQL_ENDPOINT:-}
       SKILLAND_FRONTEND_URL: ${SKILLAND_FRONTEND_URL:-}
     volumes:
-      - moodle_data:/var/www/html
       - moodle_moodledata:/var/moodledata
-      # Mount plugin to staging location (outside named volume)
-      # Entrypoint copies from staging to /var/www/html/mod/skilland/
-      # Note: dist/ contains all plugin files including cli/, styles/, and vendor/
-      - ../dist:/opt/skilland-plugin
+      # Grunt preserves this directory inode, including during clean builds.
+      - ../dist:/var/www/html/mod/skilland:ro
     depends_on:
       - moodle-db
     networks:
@@ -68,7 +66,6 @@ services:
 
 volumes:
   moodle_mariadb_data:
-  moodle_data:
   moodle_moodledata:
 
 networks:

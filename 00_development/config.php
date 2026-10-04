@@ -16,7 +16,7 @@ $CFG->dboptions = array(
     'dbport'    => '',
 );
 
-$CFG->wwwroot   = 'http://localhost:8081';
+$CFG->wwwroot   = rtrim(getenv('MOODLE_WWWROOT') ?: 'http://localhost:8081', '/');
 $CFG->dataroot  = '/var/moodledata';
 $CFG->directorypermissions = 02777;
 $CFG->admin = 'admin';
