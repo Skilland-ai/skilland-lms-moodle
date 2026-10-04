@@ -717,7 +717,6 @@ function loadModule (name, options) {
     timers.push(fn)
     return timers.length
   }
-  // eslint-disable-next-line no-new-func
   const run = new Function('define', 'document', 'window', 'M', 'setTimeout', 'Event', 'require', source)
   run(define, doc, window, M, fakeSetTimeout, Event, undefined)
 
