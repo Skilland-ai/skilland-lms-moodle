@@ -67,12 +67,24 @@ jobs:
               echo "Release $TAG already exists for $SHA (re-run), skipping."
               exit 0
             fi
+            if [ -n "$TAG_COMMIT" ] && git diff --quiet "$TAG_COMMIT" HEAD -- src/ cli/ ':(exclude)cli/configure_api.php'; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "reuse_tag=true" >> "$GITHUB_OUTPUT"
+              echo "no shipped change since $TAG, skipping release"
+              exit 0
+            fi
             echo "::error::Release $TAG already exists for commit ${TAG_COMMIT:-<no tag>}, not $SHA. Bump \$plugin->version in src/version.php."
             exit 1
           fi
 
           echo "exists=false" >> "$GITHUB_OUTPUT"
           if [ -n "$TAG_COMMIT" ]; then
+            if [ "$TAG_COMMIT" != "$SHA" ] && git diff --quiet "$TAG_COMMIT" HEAD -- src/ cli/ ':(exclude)cli/configure_api.php'; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "reuse_tag=true" >> "$GITHUB_OUTPUT"
+              echo "no shipped change since $TAG, skipping release"
+              exit 0
+            fi
             if [ "$TAG_COMMIT" != "$SHA" ]; then
               echo "::error::Tag $TAG already exists on commit $TAG_COMMIT, not $SHA, and has no release. Bump \$plugin->version in src/version.php, or delete the stray tag."
               exit 1
