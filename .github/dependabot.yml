@@ -4,13 +4,32 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      composer-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Test-only dependency that tracks the version Moodle core ships; do not move it ahead of core.
+      - dependency-name: "firebase/php-jwt"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
