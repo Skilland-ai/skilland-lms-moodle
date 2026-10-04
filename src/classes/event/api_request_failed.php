@@ -28,15 +28,28 @@ namespace mod_skilland\event;
  * Safe, site-wide operational event without a user or activity payload.
  */
 class api_request_failed extends \core\event\base {
+    /**
+     * Initialise event metadata.
+     */
     protected function init() {
         $this->data['crud'] = 'r';
         $this->data['edulevel'] = self::LEVEL_OTHER;
     }
 
+    /**
+     * Return the event name.
+     *
+     * @return string
+     */
     public static function get_name() {
         return get_string('eventapi_request_failed', 'mod_skilland');
     }
 
+    /**
+     * Return a description containing only the safe request details.
+     *
+     * @return string
+     */
     public function get_description() {
         $path = \mod_skilland\local\api_failure_event_recorder::safe_path((string) ($this->other['path'] ?? ''));
         $httpcode = (int) ($this->other['httpcode'] ?? 0);

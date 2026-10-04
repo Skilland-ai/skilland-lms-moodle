@@ -82,6 +82,7 @@ class api_failure_event_recorder {
             ])->trigger();
         } catch (\Throwable $ignored) {
             // Moodle event storage is best effort during an already failed request.
+            debugging('Unable to record Skilland API failure event.', DEBUG_DEVELOPER);
         }
     }
 }
