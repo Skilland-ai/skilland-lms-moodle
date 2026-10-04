@@ -66,8 +66,12 @@ final class uninstall_test extends skilland_testcase {
             $this->assertFalse($DB->record_exists('course_modules', ['id' => $cmid]));
             $this->assertFalse($DB->record_exists('scorm', ['id' => $scormid]));
         }
-        foreach ([[$adoptedcmid, $adoptedscormid], [$malformedcmid, $malformedscormid],
-                [$unrelatedcmid, $unrelatedscormid]] as [$cmid, $scormid]) {
+        $preserved = [
+            [$adoptedcmid, $adoptedscormid],
+            [$malformedcmid, $malformedscormid],
+            [$unrelatedcmid, $unrelatedscormid],
+        ];
+        foreach ($preserved as [$cmid, $scormid]) {
             $this->assertTrue($DB->record_exists('course_modules', ['id' => $cmid]));
             $this->assertTrue($DB->record_exists('scorm', ['id' => $scormid]));
         }
