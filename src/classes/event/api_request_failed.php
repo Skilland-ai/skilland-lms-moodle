@@ -15,21 +15,29 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details for mod_skilland.
+ * Event for a terminal Skilland REST request failure.
  *
  * @package    mod_skilland
- * @copyright  2024 Skilland <https://skilland.ai>
+ * @copyright  2026 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+namespace mod_skilland\event;
 
-$plugin->requires  = 2024100700;   // Moodle 4.5+ (core_external).
-$plugin->component = 'mod_skilland';
-$plugin->supported = [405, 405];
+/**
+ * Safe, site-wide operational event without a user or activity payload.
+ */
+class api_request_failed extends \core\event\base {
+    protected function init() {
+        $this->data['crud'] = 'r';
+        $this->data['edulevel'] = self::LEVEL_OTHER;
+    }
 
+    public static function get_name() {
+        return get_string('eventapi_request_failed', 'mod_skilland');
+    }
 
-$plugin->version   = 2026100411;   // YYYYMMDDHH - Log terminal Skilland API failures as Moodle events.
-$plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.54-beta';
-$plugin->dependencies = ['mod_scorm' => ANY_VERSION];
+    public function get_description() {
+        return 'A Skilland API request failed.';
+    }
+}

@@ -44,6 +44,9 @@ abstract class base {
     }
 
     public function trigger() {
+        if (!empty($GLOBALS['_test_event_trigger_throw'])) {
+            throw new \RuntimeException('Event storage failed');
+        }
         $GLOBALS['_test_events'][] = $this;
     }
 }

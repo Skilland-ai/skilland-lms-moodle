@@ -138,6 +138,7 @@ $string['error_provision_in_progress'] = 'El contenido SCORM de esta actividad y
 $string['error_scorm_create_failed'] = 'Error al crear la actividad SCORM: {$a}';
 $string['error_scorm_download_failed'] = 'Error al descargar el paquete SCORM: {$a}';
 $string['error_scorm_fetch_failed'] = 'Error al obtener el paquete SCORM de Skilland.';
+$string['eventapi_request_failed'] = 'Falló una solicitud a la API de Skilland';
 $string['error_scorm_hash_mismatch'] = 'La verificación de integridad del paquete SCORM falló. El archivo descargado puede estar corrupto.';
 $string['error_scorm_not_available'] = 'El contenido SCORM no está disponible para esta lección.';
 $string['error_scorm_parse_failed'] = 'No se pudo convertir el paquete SCORM en lecciones ejecutables: {$a}';

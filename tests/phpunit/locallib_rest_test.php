@@ -21,19 +21,22 @@ class locallib_rest_test extends TestCase {
         $this->sleeper = new \recording_retry_sleeper();
         \core\di::set(\mod_skilland\local\retry_sleeper::class, $this->sleeper);
         $GLOBALS['_test_debug_messages'] = [];
+        $GLOBALS['_test_events'] = [];
         $GLOBALS['_test_plugin_config']['mod_skilland'] = (object) [
             'orgid' => 'org1',
             'apikey' => 'key1',
             'graphql_endpoint' => 'https://app.skilland.test',
         ];
         unset($GLOBALS['_test_curl_response'], $GLOBALS['_test_curl_responses'], $GLOBALS['_test_curl_requests'],
-            $GLOBALS['_test_curl_last'], $GLOBALS['_test_curl_posts'], $GLOBALS['CFG']->mod_skilland_allow_http);
+            $GLOBALS['_test_curl_last'], $GLOBALS['_test_curl_posts'], $GLOBALS['_test_event_trigger_throw'],
+            $GLOBALS['CFG']->mod_skilland_allow_http);
         \mod_skilland\logger::reset_cache();
     }
 
     protected function tearDown(): void {
         unset($GLOBALS['_test_curl_response'], $GLOBALS['_test_curl_responses'], $GLOBALS['_test_curl_requests'],
-            $GLOBALS['_test_curl_last'], $GLOBALS['_test_curl_posts']);
+            $GLOBALS['_test_curl_last'], $GLOBALS['_test_curl_posts'], $GLOBALS['_test_events'],
+            $GLOBALS['_test_event_trigger_throw']);
         \core\di::reset_container();
         $GLOBALS['_test_plugin_config'] = [];
         parent::tearDown();
@@ -64,6 +67,93 @@ class locallib_rest_test extends TestCase {
 
     private function log(): string {
         return implode("\n", array_column($GLOBALS['_test_debug_messages'], 'message'));
+    }
+
+    private function failure_event(): \mod_skilland\event\api_request_failed {
+        $this->assertCount(1, $GLOBALS['_test_events']);
+        $event = $GLOBALS['_test_events'][0];
+        $this->assertInstanceOf(\mod_skilland\event\api_request_failed::class, $event);
+        $this->assertSame(['path', 'httpcode', 'errorclass'], array_keys($event->other));
+        return $event;
+    }
+
+    public function test_get_failure_emits_one_safe_event_after_retry_exhaustion(): void {
+        $this->queue(self::resp(503, 'secret response'), self::resp(503), self::resp(504));
+
+        $this->get_failure();
+
+        $this->assertSame(3, $this->requests());
+        $event = $this->failure_event();
+        $this->assertSame(['path' => '/api/moodle/skills', 'httpcode' => 504,
+            'errorclass' => 'http'], $event->other);
+        $this->assertSame('r', $event->crud);
+        $this->assertSame(\core\event\base::LEVEL_OTHER, $event->edulevel);
+        $this->assertSame('A Skilland API request failed.', $event->get_description());
+    }
+
+    public function test_post_http_error_event_excludes_body_and_credentials(): void {
+        $this->queue(self::resp(400, '{"error":"secret key1 teacher@example.com"}'));
+
+        $this->post_failure();
+
+        $event = $this->failure_event();
+        $this->assertSame(['path' => '/api/moodle/skills', 'httpcode' => 400,
+            'errorclass' => 'http'], $event->other);
+        $this->assertStringNotContainsString('secret', json_encode($event->get_data()));
+        $this->assertStringNotContainsString('teacher@example.com', json_encode($event->get_data()));
+        $this->assertStringNotContainsString('key1', json_encode($event->get_data()));
+    }
+
+    public function test_transport_redirect_decode_and_config_failures_are_classified(): void {
+        $cases = [
+            [self::resp(0, '', 60), 0, 'transport'],
+            [self::resp(302), 302, 'redirect'],
+            [self::resp(200, '<html>'), 200, 'decode'],
+        ];
+        foreach ($cases as [$response, $status, $category]) {
+            $GLOBALS['_test_events'] = [];
+            $this->queue($response);
+            try {
+                mod_skilland_rest_get('/api/moodle/skills');
+                $this->fail('Expected request failure');
+            } catch (\moodle_exception $e) {
+                // The event must carry only the fixed category and numeric status.
+            }
+            $this->assertSame($status, $this->failure_event()->other['httpcode']);
+            $this->assertSame($category, $this->failure_event()->other['errorclass']);
+        }
+
+        $GLOBALS['_test_events'] = [];
+        $GLOBALS['_test_plugin_config']['mod_skilland']->apikey = '';
+        try {
+            mod_skilland_rest_post('/api/moodle/skills', []);
+            $this->fail('Expected configuration failure');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error_config_missing_apikey', $e->errorcode);
+        }
+        $this->assertSame('config', $this->failure_event()->other['errorclass']);
+    }
+
+    public function test_variable_path_segments_and_query_are_redacted(): void {
+        $this->queue(self::resp(400));
+        try {
+            mod_skilland_rest_get('/api/moodle/topics/teacher%40example.com/scorm-hash?token=secret');
+            $this->fail('Expected HTTP failure');
+        } catch (rest_exception $e) {
+            $this->assertSame(400, $e->httpcode);
+        }
+
+        $this->assertSame('/api/moodle/topics/[redacted]/scorm-hash', $this->failure_event()->other['path']);
+    }
+
+    public function test_event_storage_failure_preserves_original_request_failure(): void {
+        $this->queue(self::resp(400));
+        $GLOBALS['_test_event_trigger_throw'] = true;
+
+        $error = $this->get_failure();
+
+        $this->assertSame(400, $error->httpcode);
+        $this->assertSame([], $GLOBALS['_test_events']);
     }
 
     private function get_failure(): rest_exception {
@@ -146,6 +236,7 @@ class locallib_rest_test extends TestCase {
         $this->assertCount(1, $this->sleeper->sleeps);
         $this->assertGreaterThanOrEqual(250, $this->sleeper->sleeps[0]);
         $this->assertLessThanOrEqual(500, $this->sleeper->sleeps[0]);
+        $this->assertSame([], $GLOBALS['_test_events']);
     }
 
     public function test_get_retry_is_logged_without_the_query_string(): void {

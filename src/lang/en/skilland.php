@@ -138,6 +138,7 @@ $string['error_provision_in_progress'] = 'SCORM content for this activity is alr
 $string['error_scorm_create_failed'] = 'Failed to create SCORM activity: {$a}';
 $string['error_scorm_download_failed'] = 'Failed to download SCORM package: {$a}';
 $string['error_scorm_fetch_failed'] = 'Failed to fetch SCORM package from Skilland.';
+$string['eventapi_request_failed'] = 'Skilland API request failed';
 $string['error_scorm_hash_mismatch'] = 'SCORM package integrity check failed. The downloaded file may be corrupted.';
 $string['error_scorm_not_available'] = 'SCORM content is not available for this lesson.';
 $string['error_scorm_parse_failed'] = 'The SCORM package could not be parsed into launchable lessons: {$a}';

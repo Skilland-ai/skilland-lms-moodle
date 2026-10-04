@@ -42,7 +42,12 @@ class http_api_client implements api_client {
      * @return array The decoded JSON body.
      */
     public function rest_get(string $path): array {
-        return mod_skilland_rest_get_http($path);
+        try {
+            return mod_skilland_rest_get_http($path);
+        } catch (\Throwable $failure) {
+            api_failure_event_recorder::record($path, $failure);
+            throw $failure;
+        }
     }
 
     /**
@@ -53,7 +58,12 @@ class http_api_client implements api_client {
      * @return array The decoded JSON answer.
      */
     public function rest_post(string $path, array $body): array {
-        return mod_skilland_rest_post_http($path, $body);
+        try {
+            return mod_skilland_rest_post_http($path, $body);
+        } catch (\Throwable $failure) {
+            api_failure_event_recorder::record($path, $failure);
+            throw $failure;
+        }
     }
 
     /**

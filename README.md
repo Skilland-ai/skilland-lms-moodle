@@ -203,6 +203,16 @@ Data export and deletion requests cover that local table. Data already sent to S
 
 ## 🛠️ Development
 
+### Troubleshooting Skilland API failures
+
+In **Site administration → Reports → Logs**, filter the event to **Skilland API request failed**.
+Its route shape, HTTP status and failure category (`http`, `transport`, `redirect`,
+`decode` or `config`) help identify the failed call. A GET that exhausts its
+retries appears once. The event does not contain the response body, credentials,
+query parameters or a learner's details. Check the plugin's Skilland URL and API
+key settings for `config` errors, then use **Test connection** to verify access.
+Activity sync continues to process other activities after an API failure.
+
 For instructions on how to set up the development environment, build the plugin, and contribute, please refer to [DEVELOPMENT.md](DEVELOPMENT.md).
 
 Tests: a fast stub PHPUnit suite (`npm run test:unit`) plus real Moodle PHPUnit and Behat tests in `src/tests`, run by moodle-plugin-ci; see [DEVELOPMENT.md › Tests](DEVELOPMENT.md#tests).
