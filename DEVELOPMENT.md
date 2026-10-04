@@ -59,30 +59,13 @@ container with this plugin.
    The secret must be at least 32 bytes. The plugin rejects shorter values and any secret
    that was ever published as a development default.
 
-### 3. Get Your Organization ID and API Key
+### 3. Configure organization credentials
 
-You need to get these from your Skilland backend:
-
-#### Option A: Using existing organization
-
-```bash
-# Connect to MongoDB
-docker exec -it skilland-mongo mongosh -u skilland -p skilland skilland
-
-# Find your organization
-db.organizations.findOne({}, { _id: 1, name: 1 })
-
-# Copy the _id value - this is your Organization ID
-```
-
-#### Option B: Generate API Key
-
-```bash
-# Execute inside the backend container
-docker exec -it skilland-back node /app/db/generate-api-key.js <YOUR_ORG_ID>
-```
-
-This will output an API key that you can use in the Moodle plugin settings.
+Use an organization ID and API key issued by the Skilland backend. For the local
+`./start.sh --plugin` stack, set `SKILLAND_ORG_ID` in the monorepo `.env`; the
+development Moodle config reads it and forces the matching local settings. The
+Skilland application uses the local PostgreSQL database started by the stack;
+there is no MongoDB setup step.
 
 #### Setting them from the command line
 
@@ -280,7 +263,7 @@ The plugin has two PHPUnit layers. Use the stub suite for fast feedback and the 
 
 ### Stub suite (`tests/phpunit`)
 
-A fast smoke layer that needs no Moodle install: `npm run test:unit` (Composer and `php:8.2-cli` in Docker; Composer installs PHPUnit and php-jwt into the git-ignored `vendor-test/`, config in the root `phpunit.xml`, bootstrap `tests/phpunit/bootstrap.php`). Moodle is replaced by hand-written stubs in `tests/phpunit/stubs`, so a passing run proves the plugin's own logic, not its integration with Moodle. In particular `FakeDatabase` answers raw SQL (`get_record_sql`, `get_records_sql`) with nothing unless a test installs a canned handler, and `get_records_select` with the whole unfiltered table, so SQL paths are only exercised on their empty path. It runs in the pre-commit hook and in the `test` job of `ci.yml`.
+A fast smoke layer that needs no Moodle install: `npm run test:unit` (Composer and `php:8.2-cli` in Docker; Composer installs PHPUnit and php-jwt into the git-ignored `vendor-test/`, config in the root `phpunit.xml`, bootstrap `tests/phpunit/bootstrap.php`). Moodle is replaced by hand-written stubs in `tests/phpunit/stubs`, so a passing run proves the plugin's own logic, not its integration with Moodle. In particular `FakeDatabase` answers raw SQL (`get_record_sql`, `get_records_sql`) with nothing unless a test installs a canned handler, and `get_records_select` with the whole unfiltered table, so SQL paths are only exercised on their empty path. Run this suite manually and in CI; it is not part of the pre-commit hook.
 
 ### Real Moodle suite (`src/tests`)
 
@@ -366,8 +349,12 @@ This project uses **Husky** to manage git hooks.
 On every commit, `.husky/pre-commit`:
 
 1.  **Blocks `dist/`**: refuses a commit that adds or modifies files under `dist/` (it is built by CI).
-2.  **Lint**: runs `npm run lint`.
-3.  **Unit tests**: runs `npm run test:unit` (PHPUnit in Docker).
+2.  **PHP syntax**: runs host `php -l` on staged PHP files (prints one skip notice if PHP is unavailable).
+3.  **JavaScript lint**: runs `npx eslint --max-warnings 0` on staged JavaScript files under `src/amd/src` and `tests/e2e`.
+
+Only staged files are checked. The hook does not run whole-tree lint, translation
+checks or PHPUnit; run `npm run test:unit` manually when appropriate. CI continues
+to run lint, PHP syntax checks and PHPUnit.
 
 The version bump is enforced by CI on the pull request, not by the hook.
 
