@@ -1309,8 +1309,7 @@ function skilland_uninstall_cleanup(): void {
 
     try {
         $scormmodule = $DB->get_record('modules', ['name' => 'scorm'], 'id, visible');
-        if ($scormmodule && $scormmodule->visible &&
-                is_file($CFG->dirroot . '/mod/scorm/lib.php')) {
+        if ($scormmodule && $scormmodule->visible && is_file($CFG->dirroot . '/mod/scorm/lib.php')) {
             $like = $DB->sql_like('cm.idnumber', ':idnumber');
             $idnumber = $DB->sql_like_escape('skilland_topic_') . '%';
             $cms = $DB->get_records_sql(
