@@ -1,7 +1,5 @@
 FROM php:8.1-apache
 
-ARG MOODLE_TAG=v4.5.15
-
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     libpng-dev \
@@ -35,6 +33,7 @@ RUN mkdir /var/moodledata && chown www-data:www-data /var/moodledata
 
 # Clone Moodle as www-data user (no chown -R needed)
 USER www-data
+ARG MOODLE_TAG=v4.5.15
 RUN git clone --branch "$MOODLE_TAG" --depth 1 https://github.com/moodle/moodle.git .
 
 # Copy config.php (use --chown to set ownership during copy)
