@@ -15,21 +15,31 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details for mod_skilland.
+ * Uninstall hook for mod_skilland.
  *
  * @package    mod_skilland
  * @copyright  2024 Skilland <https://skilland.ai>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+/**
+ * Remove plugin-owned SCORM modules and the course mapping field.
+ *
+ * Moodle calls this hook before plugininfo_mod::uninstall_cleanup(), which deletes
+ * Skilland's course module records directly without calling course_delete_module()
+ * or skilland_delete_instance(). The mapping rows are still available here.
+ *
+ * @return bool Always true so a failed cleanup part does not prevent uninstall.
+ */
+function xmldb_skilland_uninstall(): bool {
+    global $CFG;
 
-$plugin->requires  = 2024100700;   // Moodle 4.5+ (core_external).
-$plugin->component = 'mod_skilland';
-$plugin->supported = [405, 405];
+    try {
+        require_once($CFG->dirroot . '/mod/skilland/locallib.php');
+        skilland_uninstall_cleanup();
+    } catch (\Throwable $e) {
+        debugging('mod_skilland: uninstall cleanup failed: ' . $e->getMessage(), DEBUG_NORMAL);
+    }
 
-
-$plugin->version   = 2026100413;   // YYYYMMDDHH - Uninstall cleanup (SKL-993).
-$plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.56-beta';
-$plugin->dependencies = ['mod_scorm' => ANY_VERSION];
+    return true;
+}

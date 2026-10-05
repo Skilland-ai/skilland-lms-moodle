@@ -22,6 +22,7 @@
 - [Installation](#-installation)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
+- [Uninstallation](#-uninstallation)
 - [Support](#-support)
 
 ---
@@ -184,6 +185,17 @@ php mod/skilland/cli/adopt_edukami.php --course=42 --apply   # one course only
 ```
 
 Each Edukami activity whose topic Skilland lists gets a Skilland activity right before it, in the same section, linked to the same topic SCORM with the same snapshot hash and lesson→SCO mapping, so learners keep their attempts and progress and no update is announced. The Edukami activity is hidden, never deleted, and the SCORM is left untouched. A course with no Skilland skill is mapped to the migrated skill; a course mapped to another skill, an activity whose topic is not in the migration and an activity without a topic SCORM are skipped and left alone. Each activity is adopted in its own transaction, so a failure rolls back only that one. The report lists, per course, the adopted, already adopted, skipped and failed activities with the reasons; a second run changes nothing. The script exits 1 when an activity failed.
+
+## Uninstallation
+
+Export course mappings and custom field data before uninstalling. Uninstall
+removes the **Skilland Course ID** course custom field, its values, and
+Skilland-owned topic SCORM activities (including their learner SCORM data).
+It leaves adopted Edukami SCORM activities and unrelated SCORM activities in place.
+
+**Do not uninstall Skilland after an Edukami takeover.** Adopted Skilland
+activities are the links to the retained Edukami SCORMs and learner progress;
+uninstalling removes those links.
 
 ## Privacy
 

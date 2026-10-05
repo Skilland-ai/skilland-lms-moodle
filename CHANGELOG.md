@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.56-beta]
+
+### Fixed
+- Uninstall removes Skilland-owned topic SCORM activities, including orphaned
+  ones, and the course mapping custom field and its data. Adopted Edukami
+  SCORMs and unrelated activities remain (SKL-993).
+
 ## [0.9.55-beta]
 
 ### Changed
