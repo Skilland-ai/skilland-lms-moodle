@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100413;   // YYYYMMDDHH - Uninstall cleanup (SKL-993).
+$plugin->version   = 2026100414;   // YYYYMMDDHH - Clear the Dependabot backlog.
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.56-beta';
+$plugin->release   = '0.9.57-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];

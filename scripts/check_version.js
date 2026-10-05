@@ -9,6 +9,10 @@
  *
  * The base is `git show $BASE_REF:src/version.php` (CI passes the PR base sha); without
  * BASE_REF it is HEAD, i.e. the last commit, for local use. SKIP_VERSION_CHECK=1 skips it.
+ *
+ * Tooling-only changes are exempt: when BASE_REF is set and nothing that ends up in the release
+ * ZIP changed between BASE_REF and HEAD (src/ and cli/, minus the dev-only cli/configure_api.php,
+ * mirroring Gruntfile.js), no bump is required.
  */
 const fs = require('fs')
 const { execFileSync } = require('child_process')
@@ -18,6 +22,25 @@ const VERSION_FILE = 'src/version.php'
 if (process.env.SKIP_VERSION_CHECK) {
   console.log('SKIP_VERSION_CHECK set. Skipping version check.')
   process.exit(0)
+}
+
+// Paths shipped in the release ZIP (see Gruntfile.js copy tasks).
+const SHIPPED_PATHSPEC = ['src/', 'cli/', ':(exclude)cli/configure_api.php']
+
+if (process.env.BASE_REF) {
+  try {
+    const changed = execFileSync(
+      'git',
+      ['diff', '--name-only', `${process.env.BASE_REF}...HEAD`, '--', ...SHIPPED_PATHSPEC],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    ).toString().trim()
+    if (changed === '') {
+      console.log('No shipped file under src/ changed: version bump not required.')
+      process.exit(0)
+    }
+  } catch (e) {
+    // Cannot tell what changed: fall through to the full check.
+  }
 }
 
 function parse(content) {

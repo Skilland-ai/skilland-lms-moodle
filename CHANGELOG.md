@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.57-beta]
+
+### Changed
+- Version check and release skip tooling-only changes that ship no file from `src/` or `cli/`.
+- CI actions bumped (checkout 7, setup-node 7, action-gh-release 3) on Node 22; ESLint 10 flat config; grunt and Playwright bumped.
+- Dependabot groups minor and patch updates per ecosystem and ignores firebase/php-jwt majors (SKL-988).
+
 ## [0.9.56-beta]
 
 ### Fixed

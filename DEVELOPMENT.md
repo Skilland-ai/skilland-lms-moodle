@@ -337,9 +337,11 @@ Every merge to `main` publishes a release, so the version check requires, agains
 2. a different `$plugin->release` string;
 3. `$plugin->maturity` matching the release string: `alpha` → `MATURITY_ALPHA`, `beta` → `MATURITY_BETA`, `rc` → `MATURITY_RC`, anything else → `MATURITY_STABLE`.
 
+A change that touches no shipped file is exempt: when `BASE_REF` is set and `git diff $BASE_REF...HEAD` is empty for `src/` and `cli/` (everything `Gruntfile.js` copies into the ZIP, except the dev-only `cli/configure_api.php`), the script prints `No shipped file under src/ changed: version bump not required.` and passes. Any shipped change still needs the bump.
+
 Run it locally with `BASE_REF=origin/main node scripts/check_version.js` (without `BASE_REF` it compares against `HEAD`). `SKIP_VERSION_CHECK=1` skips it.
 
-`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files, one minified AMD module per source, no `tests/`, `node_modules/`, `vendor/`, `thirdpartylibs.xml` or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit fails the run instead of skipping it. Actions are pinned by commit SHA and the gitleaks image by version tag.
+`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files, one minified AMD module per source, no `tests/`, `node_modules/`, `vendor/`, `thirdpartylibs.xml` or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit skips the release (green run, `no shipped change since <tag>, skipping release`) when `src/` and `cli/` (minus `cli/configure_api.php`) are identical to the tagged commit, and fails the run otherwise (a shipped change without a version bump). Actions are pinned by commit SHA and the gitleaks image by version tag.
 
 ## Git Hooks
 
