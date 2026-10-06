@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.59-beta]
+
+### Added
+- The lesson list shows "3 of 8 lessons completed" with a progress bar and one
+  Continue, Start or Review button that opens the first lesson in progress, else
+  the first not started (Review opens the first lesson once all are complete).
+  The target card is highlighted and marked `aria-current="step"`. Only visible
+  lessons with a SCO count; completion matches the activity completion rule (SKL-695).
+- The player header shows "Lesson n of N" (SKL-695).
+
+### Changed
+- The last lesson of the player now ends with a visible link instead of an empty
+  slot: "Finish topic" to the course page once every lesson is complete, else
+  "Back to lessons" (SKL-695).
+
 ## [0.9.58-beta]
 
 ### Changed

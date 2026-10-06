@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100500;   // YYYYMMDDHH - Live development plugin mounts.
+$plugin->version   = 2026100600;   // YYYYMMDDHH - Student progress summary and Continue button.
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.58-beta';
+$plugin->release   = '0.9.59-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
