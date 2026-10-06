@@ -15,10 +15,10 @@ module.exports = defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: [
-    ['html', { outputFolder: '../../../test-results/e2e-report' }],
+    ['html', { outputFolder: './.results/report' }],
     ['list']
   ],
-  outputDir: '../../../test-results/e2e-output',
+  outputDir: './.results/output',
 
   use: {
     baseURL: process.env.MOODLE_URL || 'http://localhost:8081',
