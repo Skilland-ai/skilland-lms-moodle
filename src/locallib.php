@@ -3260,7 +3260,14 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
  * @param array $progress The viewer's progress, keyed by lesson id.
  * @return string HTML output.
  */
-function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland, array $progress = []) {
+function skilland_render_fullscreen_navigation(
+    $currentlesson,
+    $alllessons,
+    $cm,
+    $topicorderindex,
+    $skilland,
+    array $progress = []
+) {
     return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation(
         $currentlesson,
         $alllessons,
