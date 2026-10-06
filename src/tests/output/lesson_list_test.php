@@ -98,7 +98,7 @@ final class lesson_list_test extends \advanced_testcase {
 
         $html = $PAGE->get_renderer('mod_skilland')->render($this->lesson_list());
 
-        $this->assertStringContainsString('class="skilland-lesson-card skilland-lesson-completed"', $html);
+        $this->assertStringContainsString('class="skilland-lesson-card skilland-lesson-completed skilland-lesson-target"', $html);
         $this->assertStringContainsString(
             'class="skilland-lesson-card skilland-lesson-disabled skilland-lesson-pending"',
             $html
@@ -120,5 +120,39 @@ final class lesson_list_test extends \advanced_testcase {
 
         $this->assertStringContainsString(get_string('no_lessons_configured', 'mod_skilland'), $html);
         $this->assertStringNotContainsString('skilland-lessons-container', $html);
+    }
+
+    public function test_summary_counts_playable_lessons_and_targets_the_first_unfinished(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $PAGE->set_context(\context_system::instance());
+
+        $data = $this->lesson_list()->export_for_template($PAGE->get_renderer('mod_skilland'));
+
+        // Lesson 11 has no SCO, so one lesson counts and it is complete: review it.
+        $this->assertTrue($data['hassummary']);
+        $this->assertSame(1, $data['completedcount']);
+        $this->assertSame(1, $data['totalcount']);
+        $this->assertSame(100, $data['percent']);
+        $this->assertSame('review', $data['continuemode']);
+        $this->assertSame(get_string('review_lessons', 'mod_skilland'), $data['continuetext']);
+        $this->assertSame(
+            (new \moodle_url('/mod/skilland/view.php', ['id' => 2, 'play' => 10]))->out(false),
+            $data['continueurl']
+        );
+    }
+
+    public function test_renderer_renders_the_progress_bar_and_marks_the_target(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $PAGE->set_context(\context_system::instance());
+
+        $html = $PAGE->get_renderer('mod_skilland')->render($this->lesson_list());
+
+        $this->assertStringContainsString('role="progressbar"', $html);
+        $this->assertStringContainsString('aria-valuenow="1"', $html);
+        $this->assertStringContainsString('aria-valuemax="1"', $html);
+        $this->assertStringContainsString('skilland-continue-button', $html);
+        $this->assertStringContainsString('aria-current="step"', $html);
     }
 }

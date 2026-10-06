@@ -27,6 +27,15 @@
 
     Context variables required for this template:
     * haslessons - Whether the activity has any visible lesson.
+    * hassummary - Whether the progress summary and the Continue button are shown (a playable lesson exists).
+    * summarytext - The "3 of 8 lessons completed" line.
+    * completedcount - The number of completed lessons.
+    * totalcount - The number of playable lessons.
+    * percent - The completed share of the playable lessons, 0 to 100.
+    * progressbarlabel - The accessible name of the progress bar.
+    * continuemode - start, continue or review.
+    * continuetext - The label of the Continue / Start / Review button.
+    * continueurl - The player link the button opens.
     * lessons - The lessons, in order:
       * playable - Whether the lesson opens in the SCORM player.
       * url - The player link of a playable lesson.
@@ -39,10 +48,20 @@
       * icon - The Font Awesome icon of the progress status.
       * statustext - The progress status.
       * helptext - Why the card is unavailable, empty for a playable lesson.
+      * istarget - Whether this is the lesson the button opens.
 
     Example context (json):
     {
         "haslessons": true,
+        "hassummary": true,
+        "summarytext": "1 of 2 lessons completed",
+        "completedcount": 1,
+        "totalcount": 2,
+        "percent": 50,
+        "progressbarlabel": "Lessons completed: 1 of 2",
+        "continuemode": "continue",
+        "continuetext": "Continue",
+        "continueurl": "https://moodle.example/mod/skilland/view.php?id=2&play=11",
         "lessons": [
             {
                 "playable": true,
@@ -54,7 +73,8 @@
                 "scomissing": false,
                 "completionclass": "skilland-lesson-completed",
                 "icon": "fa-check-circle",
-                "statustext": "Completed"
+                "statustext": "Completed",
+                "istarget": false
             },
             {
                 "playable": false,
@@ -67,7 +87,8 @@
                 "completionclass": "skilland-lesson-pending",
                 "icon": "fa-circle-o",
                 "statustext": "Not yet available",
-                "helptext": "This lesson hasn't been published or synced to Moodle yet."
+                "helptext": "This lesson hasn't been published or synced to Moodle yet.",
+                "istarget": false
             }
         ]
     }
@@ -77,11 +98,20 @@
 {{/haslessons}}
 {{#haslessons}}
 <div class="skilland-lessons-container">
+    {{#hassummary}}
+    <div class="skilland-progress-summary">
+        <p class="skilland-progress-text" id="skilland-progress-text">{{summarytext}}</p>
+        <div class="progress skilland-progress-bar">
+            <div class="progress-bar skilland-progress-{{percent}}" role="progressbar" aria-valuenow="{{completedcount}}" aria-valuemin="0" aria-valuemax="{{totalcount}}" aria-label="{{progressbarlabel}}"></div>
+        </div>
+        <a href="{{continueurl}}" class="btn btn-primary skilland-continue-button" data-mode="{{continuemode}}">{{continuetext}}</a>
+    </div>
+    {{/hassummary}}
     <h3 class="skilland-lessons-header">{{#str}}lessons, mod_skilland{{/str}}</h3>
     <div class="skilland-lessons-list">
         {{#lessons}}
         {{#playable}}
-        <a href="{{url}}" class="skilland-lesson-card {{completionclass}}">
+        <a href="{{url}}" class="skilland-lesson-card {{completionclass}}{{#istarget}} skilland-lesson-target{{/istarget}}"{{#istarget}} aria-current="step"{{/istarget}}>
             {{> mod_skilland/lesson_card}}
         </a>
         {{/playable}}

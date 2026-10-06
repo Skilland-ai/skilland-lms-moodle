@@ -32,6 +32,8 @@
     * backurl - The lesson list.
     * lessontitle - The lesson code and title, already formatted by format_string().
     * iframetitle - The lesson title, already formatted by format_string().
+    * hasposition - Whether the lesson's place in the activity is known.
+    * position - "Lesson n of N", n counting the playable lessons.
     * playerurl - The mod_scorm player of the lesson's SCO.
     * navigation - The mod_skilland/fullscreen_navigation context, false without one.
 
@@ -41,6 +43,8 @@
         "backurl": "https://moodle.example/mod/skilland/view.php?id=2",
         "lessontitle": "L1.1 - What is testing?",
         "iframetitle": "What is testing?",
+        "hasposition": true,
+        "position": "Lesson 1 of 8",
         "playerurl": "https://moodle.example/mod/scorm/player.php?scoid=5&cm=3&mode=normal&newattempt=off&display=popup",
         "navigation": {
             "prev": false,
@@ -61,7 +65,12 @@
     <div class="skilland-fullscreen-header">
         <a href="{{backurl}}" class="skilland-fullscreen-back">← {{#str}}back_to_lessons, mod_skilland{{/str}}</a>
         {{! A heading, so the title takes its place in the page outline, focusable so it can take focus when the overlay opens. }}
-        <h2 class="skilland-fullscreen-title" id="skilland-fullscreen-title" tabindex="-1">{{{lessontitle}}}</h2>
+        <div class="skilland-fullscreen-heading">
+            <h2 class="skilland-fullscreen-title" id="skilland-fullscreen-title" tabindex="-1">{{{lessontitle}}}</h2>
+            {{#hasposition}}
+            <div class="skilland-fullscreen-position">{{position}}</div>
+            {{/hasposition}}
+        </div>
         <a href="{{backurl}}" class="skilland-fullscreen-close" title="{{#cleanstr}}back_to_lessons, mod_skilland{{/cleanstr}}" aria-label="{{#cleanstr}}back_to_lessons, mod_skilland{{/cleanstr}}">×</a>
     </div>
     <div class="skilland-fullscreen-content">

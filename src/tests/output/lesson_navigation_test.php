@@ -125,7 +125,10 @@ final class lesson_navigation_test extends \advanced_testcase {
             (object) ['id' => 7, 'scormcmid' => 0, 'hidelabels' => 0]
         );
 
-        $this->assertSame(['prev' => false, 'next' => false], $navigation->export_for_template($this->renderer()));
+        $data = $navigation->export_for_template($this->renderer());
+        $this->assertFalse($data['prev']);
+        $this->assertFalse($data['next']);
+        $this->assertSame(get_string('back_to_lessons', 'mod_skilland'), $data['end']['text']);
     }
 
     public function test_unknown_current_lesson_renders_nothing(): void {
@@ -134,7 +137,10 @@ final class lesson_navigation_test extends \advanced_testcase {
         $navigation = $this->navigation((object) ['id' => 99]);
 
         $this->assertFalse($navigation->has_current());
-        $this->assertSame(['prev' => false, 'next' => false], $navigation->export_for_template($this->renderer()));
+        $this->assertSame(
+            ['prev' => false, 'next' => false, 'end' => false],
+            $navigation->export_for_template($this->renderer())
+        );
         $this->assertSame('', $this->renderer()->render($navigation));
     }
 
@@ -145,6 +151,30 @@ final class lesson_navigation_test extends \advanced_testcase {
         $fullscreen = $this->renderer()->render($this->navigation($lessons[12]));
         $this->assertStringContainsString('class="skilland-fullscreen-nav"', $fullscreen);
         $this->assertStringContainsString(get_string('no_previous_lesson', 'mod_skilland'), $fullscreen);
-        $this->assertStringContainsString(get_string('no_next_lesson', 'mod_skilland'), $fullscreen);
+        $this->assertStringNotContainsString(get_string('no_next_lesson', 'mod_skilland'), $fullscreen);
+        $this->assertStringContainsString('skilland-fullscreen-nav-end', $fullscreen);
+        $this->assertStringContainsString(get_string('back_to_lessons', 'mod_skilland'), $fullscreen);
+    }
+
+    public function test_end_link_finishes_the_topic_once_every_lesson_is_complete(): void {
+        $this->resetAfterTest();
+        $lessons = $this->lessons();
+        $lessons[11]->scoid = 111;
+        $done = ['status' => 'completed', 'score' => null];
+
+        $navigation = new lesson_navigation(
+            $lessons[12],
+            $lessons,
+            (object) ['id' => 2, 'course' => 5],
+            1,
+            (object) ['id' => 7, 'scormcmid' => 40, 'hidelabels' => 0],
+            lesson_navigation::STYLE_FULLSCREEN,
+            [10 => $done, 11 => $done, 12 => $done]
+        );
+        $data = $navigation->export_for_template($this->renderer());
+
+        $this->assertFalse($data['next']);
+        $this->assertSame(get_string('finish_topic', 'mod_skilland'), $data['end']['text']);
+        $this->assertSame((new \moodle_url('/course/view.php', ['id' => 5]))->out(false), $data['end']['url']);
     }
 }

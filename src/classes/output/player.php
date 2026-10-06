@@ -16,6 +16,7 @@
 
 namespace mod_skilland\output;
 
+use mod_skilland\local\progress_summary;
 use moodle_url;
 use renderable;
 use renderer_base;
@@ -45,6 +46,7 @@ class player implements renderable, templatable {
      * @param array $alllessons The visible lessons of the activity, in order, for the navigation.
      * @param int $topicorderindex The topic order index (T1, T2, etc.).
      * @param moodle_url|null $playerurl The mod_scorm player of the lesson's SCO; null when it cannot be played.
+     * @param array $progress The viewer's progress, keyed by lesson id.
      */
     public function __construct(
         /** @var stdClass The skilland activity record. */
@@ -58,7 +60,9 @@ class player implements renderable, templatable {
         /** @var int The topic order index. */
         protected int $topicorderindex = 1,
         /** @var moodle_url|null The mod_scorm player of the lesson's SCO. */
-        protected ?moodle_url $playerurl = null
+        protected ?moodle_url $playerurl = null,
+        /** @var array The viewer's progress, keyed by lesson id. */
+        protected array $progress = []
     ) {
     }
 
@@ -96,14 +100,22 @@ class player implements renderable, templatable {
             $this->cm,
             $this->topicorderindex,
             $this->skilland,
-            lesson_navigation::STYLE_FULLSCREEN
+            lesson_navigation::STYLE_FULLSCREEN,
+            $this->progress
         );
+        $summary = new progress_summary($this->skilland, $this->alllessons, $this->progress);
+        $lessonnumber = $summary->position_of($this->lesson);
 
         return [
             'notready' => false,
             'backurl' => $backurl,
             'lessontitle' => empty($this->skilland->hidelabels) ? $label . ' - ' . $title : $title,
             'iframetitle' => $title,
+            'hasposition' => $lessonnumber !== null,
+            'position' => $lessonnumber === null ? '' : get_string('lesson_position', 'mod_skilland', (object) [
+                'number' => $lessonnumber,
+                'total' => $summary->total(),
+            ]),
             'playerurl' => $this->playerurl->out(false),
             'navigation' => $navigation->has_current() ? $navigation->export_for_template($output) : false,
         ];

@@ -16,6 +16,7 @@
 
 namespace mod_skilland\output;
 
+use mod_skilland\local\progress_summary;
 use moodle_url;
 use renderable;
 use renderer_base;
@@ -27,7 +28,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../../locallib.php');
 
 /**
- * The previous / next lesson links around the lesson being played.
+ * The previous / next lesson links around the lesson being played, and the way out after the last one.
  *
  * Rendered by mod_skilland/fullscreen_navigation (the fullscreen player's bottom bar).
  *
@@ -54,6 +55,7 @@ class lesson_navigation implements renderable, templatable {
      * @param int $topicorderindex The topic order index (T1, T2, etc.).
      * @param stdClass $skilland The skilland activity record.
      * @param string $style One of the STYLE_ constants.
+     * @param array $progress The viewer's progress, keyed by lesson id (decides the label of the way out).
      */
     public function __construct(
         stdClass $currentlesson,
@@ -65,7 +67,9 @@ class lesson_navigation implements renderable, templatable {
         /** @var stdClass The skilland activity record. */
         protected stdClass $skilland,
         /** @var string One of the STYLE_ constants. */
-        protected string $style = self::STYLE_FULLSCREEN
+        protected string $style = self::STYLE_FULLSCREEN,
+        /** @var array The viewer's progress, keyed by lesson id. */
+        protected array $progress = []
     ) {
         $this->lessons = array_values($alllessons);
         $this->position = self::position_of($currentlesson, $alllessons);
@@ -109,15 +113,37 @@ class lesson_navigation implements renderable, templatable {
      * Export the previous and next links.
      *
      * @param renderer_base $output The renderer.
-     * @return array The template context: prev and next, each a link or false.
+     * @return array The template context: prev and next, each a link or false, and end, the way out
+     *         when there is no next lesson.
      */
     public function export_for_template(renderer_base $output): array {
         if ($this->position === null) {
-            return ['prev' => false, 'next' => false];
+            return ['prev' => false, 'next' => false, 'end' => false];
         }
+        $next = $this->export_link($this->position + 1, 'aria_next_lesson');
         return [
             'prev' => $this->export_link($this->position - 1, 'aria_previous_lesson'),
-            'next' => $this->export_link($this->position + 1, 'aria_next_lesson'),
+            'next' => $next,
+            'end' => $next ? false : $this->export_end(),
+        ];
+    }
+
+    /**
+     * The link out of the last lesson: the course page once every lesson is complete, else the lesson list.
+     *
+     * @return array url and text.
+     */
+    protected function export_end(): array {
+        $summary = new progress_summary($this->skilland, $this->lessons, $this->progress);
+        if ($summary->all_complete() && !empty($this->cm->course)) {
+            return [
+                'url' => (new moodle_url('/course/view.php', ['id' => $this->cm->course]))->out(false),
+                'text' => get_string('finish_topic', 'mod_skilland'),
+            ];
+        }
+        return [
+            'url' => (new moodle_url('/mod/skilland/view.php', ['id' => $this->cm->id]))->out(false),
+            'text' => get_string('back_to_lessons', 'mod_skilland'),
         ];
     }
 

@@ -46,3 +46,19 @@ Feature: Learners see the lessons of a Skilland activity
     When I am on the "skl1" "Activity" page logged in as "student1"
     Then I should see "This lesson or topic content is being prepared. Please check back later."
     And I should not see "Lesson one"
+
+  Scenario: A student continues from the lesson list and leaves the topic after the last lesson
+    Given the following "activities" exist:
+      | activity | name             | course | idnumber | provisioned |
+      | skilland | Fixture activity | C1     | skl1     | 1           |
+    When I am on the "skl1" "Activity" page logged in as "student1"
+    Then I should see "0 of 2 lessons completed"
+    And "Start" "link" should exist
+    When I click on "Start" "link"
+    Then I should see "Lesson 1 of 2"
+    When I click on "Lesson two" "link"
+    Then I should see "Lesson 2 of 2"
+    And I should not see "No next lesson"
+    When I click on "Back to lessons" "link"
+    Then I should see "Lessons"
+    And I should see "0 of 2 lessons completed"
