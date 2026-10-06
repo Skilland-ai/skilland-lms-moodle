@@ -214,7 +214,7 @@ class view_templates_test extends TestCase {
         $html = skilland_render_lesson_list((object) ['id' => 7, 'scormcmid' => 40], $lessons, (object) ['id' => 2]);
 
         $this->assertStringContainsString('<a href="/mod/skilland/view.php?id=2&amp;play=10" ' .
-            'class="skilland-lesson-card skilland-lesson-failed">', $html);
+            'class="skilland-lesson-card skilland-lesson-failed skilland-lesson-target" aria-current="step">', $html);
         $this->assertStringContainsString('<div class="skilland-lesson-number">L1.1</div>', $html);
         $this->assertStringContainsString('<span class="skilland-lesson-title">First</span>', $html);
         $this->assertStringContainsString('<div class="skilland-lesson-meta">score: 40%</div>', $html);

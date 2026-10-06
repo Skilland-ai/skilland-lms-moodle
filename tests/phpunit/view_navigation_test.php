@@ -81,7 +81,89 @@ class view_navigation_test extends TestCase {
         // Prev label uses currentindex (0-based), so L1.1 for first lesson.
         $this->assertStringContainsString('L1.1', $html);
         $this->assertStringContainsString('First', $html);
+        $this->assertStringNotContainsString('skilland-fullscreen-nav-disabled', $html);
+        $this->assertStringContainsString('skilland-fullscreen-nav-end', $html);
+        $this->assertStringContainsString('back_to_lessons', $html);
+    }
+
+    public function test_end_link_goes_back_to_the_list_until_every_lesson_is_complete(): void {
+        $lessons = $this->makeLessons([
+            ['id' => 1, 'title' => 'First', 'scoid' => 10],
+            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
+        ]);
+        $cm = (object) ['id' => 9, 'course' => 4];
+        $nav = new \mod_skilland\output\lesson_navigation(
+            (object) ['id' => 2],
+            $lessons,
+            $cm,
+            1,
+            $this->makeSkilland(),
+            \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN,
+            [1 => ['status' => 'completed', 'score' => null], 2 => ['status' => 'incomplete', 'score' => null]]
+        );
+
+        $data = $nav->export_for_template($GLOBALS['PAGE']->get_renderer('mod_skilland'));
+
+        $this->assertFalse($data['next']);
+        $this->assertSame('back_to_lessons', $data['end']['text']);
+        $this->assertStringContainsString('/mod/skilland/view.php', $data['end']['url']);
+        $this->assertStringContainsString('id=9', $data['end']['url']);
+    }
+
+    public function test_end_link_finishes_the_topic_when_every_lesson_is_complete(): void {
+        $lessons = $this->makeLessons([
+            ['id' => 1, 'title' => 'First', 'scoid' => 10],
+            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
+        ]);
+        $cm = (object) ['id' => 9, 'course' => 4];
+        $done = ['status' => 'passed', 'score' => null];
+
+        $html = skilland_render_fullscreen_navigation(
+            (object) ['id' => 2],
+            $lessons,
+            $cm,
+            1,
+            $this->makeSkilland(),
+            [1 => $done, 2 => $done]
+        );
+
+        $this->assertStringContainsString('finish_topic', $html);
+        $this->assertStringContainsString('/course/view.php', $html);
+        $this->assertStringContainsString('id=4', $html);
+        $this->assertStringNotContainsString('skilland-fullscreen-nav-disabled', $html);
+    }
+
+    public function test_a_first_lesson_with_a_next_has_no_end_link(): void {
+        $lessons = $this->makeLessons([
+            ['id' => 1, 'title' => 'First', 'scoid' => 10],
+            ['id' => 2, 'title' => 'Second', 'scoid' => 20],
+        ]);
+
+        $html = skilland_render_fullscreen_navigation((object) ['id' => 1], $lessons, $this->makeCm(), 1, $this->makeSkilland());
+
+        $this->assertStringNotContainsString('skilland-fullscreen-nav-end', $html);
         $this->assertStringContainsString('skilland-fullscreen-nav-disabled', $html);
+    }
+
+    public function test_player_shows_the_position_among_playable_lessons(): void {
+        $lessons = $this->makeLessons([
+            ['id' => 1, 'title' => 'First', 'scoid' => 10],
+            ['id' => 2, 'title' => 'No sco', 'scoid' => null],
+            ['id' => 3, 'title' => 'Third', 'scoid' => 30],
+        ]);
+        $player = new \mod_skilland\output\player(
+            $this->makeSkilland(),
+            $lessons[3],
+            $this->makeCm(),
+            $lessons,
+            1,
+            new \moodle_url('/mod/scorm/player.php', ['scoid' => 30])
+        );
+
+        $data = $player->export_for_template($GLOBALS['PAGE']->get_renderer('mod_skilland'));
+
+        $this->assertTrue($data['hasposition']);
+        $this->assertSame('lesson_position', $data['position']);
     }
 
     public function test_fullscreen_middle_lesson_both_links(): void {
@@ -135,7 +217,8 @@ class view_navigation_test extends TestCase {
 
         $html = skilland_render_fullscreen_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland(0));
 
-        $this->assertStringNotContainsString('<a ', $html);
+        $this->assertStringNotContainsString('aria-label', $html);
+        $this->assertStringContainsString('skilland-fullscreen-nav-end', $html);
     }
 
     public function test_fullscreen_single_lesson_both_disabled(): void {
@@ -146,9 +229,11 @@ class view_navigation_test extends TestCase {
 
         $html = skilland_render_fullscreen_navigation($current, $lessons, $this->makeCm(), 1, $this->makeSkilland());
 
-        // Both prev and next should be disabled.
+        // Prev is disabled and the next slot is the way out.
         $this->assertStringContainsString('skilland-fullscreen-nav', $html);
-        $this->assertStringNotContainsString('<a ', $html);
+        $this->assertStringNotContainsString('aria-label', $html);
+        $this->assertSame(1, substr_count($html, 'skilland-fullscreen-nav-disabled'));
+        $this->assertStringContainsString('skilland-fullscreen-nav-end', $html);
     }
 
     // ===============================================================
