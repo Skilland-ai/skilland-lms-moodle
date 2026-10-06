@@ -17,6 +17,7 @@ Thumbs.db
 
 # Playwright test artifacts
 test-results/
+tests/e2e/.results/
 playwright-report/
 playwright/.cache/
 .playwright/
@@ -32,6 +33,9 @@ composer.phar
 
 # Isolated composer vendor dir used by test:unit, never committed
 vendor-test/
+
+# Coverage output of test:unit:coverage
+coverage/
 
 # Environment variables
 .env
