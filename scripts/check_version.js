@@ -11,7 +11,7 @@
  * BASE_REF it is HEAD, i.e. the last commit, for local use. SKIP_VERSION_CHECK=1 skips it.
  *
  * Tooling-only changes are exempt: when BASE_REF is set and nothing that ends up in the release
- * ZIP changed between BASE_REF and HEAD (src/ and cli/, minus the dev-only cli/configure_api.php,
+ * ZIP changed between BASE_REF and HEAD (src/, minus the dev-only src/cli/configure_api.php,
  * mirroring Gruntfile.js), no bump is required.
  */
 const fs = require('fs')
@@ -25,7 +25,7 @@ if (process.env.SKIP_VERSION_CHECK) {
 }
 
 // Paths shipped in the release ZIP (see Gruntfile.js copy tasks).
-const SHIPPED_PATHSPEC = ['src/', 'cli/', ':(exclude)cli/configure_api.php']
+const SHIPPED_PATHSPEC = ['src/', ':(exclude)src/cli/configure_api.php']
 
 if (process.env.BASE_REF) {
   try {

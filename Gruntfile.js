@@ -24,15 +24,16 @@ module.exports = function(grunt) {
                 expand: true,
                 cwd: 'src/',
                 // Moodle PHPUnit/Behat tests and their fixture API client are never shipped in the release.
-                src: ['**', '!tests/**', '!classes/local/testing/**', '!amd/build/**'],
+                // cli/configure_api.php is a development-only helper, never shipped either.
+                src: ['**', '!tests/**', '!classes/local/testing/**', '!amd/build/**', '!cli/configure_api.php'],
                 dest: 'dist/'
             },
-            cli: {
-                expand: true,
-                cwd: '.',
-                // configure_api.php is a development-only helper, never shipped in the release.
-                src: ['cli/**', '!cli/configure_api.php'],
-                dest: 'dist/'
+            docs: {
+                files: [
+                    {src: 'README.md', dest: 'dist/README.md'},
+                    // Moodle's plugin directory reads the changelog from CHANGES.md.
+                    {src: 'CHANGELOG.md', dest: 'dist/CHANGES.md'}
+                ]
             }
         },
 
@@ -56,7 +57,7 @@ module.exports = function(grunt) {
         // Watch for changes during development
         watch: {
             scripts: {
-                files: ['src/**/*', 'cli/**/*'],
+                files: ['src/**/*', 'README.md', 'CHANGELOG.md'],
                 tasks: ['build'],
                 options: {
                     spawn: false,
@@ -73,7 +74,7 @@ module.exports = function(grunt) {
 
     // Register tasks
     grunt.registerTask('default', ['build']);
-    grunt.registerTask('build', ['clean', 'copy', 'uglify']);
+    grunt.registerTask('build', ['clean', 'copy:main', 'copy:docs', 'uglify']);
 };
 
 

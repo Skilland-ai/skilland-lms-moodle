@@ -29,7 +29,7 @@ test('build and watch retain the bind mount inode and propagate edits, additions
   write(dir, 'src/amd/src/example.js', 'define([], function() { return 1; });')
   write(dir, 'src/amd/build/example.min.js', 'stale tracked twin')
   write(dir, 'src/templates/example.mustache', 'first')
-  write(dir, 'cli/example.php', '<?php // fixture')
+  write(dir, 'src/cli/example.php', '<?php // fixture')
   write(dir, 'dist/.stale', 'stale')
   const inode = fs.statSync(path.join(dir, 'dist')).ino
   const grunt = path.join(root, 'node_modules/grunt-cli/bin/grunt')
@@ -74,7 +74,7 @@ test('build and watch retain the bind mount inode and propagate edits, additions
   { deadlineMs: 25000, retry: retrigger })
   fs.rmSync(path.join(dir, 'src/amd/src/example.js'))
   fs.rmSync(path.join(dir, 'src/templates/example.mustache'))
-  fs.rmSync(path.join(dir, 'cli/example.php'))
+  fs.rmSync(path.join(dir, 'src/cli/example.php'))
   await until(() => !fs.existsSync(path.join(dir, 'dist/amd/build/example.min.js')) &&
     !fs.existsSync(path.join(dir, 'dist/templates/example.mustache')) &&
     !fs.existsSync(path.join(dir, 'dist/cli/example.php')),

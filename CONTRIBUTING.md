@@ -76,7 +76,7 @@ organization id, SSO secret) and `BACKUP.md` for the backup/restore contract.
 - **Bump `$plugin->version` and, when the change is user-visible, `$plugin->release` in
   `src/version.php` exactly once per PR.** CI's `version` job (`scripts/check_version.js`)
   fails the PR otherwise. `$plugin->version` uses the `YYYYMMDDHH` convention already in the
-  file. Tooling-only PRs (nothing changed under `src/` or the shipped `cli/` files) need no bump:
+  file. Tooling-only PRs (nothing changed under `src/` except the dev-only `src/cli/configure_api.php`) need no bump:
   the check passes and `release.yml` skips the release for them.
 - Update `CHANGELOG.md` under an `## [Unreleased]` or the new version heading when the change
   is user-visible.
