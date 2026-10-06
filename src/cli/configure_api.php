@@ -31,7 +31,7 @@ define('CLI_SCRIPT', true);
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
-list($options, $unrecognized) = cli_get_params(
+[$options, $unrecognized] = cli_get_params(
     [
         'endpoint' => '',
         'orgid' => '',
@@ -171,8 +171,10 @@ try {
 } catch (\Throwable $e) {
     echo 'Connection failed: ' . $e->getMessage() . "\n";
     $endpoint = skilland_get_frontend_url();
-    if (strtolower((string) parse_url(trim($endpoint), PHP_URL_SCHEME)) === 'http' &&
-            empty($CFG->mod_skilland_allow_http)) {
+    if (
+        strtolower((string) parse_url(trim($endpoint), PHP_URL_SCHEME)) === 'http' &&
+        empty($CFG->mod_skilland_allow_http)
+    ) {
         echo "Hint: http:// endpoints are also blocked at request time unless config.php sets " .
             "\$CFG->mod_skilland_allow_http = true; --allow-insecure only lets this script save one.\n";
     }
