@@ -98,7 +98,7 @@ final class lesson_list_test extends \advanced_testcase {
 
         $html = $PAGE->get_renderer('mod_skilland')->render($this->lesson_list());
 
-        $this->assertStringContainsString('class="skilland-lesson-card skilland-lesson-completed"', $html);
+        $this->assertStringContainsString('class="skilland-lesson-card skilland-lesson-completed skilland-lesson-target"', $html);
         $this->assertStringContainsString(
             'class="skilland-lesson-card skilland-lesson-disabled skilland-lesson-pending"',
             $html
