@@ -67,7 +67,7 @@ jobs:
               echo "Release $TAG already exists for $SHA (re-run), skipping."
               exit 0
             fi
-            if [ -n "$TAG_COMMIT" ] && git diff --quiet "$TAG_COMMIT" HEAD -- src/ cli/ ':(exclude)cli/configure_api.php'; then
+            if [ -n "$TAG_COMMIT" ] && git diff --quiet "$TAG_COMMIT" HEAD -- src/ ':(exclude)src/cli/configure_api.php'; then
               echo "exists=true" >> "$GITHUB_OUTPUT"
               echo "reuse_tag=true" >> "$GITHUB_OUTPUT"
               echo "no shipped change since $TAG, skipping release"
@@ -79,7 +79,7 @@ jobs:
 
           echo "exists=false" >> "$GITHUB_OUTPUT"
           if [ -n "$TAG_COMMIT" ]; then
-            if [ "$TAG_COMMIT" != "$SHA" ] && git diff --quiet "$TAG_COMMIT" HEAD -- src/ cli/ ':(exclude)cli/configure_api.php'; then
+            if [ "$TAG_COMMIT" != "$SHA" ] && git diff --quiet "$TAG_COMMIT" HEAD -- src/ ':(exclude)src/cli/configure_api.php'; then
               echo "exists=true" >> "$GITHUB_OUTPUT"
               echo "reuse_tag=true" >> "$GITHUB_OUTPUT"
               echo "no shipped change since $TAG, skipping release"
@@ -194,6 +194,18 @@ jobs:
             FAIL=1
           fi
 
+          for f in skilland/README.md skilland/CHANGES.md skilland/cli/cleanup_orphaned_scorm.php; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Release zip is missing $f"
+              FAIL=1
+            fi
+          done
+
+          if [ -e skilland/cli/configure_api.php ]; then
+            echo "::error::Release zip contains the development-only skilland/cli/configure_api.php"
+            FAIL=1
+          fi
+
           FORBIDDEN=$(find skilland \( -name tests -o -name node_modules -o -name .env \
             -o -name vendor -o -name thirdpartylibs.xml \) -print)
           if [ -n "$FORBIDDEN" ]; then
@@ -252,6 +264,8 @@ jobs:
             echo "$NOTES"
             echo
             echo "### Installation"
+            echo "Only the attached \`mod_skilland-$MOODLEVERSION.zip\` is installable; GitHub's *Source code* archives are not."
+            echo
             echo "1. Download \`mod_skilland-$MOODLEVERSION.zip\`"
             echo "2. Install it in Moodle under Site administration › Plugins › Install plugins (or unzip it so its files sit in \`mod/skilland\`)"
             echo "3. Visit Site administration › Notifications to complete the installation"

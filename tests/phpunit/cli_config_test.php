@@ -6,7 +6,7 @@ use PHPUnit\Framework\TestCase;
 use mod_skilland\local\cli_config;
 
 /**
- * Unit tests for mod_skilland\local\cli_config, the logic behind cli/configure_api.php.
+ * Unit tests for mod_skilland\local\cli_config, the logic behind src/cli/configure_api.php.
  */
 class cli_config_test extends TestCase {
 

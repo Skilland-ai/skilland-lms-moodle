@@ -3,10 +3,22 @@
          xsi:noNamespaceSchemaLocation="vendor-test/phpunit/phpunit/phpunit.xsd"
          bootstrap="tests/phpunit/bootstrap.php"
          colors="true"
-         cacheResult="false">
+         cacheResult="false"
+         failOnWarning="true"
+         failOnRisky="true"
+         beStrictAboutOutputDuringTests="true">
     <testsuites>
         <testsuite name="mod_skilland">
             <directory suffix="_test.php">tests/phpunit</directory>
         </testsuite>
     </testsuites>
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <exclude>
+            <directory>src/vendor</directory>
+            <directory>src/tests</directory>
+        </exclude>
+    </source>
 </phpunit>

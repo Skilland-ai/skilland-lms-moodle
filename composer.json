@@ -9,6 +9,11 @@
         "firebase/php-jwt": "^6.10",
         "phpunit/phpunit": "^10.5"
     },
+    "autoload-dev": {
+        "psr-4": {
+            "mod_skilland\\": "src/classes/"
+        }
+    },
     "config": {
         "audit": {
             "ignore": {

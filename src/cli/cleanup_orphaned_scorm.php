@@ -30,7 +30,7 @@ require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
 // CLI options.
-list($options, $unrecognized) = cli_get_params(
+[$options, $unrecognized] = cli_get_params(
     [
         'help' => false,
         'dry-run' => false,
@@ -102,7 +102,8 @@ if (empty($orphanedactivities)) {
     cli_writeln("  Found " . count($orphanedactivities) . " skilland record(s) with orphaned SCORM references:");
 
     foreach ($orphanedactivities as $activity) {
-        cli_writeln("    - ID: {$activity->id}, Name: '{$activity->name}', Course: {$activity->course}, Orphaned scormcmid: {$activity->scormcmid}");
+        cli_writeln("    - ID: {$activity->id}, Name: '{$activity->name}', Course: {$activity->course}, " .
+            "Orphaned scormcmid: {$activity->scormcmid}");
 
         if (!$dryrun) {
             $DB->set_field('skilland', 'scormcmid', null, ['id' => $activity->id]);
@@ -193,4 +194,3 @@ if ($dryrun) {
 }
 
 exit(0);
-

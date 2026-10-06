@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.60-beta]
+
+### Changed
+- The release zip now ships `README.md` and `CHANGES.md` (the changelog).
+- The CLI scripts live in `src/cli/` instead of `cli/`; the installed paths
+  (`mod/skilland/cli/...`) are unchanged and `configure_api.php` is still left out of the zip.
+
 ## [0.9.59-beta]
 
 ### Added

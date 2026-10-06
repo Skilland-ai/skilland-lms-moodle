@@ -1,11 +1,29 @@
-# Exclude development files from release archives
-/dev/ export-ignore
-/.github/ export-ignore
-/Gruntfile.js export-ignore
-/package.json export-ignore
-/package-lock.json export-ignore
-/node_modules/ export-ignore
+# Release archives (git archive, GitHub "Source code" downloads) carry only the plugin source
+# and its documentation. The installable plugin is the built mod_skilland-<version>.zip.
+/.claude export-ignore
+/.eslintrc.json export-ignore
+/.github export-ignore
 /.gitattributes export-ignore
+/.githooks export-ignore
 /.gitignore export-ignore
-
-
+/.gitleaks.toml export-ignore
+/.husky export-ignore
+/00_development export-ignore
+/BACKUP.md export-ignore
+/CONTRIBUTING.md export-ignore
+/DEVELOPMENT.md export-ignore
+/Gruntfile.js export-ignore
+/composer.json export-ignore
+/composer.lock export-ignore
+/composer.phar export-ignore
+/core-tests export-ignore
+/dist export-ignore
+/eslint.config.js export-ignore
+/index.php export-ignore
+/node_modules export-ignore
+/package-lock.json export-ignore
+/package.json export-ignore
+/phpunit.xml export-ignore
+/scripts export-ignore
+/tests export-ignore
+/vendor export-ignore

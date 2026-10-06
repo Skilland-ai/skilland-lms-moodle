@@ -47,7 +47,7 @@ as `www-data`. Any CLI failure stops startup before Apache serves requests.
 ### Development loop
 
 From `moodle/`, run `npm run watch` after the initial build. Changes and deletions
-under `src/` or `cli/` rebuild `dist/` while preserving its root directory inode, so
+under `src/`, `README.md` or `CHANGELOG.md` rebuild `dist/` while preserving its root directory inode, so
 the running container sees the current files immediately. AMD sources still get
 minified twins in `dist/amd/build`. The plugin uses Moodle core's JWT library; no
 vendor directory is shipped.
@@ -114,7 +114,7 @@ there is no MongoDB setup step.
 
 #### Setting them from the command line
 
-`cli/configure_api.php` is a development-only helper: `npm run build` leaves it out of
+`src/cli/configure_api.php` is a development-only helper: `npm run build` leaves it out of
 `dist/`, so it is never in the release zip. It writes only the settings you pass and never
 takes the key as an option (`--apikey` is rejected): the key comes from the
 `SKILLAND_API_KEY` environment variable or, on a terminal, from a prompt with echo off, and
@@ -373,7 +373,7 @@ Every spec creates its own Moodle course through the `moodleCourse` fixture, so 
 
 Every pull request to `main` runs `.github/workflows/ci.yml`:
 
-- **`test`**: `npm run lint` (ESLint over `tests/e2e` and the AMD sources in `src/amd/src`), `php -l` on every PHP file under `src/`, `cli/` and `scripts/` in a `php:8.2-cli` container, then PHPUnit via `npm run test:unit`.
+- **`test`**: `npm run lint` (ESLint over `tests/e2e` and the AMD sources in `src/amd/src`), `php -l` on every PHP file under `src/` and `scripts/` in a `php:8.2-cli` container, then PHPUnit via `npm run test:unit`.
 - **`version`** (pull requests only): `node scripts/check_version.js` against the PR base, then a gitleaks scan of the source tree.
 
 Every merge to `main` publishes a release, so the version check requires, against the base branch's `src/version.php`:
@@ -382,11 +382,11 @@ Every merge to `main` publishes a release, so the version check requires, agains
 2. a different `$plugin->release` string;
 3. `$plugin->maturity` matching the release string: `alpha` → `MATURITY_ALPHA`, `beta` → `MATURITY_BETA`, `rc` → `MATURITY_RC`, anything else → `MATURITY_STABLE`.
 
-A change that touches no shipped file is exempt: when `BASE_REF` is set and `git diff $BASE_REF...HEAD` is empty for `src/` and `cli/` (everything `Gruntfile.js` copies into the ZIP, except the dev-only `cli/configure_api.php`), the script prints `No shipped file under src/ changed: version bump not required.` and passes. Any shipped change still needs the bump.
+A change that touches no shipped file is exempt: when `BASE_REF` is set and `git diff $BASE_REF...HEAD` is empty for `src/` (everything `Gruntfile.js` copies into the ZIP, except the dev-only `src/cli/configure_api.php`), the script prints `No shipped file under src/ changed: version bump not required.` and passes. Any shipped change still needs the bump.
 
 Run it locally with `BASE_REF=origin/main node scripts/check_version.js` (without `BASE_REF` it compares against `HEAD`). `SKIP_VERSION_CHECK=1` skips it.
 
-`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files, one minified AMD module per source, no `tests/`, `node_modules/`, `vendor/`, `thirdpartylibs.xml` or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit skips the release (green run, `no shipped change since <tag>, skipping release`) when `src/` and `cli/` (minus `cli/configure_api.php`) are identical to the tagged commit, and fails the run otherwise (a shipped change without a version bump). Actions are pinned by commit SHA and the gitleaks image by version tag.
+`.github/workflows/release.yml` runs on every push to `main`. Its `release` job needs the same `ci.yml` (called as a reusable workflow) to pass first, then builds `dist/`, re-checks version and maturity, scans `dist/` for secrets, zips it as `skilland/`, smoke-tests the zip (required files including `README.md`, `CHANGES.md` and `cli/cleanup_orphaned_scorm.php`, one minified AMD module per source, no `cli/configure_api.php`, no `tests/`, `node_modules/`, `vendor/`, `thirdpartylibs.xml` or `.env`), and tags `v<$plugin->version>` with a GitHub release. A tag that already points at the pushed commit without a release is reused; a tag or release that belongs to a different commit skips the release (green run, `no shipped change since <tag>, skipping release`) when `src/` (minus `src/cli/configure_api.php`) is identical to the tagged commit, and fails the run otherwise (a shipped change without a version bump). Actions are pinned by commit SHA and the gitleaks image by version tag.
 
 ## Git Hooks
 
