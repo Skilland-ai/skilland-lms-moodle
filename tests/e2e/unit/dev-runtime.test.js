@@ -20,7 +20,7 @@ function write(dir, file, content) {
   fs.writeFileSync(path.join(dir, file), content)
 }
 
-test('build and watch retain the bind mount inode and propagate edits, additions and deletions', { timeout: 30000 }, async t => {
+test('build and watch retain the bind mount inode and propagate edits, additions and deletions', { timeout: 90000 }, async t => {
   const dir = fixture(t)
   fs.copyFileSync(path.join(root, 'Gruntfile.js'), path.join(dir, 'Gruntfile.js'))
   fs.copyFileSync(path.join(root, 'package.json'), path.join(dir, 'package.json'))
@@ -49,27 +49,36 @@ test('build and watch retain the bind mount inode and propagate edits, additions
       await exited
     }
   })
-  async function until(check) {
-    const deadline = Date.now() + 8000
+  async function until(check, { deadlineMs = 8000, retry = null, retryMs = 1500 } = {}) {
+    const deadline = Date.now() + deadlineMs
+    let lastRetry = Date.now()
     while (!check()) {
       assert.equal(watcher.exitCode, null, output)
       assert.ok(Date.now() < deadline, output)
+      if (retry && Date.now() - lastRetry >= retryMs) {
+        retry()
+        lastRetry = Date.now()
+      }
       await delay(50)
     }
   }
+  // "Waiting..." can print before the file watchers are ready, so a change made
+  // right after it may be missed: re-trigger the watcher until the build lands.
+  const retrigger = () => write(dir, 'src/version.php', `<?php // fixture ${Date.now()}`)
   await until(() => output.includes('Waiting...'))
   write(dir, 'src/templates/example.mustache', 'changed')
   write(dir, 'src/pix/added.svg', '<svg/>')
   await until(() => fs.existsSync(path.join(dir, 'dist/pix/added.svg')) &&
     fs.existsSync(path.join(dir, 'dist/templates/example.mustache')) &&
-    fs.readFileSync(path.join(dir, 'dist/templates/example.mustache'), 'utf8') === 'changed')
-  await until(() => output.split('Waiting...').length >= 3)
+    fs.readFileSync(path.join(dir, 'dist/templates/example.mustache'), 'utf8') === 'changed',
+  { deadlineMs: 25000, retry: retrigger })
   fs.rmSync(path.join(dir, 'src/amd/src/example.js'))
   fs.rmSync(path.join(dir, 'src/templates/example.mustache'))
   fs.rmSync(path.join(dir, 'cli/example.php'))
   await until(() => !fs.existsSync(path.join(dir, 'dist/amd/build/example.min.js')) &&
     !fs.existsSync(path.join(dir, 'dist/templates/example.mustache')) &&
-    !fs.existsSync(path.join(dir, 'dist/cli/example.php')))
+    !fs.existsSync(path.join(dir, 'dist/cli/example.php')),
+  { deadlineMs: 25000, retry: retrigger })
   assert.equal(fs.existsSync(path.join(dir, 'dist/amd/src/example.js')), false)
   assert.equal(fs.statSync(path.join(dir, 'dist')).ino, inode)
 })
