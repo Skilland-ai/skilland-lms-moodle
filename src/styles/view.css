@@ -60,6 +60,129 @@
   padding-top: 1rem;
 }
 
+.skilland-progress-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.skilland-progress-text {
+  flex: 1 1 100%;
+  margin: 0;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.skilland-progress-bar {
+  flex: 1 1 200px;
+  height: 0.75rem;
+}
+
+/* The bar's fill, one class per whole percent (no inline styles in templates) */
+.skilland-progress-bar .skilland-progress-0 { width: 0%; }
+.skilland-progress-bar .skilland-progress-1 { width: 1%; }
+.skilland-progress-bar .skilland-progress-2 { width: 2%; }
+.skilland-progress-bar .skilland-progress-3 { width: 3%; }
+.skilland-progress-bar .skilland-progress-4 { width: 4%; }
+.skilland-progress-bar .skilland-progress-5 { width: 5%; }
+.skilland-progress-bar .skilland-progress-6 { width: 6%; }
+.skilland-progress-bar .skilland-progress-7 { width: 7%; }
+.skilland-progress-bar .skilland-progress-8 { width: 8%; }
+.skilland-progress-bar .skilland-progress-9 { width: 9%; }
+.skilland-progress-bar .skilland-progress-10 { width: 10%; }
+.skilland-progress-bar .skilland-progress-11 { width: 11%; }
+.skilland-progress-bar .skilland-progress-12 { width: 12%; }
+.skilland-progress-bar .skilland-progress-13 { width: 13%; }
+.skilland-progress-bar .skilland-progress-14 { width: 14%; }
+.skilland-progress-bar .skilland-progress-15 { width: 15%; }
+.skilland-progress-bar .skilland-progress-16 { width: 16%; }
+.skilland-progress-bar .skilland-progress-17 { width: 17%; }
+.skilland-progress-bar .skilland-progress-18 { width: 18%; }
+.skilland-progress-bar .skilland-progress-19 { width: 19%; }
+.skilland-progress-bar .skilland-progress-20 { width: 20%; }
+.skilland-progress-bar .skilland-progress-21 { width: 21%; }
+.skilland-progress-bar .skilland-progress-22 { width: 22%; }
+.skilland-progress-bar .skilland-progress-23 { width: 23%; }
+.skilland-progress-bar .skilland-progress-24 { width: 24%; }
+.skilland-progress-bar .skilland-progress-25 { width: 25%; }
+.skilland-progress-bar .skilland-progress-26 { width: 26%; }
+.skilland-progress-bar .skilland-progress-27 { width: 27%; }
+.skilland-progress-bar .skilland-progress-28 { width: 28%; }
+.skilland-progress-bar .skilland-progress-29 { width: 29%; }
+.skilland-progress-bar .skilland-progress-30 { width: 30%; }
+.skilland-progress-bar .skilland-progress-31 { width: 31%; }
+.skilland-progress-bar .skilland-progress-32 { width: 32%; }
+.skilland-progress-bar .skilland-progress-33 { width: 33%; }
+.skilland-progress-bar .skilland-progress-34 { width: 34%; }
+.skilland-progress-bar .skilland-progress-35 { width: 35%; }
+.skilland-progress-bar .skilland-progress-36 { width: 36%; }
+.skilland-progress-bar .skilland-progress-37 { width: 37%; }
+.skilland-progress-bar .skilland-progress-38 { width: 38%; }
+.skilland-progress-bar .skilland-progress-39 { width: 39%; }
+.skilland-progress-bar .skilland-progress-40 { width: 40%; }
+.skilland-progress-bar .skilland-progress-41 { width: 41%; }
+.skilland-progress-bar .skilland-progress-42 { width: 42%; }
+.skilland-progress-bar .skilland-progress-43 { width: 43%; }
+.skilland-progress-bar .skilland-progress-44 { width: 44%; }
+.skilland-progress-bar .skilland-progress-45 { width: 45%; }
+.skilland-progress-bar .skilland-progress-46 { width: 46%; }
+.skilland-progress-bar .skilland-progress-47 { width: 47%; }
+.skilland-progress-bar .skilland-progress-48 { width: 48%; }
+.skilland-progress-bar .skilland-progress-49 { width: 49%; }
+.skilland-progress-bar .skilland-progress-50 { width: 50%; }
+.skilland-progress-bar .skilland-progress-51 { width: 51%; }
+.skilland-progress-bar .skilland-progress-52 { width: 52%; }
+.skilland-progress-bar .skilland-progress-53 { width: 53%; }
+.skilland-progress-bar .skilland-progress-54 { width: 54%; }
+.skilland-progress-bar .skilland-progress-55 { width: 55%; }
+.skilland-progress-bar .skilland-progress-56 { width: 56%; }
+.skilland-progress-bar .skilland-progress-57 { width: 57%; }
+.skilland-progress-bar .skilland-progress-58 { width: 58%; }
+.skilland-progress-bar .skilland-progress-59 { width: 59%; }
+.skilland-progress-bar .skilland-progress-60 { width: 60%; }
+.skilland-progress-bar .skilland-progress-61 { width: 61%; }
+.skilland-progress-bar .skilland-progress-62 { width: 62%; }
+.skilland-progress-bar .skilland-progress-63 { width: 63%; }
+.skilland-progress-bar .skilland-progress-64 { width: 64%; }
+.skilland-progress-bar .skilland-progress-65 { width: 65%; }
+.skilland-progress-bar .skilland-progress-66 { width: 66%; }
+.skilland-progress-bar .skilland-progress-67 { width: 67%; }
+.skilland-progress-bar .skilland-progress-68 { width: 68%; }
+.skilland-progress-bar .skilland-progress-69 { width: 69%; }
+.skilland-progress-bar .skilland-progress-70 { width: 70%; }
+.skilland-progress-bar .skilland-progress-71 { width: 71%; }
+.skilland-progress-bar .skilland-progress-72 { width: 72%; }
+.skilland-progress-bar .skilland-progress-73 { width: 73%; }
+.skilland-progress-bar .skilland-progress-74 { width: 74%; }
+.skilland-progress-bar .skilland-progress-75 { width: 75%; }
+.skilland-progress-bar .skilland-progress-76 { width: 76%; }
+.skilland-progress-bar .skilland-progress-77 { width: 77%; }
+.skilland-progress-bar .skilland-progress-78 { width: 78%; }
+.skilland-progress-bar .skilland-progress-79 { width: 79%; }
+.skilland-progress-bar .skilland-progress-80 { width: 80%; }
+.skilland-progress-bar .skilland-progress-81 { width: 81%; }
+.skilland-progress-bar .skilland-progress-82 { width: 82%; }
+.skilland-progress-bar .skilland-progress-83 { width: 83%; }
+.skilland-progress-bar .skilland-progress-84 { width: 84%; }
+.skilland-progress-bar .skilland-progress-85 { width: 85%; }
+.skilland-progress-bar .skilland-progress-86 { width: 86%; }
+.skilland-progress-bar .skilland-progress-87 { width: 87%; }
+.skilland-progress-bar .skilland-progress-88 { width: 88%; }
+.skilland-progress-bar .skilland-progress-89 { width: 89%; }
+.skilland-progress-bar .skilland-progress-90 { width: 90%; }
+.skilland-progress-bar .skilland-progress-91 { width: 91%; }
+.skilland-progress-bar .skilland-progress-92 { width: 92%; }
+.skilland-progress-bar .skilland-progress-93 { width: 93%; }
+.skilland-progress-bar .skilland-progress-94 { width: 94%; }
+.skilland-progress-bar .skilland-progress-95 { width: 95%; }
+.skilland-progress-bar .skilland-progress-96 { width: 96%; }
+.skilland-progress-bar .skilland-progress-97 { width: 97%; }
+.skilland-progress-bar .skilland-progress-98 { width: 98%; }
+.skilland-progress-bar .skilland-progress-99 { width: 99%; }
+.skilland-progress-bar .skilland-progress-100 { width: 100%; }
+
 .skilland-lessons-header {
   font-size: 1.25rem;
   font-weight: 600;
@@ -153,6 +276,11 @@
   background: #dbeafe;
   border-color: #2563eb;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+/* The lesson the Continue button opens */
+.skilland-lesson-card.skilland-lesson-target {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.45);
 }
 
 /* Default/pending state - neutral */
@@ -582,7 +710,18 @@
   text-decoration: none;
 }
 
-/* Lesson title in fullscreen header - the middle column of the 3-column grid */
+/* Title and "Lesson n of N" - the middle column of the 3-column grid */
+.skilland-fullscreen-heading {
+  min-width: 0;
+}
+
+.skilland-fullscreen-position {
+  font-size: 0.8rem;
+  color: #d1d5db;
+  text-align: center;
+}
+
+/* Lesson title in fullscreen header */
 .skilland-fullscreen-title {
   min-width: 0;
   margin: 0;
@@ -686,6 +825,16 @@
 
 .skilland-fullscreen-nav-disabled {
   visibility: hidden;
+}
+
+/* The way out after the last lesson: always visible, a primary action */
+.skilland-fullscreen-nav-end {
+  background: #2563eb;
+  color: #fff;
+}
+
+.skilland-fullscreen-nav-end:hover {
+  background: #1d4ed8;
 }
 
 .skilland-fullscreen-nav-arrow {

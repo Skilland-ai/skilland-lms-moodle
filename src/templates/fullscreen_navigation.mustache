@@ -33,10 +33,14 @@
       * text - Its code and title, already formatted by format_string().
       * arialabel - The accessible name of the link.
     * next - The next playable lesson, false when there is none (same shape as prev).
+    * end - The way out when there is no next lesson, false otherwise:
+      * url - The lesson list, or the course page once every lesson is complete.
+      * text - Back to lessons, or Finish topic.
 
     Example context (json):
     {
         "prev": false,
+        "end": false,
         "next": {
             "url": "https://moodle.example/mod/skilland/view.php?id=2&play=11",
             "text": "L1.2 - Writing a first test",
@@ -55,6 +59,11 @@
     <a href="{{url}}" class="skilland-fullscreen-nav-next" aria-label="{{arialabel}}"><span class="skilland-fullscreen-nav-text">{{{text}}}</span><span class="skilland-fullscreen-nav-arrow" aria-hidden="true">→</span></a>
     {{/next}}
     {{^next}}
+    {{#end}}
+    <a href="{{url}}" class="skilland-fullscreen-nav-next skilland-fullscreen-nav-end"><span class="skilland-fullscreen-nav-text">{{text}}</span></a>
+    {{/end}}
+    {{^end}}
     <span class="skilland-fullscreen-nav-next skilland-fullscreen-nav-disabled" aria-disabled="true"><span class="visually-hidden">{{#str}}no_next_lesson, mod_skilland{{/str}}</span></span>
+    {{/end}}
     {{/next}}
 </div>

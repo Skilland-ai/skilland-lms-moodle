@@ -3198,7 +3198,7 @@ function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex 
  * @return string HTML output.
  */
 function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topicorderindex = 1) {
-    global $PAGE;
+    global $PAGE, $USER;
 
     $renderer = skilland_view_renderer();
 
@@ -3234,7 +3234,8 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
         $cm,
         $alllessons,
         (int) $topicorderindex,
-        $scormplayerurl
+        $scormplayerurl,
+        skilland_get_user_progress((int) $skilland->id, (int) $USER->id)
     );
     $html = $renderer->render($player);
 
@@ -3256,16 +3257,18 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
  * @param stdClass $cm The course module record.
  * @param int $topicorderindex The topic order index (T1, T2, etc.).
  * @param stdClass $skilland The skilland activity record.
+ * @param array $progress The viewer's progress, keyed by lesson id.
  * @return string HTML output.
  */
-function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland) {
+function skilland_render_fullscreen_navigation($currentlesson, $alllessons, $cm, $topicorderindex, $skilland, array $progress = []) {
     return skilland_view_renderer()->render(new \mod_skilland\output\lesson_navigation(
         $currentlesson,
         $alllessons,
         $cm,
         (int) $topicorderindex,
         $skilland,
-        \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN
+        \mod_skilland\output\lesson_navigation::STYLE_FULLSCREEN,
+        $progress
     ));
 }
 

@@ -16,6 +16,7 @@
 
 namespace mod_skilland\output;
 
+use mod_skilland\local\progress_summary;
 use moodle_url;
 use renderable;
 use renderer_base;
@@ -69,15 +70,57 @@ class lesson_list implements renderable, templatable {
      * @return array The template context.
      */
     public function export_for_template(renderer_base $output): array {
+        $summary = new progress_summary($this->skilland, $this->lessons, $this->progress);
+        $target = $summary->target();
+        $targetid = $target ? (int) $target['lesson']->id : null;
+
         $lessons = [];
         $lessonindex = 1;
         foreach ($this->lessons as $lesson) {
-            $lessons[] = $this->export_lesson($lesson, $lessonindex);
+            $card = $this->export_lesson($lesson, $lessonindex);
+            $card['istarget'] = $targetid !== null && (int) $lesson->id === $targetid;
+            $lessons[] = $card;
             $lessonindex++;
         }
         return [
             'haslessons' => !empty($lessons),
             'lessons' => $lessons,
+        ] + $this->export_summary($summary, $target);
+    }
+
+    /**
+     * Export the progress summary and the Continue button.
+     *
+     * @param progress_summary $summary The learner's progress.
+     * @param array $target The summary's target, empty without playable lessons.
+     * @return array The summary's part of the template context; just hassummary false without lessons.
+     */
+    protected function export_summary(progress_summary $summary, array $target): array {
+        $total = $summary->total();
+        if ($total === 0 || !$target) {
+            return ['hassummary' => false];
+        }
+        $completed = $summary->completed();
+        $counts = (object) ['completed' => $completed, 'total' => $total];
+        $buttonstring = [
+            progress_summary::MODE_START => 'start_lesson',
+            progress_summary::MODE_CONTINUE => 'continue_lesson',
+            progress_summary::MODE_REVIEW => 'review_lessons',
+        ][$target['mode']];
+
+        return [
+            'hassummary' => true,
+            'completedcount' => $completed,
+            'totalcount' => $total,
+            'percent' => (int) round(100 * $completed / $total),
+            'summarytext' => get_string('lessons_progress', 'mod_skilland', $counts),
+            'progressbarlabel' => get_string('progress_bar_label', 'mod_skilland', $counts),
+            'continuemode' => $target['mode'],
+            'continuetext' => get_string($buttonstring, 'mod_skilland'),
+            'continueurl' => (new moodle_url('/mod/skilland/view.php', [
+                'id' => $this->cm->id,
+                'play' => $target['lesson']->id,
+            ]))->out(false),
         ];
     }
 
