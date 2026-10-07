@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.61-beta]
+
+### Changed
+- The lesson-view styles moved from `styles/view.css` into the root `styles.css` (no separate
+  stylesheet request) and use Bootstrap variables, so the lesson list follows the Moodle theme.
+
+### Added
+- `pix/monologo.svg`, the monochrome activity icon Moodle 4.4+ themes use.
+
 ## [0.9.60-beta]
 
 ### Changed

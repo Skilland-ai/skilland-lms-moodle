@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026100700;   // YYYYMMDDHH - Packaging housekeeping: docs in the zip, CLI scripts under src/.
+$plugin->version   = 2026100701;   // YYYYMMDDHH - Lesson-view styles moved into styles.css, monologo.svg icon.
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.60-beta';
+$plugin->release   = '0.9.61-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
