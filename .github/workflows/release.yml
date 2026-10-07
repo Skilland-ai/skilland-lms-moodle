@@ -194,12 +194,18 @@ jobs:
             FAIL=1
           fi
 
-          for f in skilland/README.md skilland/CHANGES.md skilland/cli/cleanup_orphaned_scorm.php; do
+          for f in skilland/README.md skilland/CHANGES.md skilland/cli/cleanup_orphaned_scorm.php \
+                   skilland/styles.css skilland/pix/monologo.svg; do
             if [ ! -f "$f" ]; then
               echo "::error::Release zip is missing $f"
               FAIL=1
             fi
           done
+
+          if [ -e skilland/styles/view.css ]; then
+            echo "::error::Release zip contains the removed skilland/styles/view.css"
+            FAIL=1
+          fi
 
           if [ -e skilland/cli/configure_api.php ]; then
             echo "::error::Release zip contains the development-only skilland/cli/configure_api.php"

@@ -56,9 +56,6 @@ $PAGE->set_title($pagetitle);
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-// Add CSS for lesson cards and player.
-$PAGE->requires->css(new moodle_url('/mod/skilland/styles/view.css'));
-
 // Fetch visible lessons for this activity.
 $lessons = $DB->get_records('skilland_lesson', [
     'skillandid' => $skilland->id,

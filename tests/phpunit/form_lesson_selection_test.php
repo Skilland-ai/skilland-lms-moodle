@@ -611,6 +611,23 @@ class form_lesson_selection_test extends TestCase {
         $this->assertStringNotContainsString("\nform.mform .fheader", self::$css);
     }
 
+    public function test_lesson_view_styles_live_in_styles_css_and_the_icon_is_monochrome(): void {
+        $src = realpath(__DIR__ . '/../../src');
+        $this->assertDirectoryDoesNotExist("$src/styles");
+        $this->assertStringContainsString('.skilland-lesson-card', self::$css);
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if (substr($file->getFilename(), -4) === '.php' && strpos($file->getPathname(), '/tests/') === false) {
+                $this->assertStringNotContainsString('requires->css(', file_get_contents($file->getPathname()),
+                    $file->getPathname());
+            }
+        }
+        $svg = file_get_contents("$src/pix/monologo.svg");
+        $this->assertNotFalse(simplexml_load_string($svg));
+        $this->assertStringContainsString('viewBox="0 0 24 24"', $svg);
+        $this->assertDoesNotMatchRegularExpression('/(fill|stroke)="#/i', $svg);
+    }
+
     public function test_hidden_containers_are_toggled_by_class(): void {
         // The inline display:none moved to d-none, so the module toggles the class, not style.display.
         $this->assertStringContainsString('id="skilland-edit-button-container" class="form-group row fitem d-none"', self::$form);

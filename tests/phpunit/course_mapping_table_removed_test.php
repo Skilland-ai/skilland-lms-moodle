@@ -97,7 +97,7 @@ class course_mapping_table_removed_test extends TestCase {
         $src = __DIR__ . '/../../src';
         $this->assertFileDoesNotExist("$src/templates/player_navigation.mustache");
         $this->assertFalse(defined('mod_skilland\output\lesson_navigation::STYLE_PLAYER'));
-        $this->assertStringNotContainsString('skilland-player-nav', file_get_contents("$src/styles/view.css"));
+        $this->assertStringNotContainsString('skilland-player-nav', file_get_contents("$src/styles.css"));
     }
 
     // ---------------------------------------------------------------
