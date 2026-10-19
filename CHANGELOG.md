@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
-## [0.9.62-beta]
+## [0.9.63-beta]
 
 ### Added
 - Moodle App support (SKL-699): the activity opens natively in the app with the same
@@ -21,6 +21,18 @@ and this project's version follows Moodle's `$plugin->release` in `src/version.p
 ### Changed
 - The web and app SCORM player links come from one helper, `skilland_scorm_player_url()`;
   the web player URL is unchanged.
+
+## [0.9.62-beta]
+
+### Fixed
+- `cli/adopt_edukami.php` no longer skips a whole course that is mapped to another Skilland
+  skill than the one derived from its Edukami skill, such as a microcredential the import built
+  from several Edukami skills. When the mapped skill lists topics, the course is adopted into it:
+  each activity is matched to a topic by its migrated id, else by a unique name (case-insensitive,
+  whitespace collapsed, a leading "T<n> - " numbering removed), and each lesson the same way by
+  its title. An activity with no unique match is skipped with the reason and the others still
+  adopt. The course is still skipped whole when none of its activities matches the mapped skill.
+  The report says which topics and lessons matched by name, and notes the course's mapped skill.
 
 ## [0.9.61-beta]
 
