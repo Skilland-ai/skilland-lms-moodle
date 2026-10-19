@@ -72,6 +72,18 @@ namespace core_external {
         }
     }
 
+    // Like core's: a list of {item, itemid, warningcode, message}.
+    class external_warnings extends external_multiple_structure {
+        public function __construct($itemdesc = 'item', $itemiddesc = 'item id', $warningcodedesc = 'the warning code') {
+            parent::__construct(new external_single_structure([
+                'item' => new external_value(PARAM_TEXT, $itemdesc, VALUE_OPTIONAL),
+                'itemid' => new external_value(PARAM_INT, $itemiddesc, VALUE_OPTIONAL),
+                'warningcode' => new external_value(PARAM_ALPHANUM, $warningcodedesc),
+                'message' => new external_value(PARAM_RAW, 'untranslated english message to explain the warning'),
+            ], 'warning'), 'list of warnings', VALUE_OPTIONAL);
+        }
+    }
+
     class external_api {
         public static function validate_parameters(external_description $description, $params) {
             return $params;

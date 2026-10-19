@@ -19,6 +19,7 @@
 
 - [Overview](#-overview)
 - [Features](#-features)
+  - [Moodle App](#-moodle-app)
 - [Installation](#-installation)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
@@ -57,6 +58,13 @@ When creating an activity (Topic), you can now **select exactly which lessons** 
 - **Update notices**: Be told when content improves in Skilland, and apply it when it suits your course.
 - **Lock after access**: Ensure content stability once students start learning.
 - **Clean Interface**: Options to hide internal system codes/labels for a cleaner student experience.
+
+### 📱 Moodle App
+The activity opens natively in the Moodle App (4.5 and later) when the site has mobile web services enabled (**Site administration > General > Mobile app > Mobile settings**): students see the lesson list with their progress and a Continue button, and each lesson plays in the app's own SCORM player. Progress reaches Skilland's lesson list, activity completion and grades like on the web, and opening the activity in the app counts as a view for "view" completion.
+
+Limitations:
+- The lesson list needs a connection: it is live progress and is not stored for offline use.
+- Lessons are not available offline. The topic SCORM is a hidden (stealth) module the app cannot download from the course page, so a lesson needs a connection to start.
 
 ---
 

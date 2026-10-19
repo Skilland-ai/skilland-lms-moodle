@@ -295,6 +295,22 @@ SSO Flow:
 4. Skilland redirects to the native Studio path in `redirect` (/skills/<id>[?topic=<id>])
 ```
 
+### Moodle App
+
+`db/mobile.php` registers a `CoreCourseModuleDelegate` handler whose method,
+`mod_skilland\output\mobile::mobile_course_view()` (`classes/output/mobile.php`), renders
+`templates/mobile_view.mustache`: the same `lesson_list` export as `view.php`, built with
+`$applinks = true` so every playable lesson links to the app's SCORM player. The app's
+`AddonModScormPlayerLinkHandler` only matches `/mod/scorm/player.php` links that carry `id=<SCORM cmid>`
+or `a=<SCORM id>` (it ignores the web player's `cm=`) and reads `scoid`, `mode`, `newattempt` and
+`courseid`; `skilland_scorm_player_url($skilland, $lesson, $forapp)` in `locallib.php` builds both the
+web and the app shape so they cannot drift. The view itself is a pure read the app may cache: the
+template's JavaScript logs the view through `mod_skilland_view_skilland` (the one function in the
+official mobile service) via the app's `CoreCourseLogHelper`, which queues it offline, so the
+`course_module_viewed` event and view completion are never triggered twice. There are no
+`offlinefunctions`: the lesson list is live progress and the stealth topic SCORM is not downloadable
+from the course page, so offline lessons are documented as a limitation.
+
 ## Support
 
 For issues or questions:

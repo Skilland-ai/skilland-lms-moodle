@@ -22,7 +22,7 @@ class external_returnvalue_test extends TestCase {
 
     private const CLASSES = [
         'fetch_courses', 'create_course', 'fetch_topics', 'fetch_lessons', 'provision_topic_scorm',
-        'update_topic_scorm', 'check_topic_snapshot',
+        'update_topic_scorm', 'check_topic_snapshot', 'view_skilland',
     ];
 
     private const GLOBALS_TO_RESET = [

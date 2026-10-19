@@ -84,4 +84,15 @@ $functions = [
         'ajax' => true,
         'loginrequired' => true,
     ],
+    // The student-facing view function the Moodle App calls when it opens the activity (db/mobile.php).
+    'mod_skilland_view_skilland' => [
+        'classname' => 'mod_skilland\external\view_skilland',
+        'methodname' => 'execute',
+        'description' => 'Trigger the course module viewed event and view completion of a Skilland activity',
+        'type' => 'write',
+        'ajax' => true,
+        'loginrequired' => true,
+        'capabilities' => 'mod/skilland:view',
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
 ];

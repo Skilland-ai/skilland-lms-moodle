@@ -23,6 +23,7 @@ class external_validate_context_test extends TestCase {
         'mod_skilland_provision_topic_scorm_ajax' => 'provision_topic_scorm',
         'mod_skilland_update_topic_scorm_ajax' => 'update_topic_scorm',
         'mod_skilland_check_topic_snapshot' => 'check_topic_snapshot',
+        'mod_skilland_view_skilland' => 'view_skilland',
     ];
 
     private const GLOBALS_TO_RESET = [
@@ -110,6 +111,8 @@ class external_validate_context_test extends TestCase {
             'update_topic_scorm' => ['update_topic_scorm', 'mod/skilland:provision', \context_module::class,
                 self::CM_ID, [self::SKILLAND_ID, self::CM_ID]],
             'check_topic_snapshot' => ['check_topic_snapshot', 'mod/skilland:provision', \context_module::class,
+                self::CM_ID, [self::SKILLAND_ID]],
+            'view_skilland' => ['view_skilland', 'mod/skilland:view', \context_module::class,
                 self::CM_ID, [self::SKILLAND_ID]],
         ];
     }
@@ -228,7 +231,7 @@ class external_validate_context_test extends TestCase {
 
     public function test_every_service_class_extends_base_and_defines_the_three_methods(): void {
         $files = self::serviceFiles();
-        $this->assertCount(7, $files);
+        $this->assertCount(8, $files);
         foreach ($files as $file) {
             $name = basename($file, '.php');
             $source = file_get_contents($file);
