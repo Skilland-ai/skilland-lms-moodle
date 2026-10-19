@@ -53,8 +53,10 @@ Each Edukami activity whose topic the Edukami migration brought into Skilland ge
 activity right before it, in the same section, that keeps the Edukami topic SCORM, its attempts,
 its snapshot hash and its lesson->SCO mapping. The Edukami activity is then hidden (never
 deleted) and the SCORM is left untouched. A course with no Skilland skill is mapped to the
-migrated skill; a course mapped to another skill is skipped, and so is an activity whose topic
-Skilland does not list. Running it again changes nothing.
+migrated skill. A course mapped to another skill is adopted into that skill, matching topics and
+lessons by id, else by a unique name (a leading "T<n> - " ignored); it is skipped only when none
+of its activities matches. An activity with no unique matching topic is skipped. Running it
+again changes nothing.
 
 Without --apply it only reads (Moodle and the Skilland API) and prints what it would do.
 

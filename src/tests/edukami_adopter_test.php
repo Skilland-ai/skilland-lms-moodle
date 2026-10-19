@@ -232,24 +232,172 @@ final class edukami_adopter_test extends skilland_testcase {
     }
 
     /**
-     * A course already mapped to another skill is left alone.
+     * A course already mapped to another skill none of whose topics matches its activities is left alone.
      */
     public function test_course_mapped_to_another_skill_is_skipped(): void {
         global $DB;
 
         $course = $this->edukami_course();
         $edukami = $this->edukami_activity($course, self::TOPIC_OID);
+        $other = $this->edukami_activity($course, self::TOPIC2_OID, 'T2 - Sesgos cognitivos');
         $this->generator()->create_course_mapping((int) $course->id, 'another-skill');
-        $this->listing([self::topic_id()]);
+        // The mapped skill lists topics, but none by a migrated id or by the name of an activity.
+        $this->client->set_response('GET skills/{id}/topics', fn(array $variables): array => [
+            'topics' => $variables['skillId'] === 'another-skill' ? [
+                ['id' => edukami_ids::mongo_uuid('topics', 'unrelated-1'), 'name' => 'Edukami topic'],
+                ['id' => edukami_ids::mongo_uuid('topics', 'unrelated-2'), 'name' => 'Sesgos cognitivos II'],
+            ] : [],
+        ]);
+        $this->lesson_listing();
+
+        foreach ([false, true] as $apply) {
+            $report = $this->adopt($apply);
+
+            $this->assertSame(['adopted' => 0, 'already adopted' => 0, 'skipped' => 2, 'failed' => 0], $report['counts']);
+            $reason = 'the course is mapped to another Skilland skill (another-skill), not ' .
+                edukami_ids::skill_id(self::SKILL_OID) . ', and none of its activities matches a topic of it';
+            $this->assertSame([$reason, $reason], array_column($report['activities'], 'reason'));
+            $this->assertNull($report['skillid']);
+            $this->assertNull($report['note']);
+        }
+        $this->assertSame(0, $this->client->count_calls('GET topics/{id}/contents'));
+        $this->assertSame(0, $DB->count_records('skilland'));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $other->cmid]));
+        $this->assertSame('another-skill', skilland_get_mapped_courseid((int) $course->id));
+    }
+
+    /**
+     * A course mapped to a skill the import assembled from several Edukami skills (a microcredential),
+     * whose own Edukami skill is not in Skilland, is adopted into the mapped skill by topic and lesson
+     * name; an activity with no topic of its name is skipped and the others still adopt.
+     */
+    public function test_course_mapped_to_a_merged_skill_is_adopted_by_name(): void {
+        global $DB;
+
+        $mapped = 'e3506cac-81da-51f1-82f2-ab5f38e68319';
+        $course = $this->edukami_course();
+        $first = $this->edukami_activity($course, self::TOPIC_OID, 'T1 - El Prácticum como espacio formativo clave');
+        $second = $this->edukami_activity($course, self::TOPIC2_OID, ' t2 -  La tutoría  ACADÉMICA ');
+        $missing = $this->edukami_activity($course, '64a1f0c2b3d4e5f60123456c', 'T3 - Un tema que no está');
+        $this->generator()->create_course_mapping((int) $course->id, $mapped);
+        $topic1 = edukami_ids::mongo_uuid('topics', 'module-1:' . self::TOPIC_OID);
+        $topic2 = edukami_ids::mongo_uuid('topics', 'module-1:' . self::TOPIC2_OID);
+        // Only the mapped skill exists: the skill derived from the course's Edukami skill lists nothing.
+        $this->client->set_response('GET skills/{id}/topics', fn(array $variables): array => [
+            'topics' => $variables['skillId'] === $mapped ? [
+                ['id' => $topic1, 'name' => 'El Prácticum como espacio formativo clave'],
+                ['id' => $topic2, 'name' => 'La tutoría académica'],
+                ['id' => edukami_ids::mongo_uuid('topics', 'module-2:other'), 'name' => 'Evaluación de las prácticas'],
+            ] : [],
+        ]);
+        $lesson1 = edukami_ids::mongo_uuid('contents', 'module-1:' . self::LESSON1_OID);
+        $lesson2 = edukami_ids::mongo_uuid('contents', 'module-1:' . self::LESSON2_OID);
+        $this->client->set_response('GET topics/{id}/contents', ['contents' => [
+            ['id' => $lesson1, 'name' => 'Lesson one', 'type' => 'lesson', 'content' => '<p>1</p>',
+                'updatedAt' => '2026-01-01T10:00:00Z'],
+            ['id' => $lesson2, 'name' => 'LESSON TWO', 'type' => 'lesson', 'content' => '<p>2</p>',
+                'updatedAt' => '2026-01-01T10:00:00Z'],
+        ]]);
+
+        $dry = $this->adopt(false);
+
+        $this->assertSame(['adopted' => 2, 'already adopted' => 0, 'skipped' => 1, 'failed' => 0], $dry['counts']);
+        $this->assertSame($mapped, $dry['skillid']);
+        $this->assertStringContainsString('mapped to Skilland skill ' . $mapped, $dry['note']);
+        $this->assertSame(['name', 'name', null], array_column($dry['activities'], 'matchedby'));
+        $this->assertSame(
+            'would adopt: topic ' . $topic1 . ' (matched by name), 2 lesson(s) (2 matched by name), SCORM cm ' .
+                $first->scormcmid,
+            $dry['activities'][0]['reason']
+        );
+        $this->assertSame(
+            'topic 64a1f0c2b3d4e5f60123456c is not in the migration, and no topic is named "T3 - Un tema que no está"',
+            $dry['activities'][2]['reason']
+        );
+        $lines = edukami_adopter::format([$dry], false);
+        $this->assertContains('  note: ' . $dry['note'], $lines);
+        $this->assertSame(0, $DB->count_records('skilland'));
 
         $report = $this->adopt(true);
 
-        $this->assertSame(1, $report['counts']['skipped']);
-        $this->assertStringContainsString('another-skill', $report['activities'][0]['reason']);
-        $this->assertSame(0, $this->client->count_calls('GET skills/{id}/topics'));
-        $this->assertSame(0, $DB->count_records('skilland'));
-        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
-        $this->assertSame('another-skill', skilland_get_mapped_courseid((int) $course->id));
+        $this->assertSame(['adopted' => 2, 'already adopted' => 0, 'skipped' => 1, 'failed' => 0], $report['counts']);
+        $this->assertSame($mapped, skilland_get_mapped_courseid((int) $course->id));
+        foreach ([[$first, $topic1], [$second, $topic2]] as [$edukami, $topicid]) {
+            $skilland = $DB->get_record('skilland', ['scormcmid' => $edukami->scormcmid], '*', MUST_EXIST);
+            $this->assertSame($topicid, $skilland->skilland_topicid);
+            $this->assertSame([$lesson1 => 'sco-lesson-1', $lesson2 => 'sco-lesson-2'], json_decode($skilland->scomappings, true));
+            $this->assertSame([$lesson1, $lesson2], array_keys($this->lessons((int) $skilland->id)));
+            $this->assertSame(0, (int) $DB->get_field('course_modules', 'visible', ['id' => $edukami->cmid]));
+        }
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $missing->cmid]));
+
+        $again = $this->adopt(true);
+        $this->assertSame(['adopted' => 0, 'already adopted' => 2, 'skipped' => 1, 'failed' => 0], $again['counts']);
+        $this->assertSame(2, $DB->count_records('skilland'));
+    }
+
+    /**
+     * A name shared by two listed topics, or a topic two activities match by name, is ambiguous: those
+     * activities are skipped, and a lesson title shared by two listed lessons is left out.
+     */
+    public function test_ambiguous_name_matches_are_skipped(): void {
+        global $DB;
+
+        $mapped = 'e3506cac-81da-51f1-82f2-ab5f38e68319';
+        $course = $this->edukami_course();
+        $unique = $this->edukami_activity($course, self::TOPIC_OID, 'T1 - Tema único');
+        $twotopics = $this->edukami_activity($course, self::TOPIC2_OID, 'T2 - Tema repetido');
+        $twin1 = $this->edukami_activity($course, '64a1f0c2b3d4e5f60123456c', 'T3 - Tema gemelo');
+        $twin2 = $this->edukami_activity($course, '64a1f0c2b3d4e5f60123456d', 'T1 - Tema gemelo');
+        $this->generator()->create_course_mapping((int) $course->id, $mapped);
+        $uniqueid = edukami_ids::mongo_uuid('topics', 'unique');
+        $this->client->set_response('GET skills/{id}/topics', fn(array $variables): array => [
+            'topics' => $variables['skillId'] === $mapped ? [
+                ['id' => $uniqueid, 'name' => 'Tema único'],
+                ['id' => edukami_ids::mongo_uuid('topics', 'repeated-1'), 'name' => 'Tema repetido'],
+                ['id' => edukami_ids::mongo_uuid('topics', 'repeated-2'), 'name' => 'tema  repetido '],
+                ['id' => edukami_ids::mongo_uuid('topics', 'twin'), 'name' => 'Tema gemelo'],
+            ] : [],
+        ]);
+        $lesson1 = edukami_ids::mongo_uuid('contents', 'lesson-1');
+        $this->client->set_response('GET topics/{id}/contents', ['contents' => [
+            ['id' => $lesson1, 'name' => 'Lesson one', 'type' => 'lesson', 'content' => '<p>1</p>',
+                'updatedAt' => '2026-01-01T10:00:00Z'],
+            ['id' => edukami_ids::mongo_uuid('contents', 'lesson-2a'), 'name' => 'Lesson two', 'type' => 'lesson',
+                'content' => '<p>2</p>', 'updatedAt' => '2026-01-01T10:00:00Z'],
+            ['id' => edukami_ids::mongo_uuid('contents', 'lesson-2b'), 'name' => 'Lesson Two', 'type' => 'lesson',
+                'content' => '<p>2</p>', 'updatedAt' => '2026-01-01T10:00:00Z'],
+        ]]);
+
+        $report = $this->adopt(true);
+
+        $this->assertSame(['adopted' => 1, 'already adopted' => 0, 'skipped' => 3, 'failed' => 0], $report['counts']);
+        $byname = array_column($report['activities'], null, 'cmid');
+        $this->assertSame(edukami_adopter::ADOPTED, $byname[$unique->cmid]['outcome']);
+        $this->assertStringContainsString('1 lesson(s) (1 matched by name)', $byname[$unique->cmid]['reason']);
+        $this->assertSame(
+            ['lesson ' . self::LESSON2_OID . ' (Lesson two) is not in the migration and is left out ' .
+                '(2 lessons are named "Lesson two": ambiguous)'],
+            $byname[$unique->cmid]['warnings']
+        );
+        $this->assertStringEndsWith(
+            'and 2 topics are named "T2 - Tema repetido": ambiguous',
+            $byname[$twotopics->cmid]['reason']
+        );
+        foreach ([$twin1, $twin2] as $twin) {
+            $this->assertSame(edukami_adopter::SKIPPED, $byname[$twin->cmid]['outcome']);
+            $this->assertStringContainsString(
+                'which another activity of the course matches too: ambiguous',
+                $byname[$twin->cmid]['reason']
+            );
+            $this->assertNull($byname[$twin->cmid]['matchedby']);
+            $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $twin->cmid]));
+        }
+        $skilland = $DB->get_record('skilland', ['course' => $course->id], '*', MUST_EXIST);
+        $this->assertSame($uniqueid, $skilland->skilland_topicid);
+        $this->assertSame([$lesson1], array_keys($this->lessons((int) $skilland->id)));
+        $this->assertSame(1, (int) $DB->get_field('course_modules', 'visible', ['id' => $twotopics->cmid]));
     }
 
     /**
@@ -1053,9 +1201,10 @@ final class edukami_adopter_test extends skilland_testcase {
      *
      * @param \stdClass $course
      * @param string $topicoid Edukami topic ObjectId.
+     * @param string|null $name Activity name, "Edukami topic <n>" when null.
      * @return \stdClass id, cmid, scormcmid and scormid.
      */
-    private function edukami_activity(\stdClass $course, string $topicoid): \stdClass {
+    private function edukami_activity(\stdClass $course, string $topicoid, ?string $name = null): \stdClass {
         global $DB;
 
         $this->setAdminUser();
@@ -1072,7 +1221,7 @@ final class edukami_adopter_test extends skilland_testcase {
 
         $id = $DB->insert_record('edukami', (object) [
             'course' => $course->id,
-            'name' => 'Edukami topic ' . $n,
+            'name' => $name ?? 'Edukami topic ' . $n,
             'intro' => '',
             'introformat' => FORMAT_HTML,
             'edukami_topicid' => $topicoid,

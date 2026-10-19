@@ -26,7 +26,9 @@ namespace mod_skilland\local;
  * An activity whose topic Skilland does not list is skipped and left alone. A second run is a no-op.
  *
  * Skilland has no route that turns Edukami ObjectIds into the migration's ids, so the candidates are
- * computed ({@see edukami_ids}) and the one the topic or lesson listing returns is kept.
+ * computed ({@see edukami_ids}) and the one the topic or lesson listing returns is kept. When none is
+ * listed, a topic or lesson whose normalised name alone matches the activity name or lesson title is
+ * kept, which covers a course mapped to a skill the import assembled from several Edukami skills.
  *
  * @package    mod_skilland
  * @copyright  2026 Skilland
@@ -66,8 +68,9 @@ class edukami_adopter {
      * Adopt every Edukami activity (of the course, when one was given).
      *
      * @return array[] One report per course: courseid, shortname, skillid (the Skilland skill used, or
-     *     null), activities (each with outcome, edukamiid, cmid, name, reason, skillandid, warnings) and
-     *     counts (outcome => number).
+     *     null), note (why the activities are matched against another skill than the Edukami one, or
+     *     null), activities (each with outcome, edukamiid, cmid, name, reason, skillandid, matchedby
+     *     ('name' when the topic matched by name, else null) and warnings) and counts (outcome => number).
      * @throws \moodle_exception When mod_edukami's tables or module are missing.
      * @throws \coding_exception When called inside a database transaction in apply mode.
      */
@@ -135,6 +138,11 @@ class edukami_adopter {
     /**
      * Adopt the Edukami activities of one course.
      *
+     * A course already mapped to another Skilland skill than the one derived from its Edukami skill (a
+     * microcredential built on import from several Edukami skills, say) is adopted into the mapped
+     * skill: its activities are matched against the mapped skill's topics, by id and then by name. It
+     * is skipped whole only when none of its activities matches a topic of the mapped skill.
+     *
      * @param int $courseid Moodle course id.
      * @param \stdClass[] $rows Its Edukami activities, with their course module fields.
      * @return array The course report.
@@ -146,6 +154,7 @@ class edukami_adopter {
             'courseid' => $courseid,
             'shortname' => (string) $DB->get_field('course', 'shortname', ['id' => $courseid]),
             'skillid' => null,
+            'note' => null,
             'activities' => [],
         ];
 
@@ -158,60 +167,67 @@ class edukami_adopter {
         $skillid = $skilloid !== null ? edukami_ids::skill_id($skilloid) : strtolower($skillvalue);
 
         $mapped = skilland_get_mapped_courseid($courseid);
-        if ($mapped !== null && !self::same_skill($mapped, $skillid, $skilloid)) {
-            return $this->all(
-                $report,
-                $rows,
-                self::SKIPPED,
-                "the course is mapped to another Skilland skill ({$mapped}), not {$skillid}"
-            );
-        }
+        $othermapping = $mapped !== null && !self::same_skill($mapped, $skillid, $skilloid);
         $report['skillid'] = $mapped ?? $skillid;
 
         try {
-            $topics = mod_skilland_fetch_topics(strtolower($report['skillid']))['topics'] ?? [];
+            $listed = mod_skilland_fetch_topics(strtolower($report['skillid']))['topics'] ?? [];
         } catch (\Throwable $e) {
             return $this->all($report, $rows, self::FAILED, 'Skilland did not list the topics: ' . $e->getMessage());
         }
-        $topicids = [];
-        foreach ($topics as $topic) {
-            $topicids[strtolower((string) $topic['id'])] = (string) $topic['id'];
+        $topics = self::index($listed);
+
+        $plans = [];
+        foreach ($rows as $row) {
+            $plans[] = $this->plan_activity($row, $skilloid, $topics);
+        }
+        self::drop_shared_name_matches($plans);
+
+        if ($othermapping) {
+            if (!self::any_match($plans)) {
+                $report['skillid'] = null;
+                return $this->all(
+                    $report,
+                    $rows,
+                    self::SKIPPED,
+                    "the course is mapped to another Skilland skill ({$mapped}), not {$skillid}, " .
+                        'and none of its activities matches a topic of it'
+                );
+            }
+            $report['note'] = "the course is mapped to Skilland skill {$mapped}, not to {$skillid} (the Edukami " .
+                'skill\'s): its activities are matched against the mapped skill';
         }
 
         $ismapped = $mapped !== null;
-        foreach ($rows as $row) {
-            $report['activities'][] = $this->adopt_activity($row, $skilloid, $topicids, $skillid, $ismapped);
+        foreach ($plans as $plan) {
+            $report['activities'][] = $this->adopt_activity($plan, $skilloid, $skillid, $ismapped);
         }
         return $this->with_counts($report);
     }
 
     /**
-     * Adopt one Edukami activity.
+     * Work out, without writing anything, what to do with one Edukami activity: whether a Skilland
+     * activity already keeps its SCORM, whether it has a SCORM to keep, and which listed topic it is.
+     *
+     * The topic is matched by its migrated id candidates first, then by a unique normalised name
+     * ({@see normalise_name()}) among the listed topics.
      *
      * @param \stdClass $row The edukami row with its course module fields.
      * @param string|null $skilloid The course's Edukami skill ObjectId, null when it is not one.
-     * @param array $topicids Topic ids Skilland lists for the skill: lower-case id => id as listed.
-     * @param string $skillid Skilland skill id the course is mapped to when it is not yet.
-     * @param bool $ismapped Whether the course is mapped to the skill; set once this call maps it.
-     * @return array The activity's report entry.
+     * @param array $topics The listed topics, as {@see index()} returns them.
+     * @return array row, entry (the report entry so far), existing (skilland id keeping the SCORM, or
+     *     null), scormcm, topicid (null when unmatched) and byname (whether the topic matched by name).
      */
-    private function adopt_activity(
-        \stdClass $row,
-        ?string $skilloid,
-        array $topicids,
-        string $skillid,
-        bool &$ismapped
-    ): array {
+    private function plan_activity(\stdClass $row, ?string $skilloid, array $topics): array {
         global $DB;
 
-        $entry = [
-            'outcome' => self::SKIPPED,
-            'edukamiid' => (int) $row->id,
-            'cmid' => (int) $row->cmid,
-            'name' => (string) $row->name,
-            'reason' => '',
-            'skillandid' => null,
-            'warnings' => [],
+        $plan = [
+            'row' => $row,
+            'entry' => self::entry($row, self::SKIPPED, ''),
+            'existing' => null,
+            'scormcm' => null,
+            'topicid' => null,
+            'byname' => false,
         ];
         $courseid = (int) $row->course;
         $scormcmid = (int) ($row->scormcmid ?? 0);
@@ -225,56 +241,134 @@ class edukami_adopter {
                 IGNORE_MULTIPLE
             );
             if ($existing) {
-                $entry['outcome'] = self::ALREADY;
-                $entry['skillandid'] = (int) $existing->id;
-                if ((int) $row->cmvisible === 1) {
-                    if ($this->apply) {
-                        set_coursemodule_visible((int) $row->cmid, 0);
-                        $entry['reason'] = 'Edukami activity hidden';
-                    } else {
-                        $entry['reason'] = 'the Edukami activity would be hidden';
-                    }
-                }
-                return $entry;
+                $plan['existing'] = (int) $existing->id;
+                $plan['entry']['outcome'] = self::ALREADY;
+                $plan['entry']['skillandid'] = (int) $existing->id;
+                return $plan;
             }
         }
 
         $scormcm = $scormcmid > 0 ? get_coursemodule_from_id('scorm', $scormcmid, $courseid, false, IGNORE_MISSING) : false;
         if (!$scormcm || !empty($scormcm->deletioninprogress)) {
-            $entry['reason'] = 'the Edukami activity has no topic SCORM to keep';
-            return $entry;
+            $plan['entry']['reason'] = 'the Edukami activity has no topic SCORM to keep';
+            return $plan;
+        }
+        $plan['scormcm'] = $scormcm;
+
+        $topicid = self::first_listed(self::candidates((string) $row->edukami_topicid, $skilloid, 'topic'), $topics['ids']);
+        if ($topicid !== null) {
+            $plan['topicid'] = $topicid;
+            return $plan;
         }
 
-        $topicid = self::first_listed(self::candidates((string) $row->edukami_topicid, $skilloid, 'topic'), $topicids);
+        [$topicid, $why] = self::unique_name((string) $row->name, $topics['names'], 'topic');
+        if ($topicid !== null) {
+            $plan['topicid'] = $topicid;
+            $plan['byname'] = true;
+            $plan['entry']['matchedby'] = 'name';
+            return $plan;
+        }
+        $plan['entry']['reason'] = 'topic ' . $row->edukami_topicid . ' is not in the migration, and ' . $why;
+        return $plan;
+    }
+
+    /**
+     * Unmatch the activities that matched a topic by name when another activity of the course matched
+     * the same topic: which of them the topic belongs to is ambiguous.
+     *
+     * @param array[] $plans The plan_activity() results of one course, changed in place.
+     */
+    private static function drop_shared_name_matches(array &$plans): void {
+        $claims = [];
+        foreach ($plans as $plan) {
+            if ($plan['topicid'] !== null) {
+                $claims[$plan['topicid']] = ($claims[$plan['topicid']] ?? 0) + 1;
+            }
+        }
+        foreach ($plans as &$plan) {
+            if ($plan['byname'] && $claims[$plan['topicid']] > 1) {
+                $plan['entry']['reason'] = 'its name matches topic ' . $plan['topicid'] .
+                    ', which another activity of the course matches too: ambiguous';
+                $plan['entry']['matchedby'] = null;
+                $plan['topicid'] = null;
+                $plan['byname'] = false;
+            }
+        }
+        unset($plan);
+    }
+
+    /**
+     * Whether any activity of the course is already adopted or matches a listed topic.
+     *
+     * @param array[] $plans The plan_activity() results of one course.
+     * @return bool
+     */
+    private static function any_match(array $plans): bool {
+        foreach ($plans as $plan) {
+            if ($plan['existing'] !== null || $plan['topicid'] !== null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Adopt one Edukami activity.
+     *
+     * @param array $plan Its plan_activity() result.
+     * @param string|null $skilloid The course's Edukami skill ObjectId, null when it is not one.
+     * @param string $skillid Skilland skill id the course is mapped to when it is not yet.
+     * @param bool $ismapped Whether the course is mapped to the skill; set once this call maps it.
+     * @return array The activity's report entry.
+     */
+    private function adopt_activity(array $plan, ?string $skilloid, string $skillid, bool &$ismapped): array {
+        global $DB;
+
+        $row = $plan['row'];
+        $entry = $plan['entry'];
+        $courseid = (int) $row->course;
+        $scormcmid = (int) ($row->scormcmid ?? 0);
+
+        if ($plan['existing'] !== null) {
+            if ((int) $row->cmvisible === 1) {
+                if ($this->apply) {
+                    set_coursemodule_visible((int) $row->cmid, 0);
+                    $entry['reason'] = 'Edukami activity hidden';
+                } else {
+                    $entry['reason'] = 'the Edukami activity would be hidden';
+                }
+            }
+            return $entry;
+        }
+        $topicid = $plan['topicid'];
         if ($topicid === null) {
-            $entry['reason'] = 'topic ' . $row->edukami_topicid . ' is not in the migration';
             return $entry;
         }
 
         try {
-            $lessonids = [];
-            foreach (mod_skilland_fetch_lessons($topicid) as $lesson) {
-                $lessonids[strtolower((string) $lesson['id'])] = (string) $lesson['id'];
-            }
+            $listed = mod_skilland_fetch_lessons($topicid);
         } catch (\Throwable $e) {
             $entry['outcome'] = self::FAILED;
             $entry['reason'] = 'Skilland did not list the lessons of topic ' . $topicid . ': ' . $e->getMessage();
             return $entry;
         }
+        $index = self::index($listed);
 
         $edukamilessons = $DB->get_records('edukami_lesson', ['edukamiid' => $row->id, 'visible' => 1], 'orderindex ASC, id ASC');
+        $matches = $this->match_lessons($edukamilessons, $index, $skilloid);
         $lessons = [];
+        $lessonsbyname = 0;
         foreach ($edukamilessons as $lesson) {
-            $lessonid = self::first_listed(
-                self::candidates((string) $lesson->edukami_lessonid, $skilloid, 'content'),
-                $lessonids
-            );
-            if ($lessonid === null) {
+            if (!isset($matches['ids'][$lesson->id])) {
                 $entry['warnings'][] = 'lesson ' . $lesson->edukami_lessonid . ' (' . $lesson->title .
-                    ') is not in the migration and is left out';
+                    ') is not in the migration and is left out' . $matches['why'][$lesson->id];
                 continue;
             }
-            $sco = $this->lesson_sco($lesson, (int) $scormcm->instance);
+            $lessonid = $matches['ids'][$lesson->id];
+            if (!empty($matches['byname'][$lesson->id])) {
+                $lessonsbyname++;
+            }
+            $sco = $this->lesson_sco($lesson, (int) $plan['scormcm']->instance);
             if ($sco === null) {
                 $entry['warnings'][] = 'lesson ' . $lesson->edukami_lessonid . ' (' . $lesson->title .
                     ') has no SCO in the SCORM: its progress is not read';
@@ -286,7 +380,9 @@ class edukami_adopter {
             return $entry;
         }
 
-        $summary = 'topic ' . $topicid . ', ' . count($lessons) . ' lesson(s), SCORM cm ' . $scormcmid;
+        $summary = 'topic ' . $topicid . ($plan['byname'] ? ' (matched by name)' : '') . ', ' . count($lessons) .
+            ' lesson(s)' . ($lessonsbyname > 0 ? ' (' . $lessonsbyname . ' matched by name)' : '') .
+            ', SCORM cm ' . $scormcmid;
         if (!$this->apply) {
             $entry['outcome'] = self::ADOPTED;
             $entry['reason'] = 'would adopt: ' . $summary;
@@ -319,6 +415,138 @@ class edukami_adopter {
             $entry['warnings'][] = $warning;
         }
         return $entry;
+    }
+
+    /**
+     * Match the Edukami lessons of an activity to the lessons Skilland lists for its topic: by their
+     * migrated id candidates first, then by a unique normalised title among the listed lessons no other
+     * Edukami lesson of the activity matched.
+     *
+     * @param \stdClass[] $edukamilessons The activity's visible edukami_lesson rows.
+     * @param array $index The listed lessons, as {@see index()} returns them.
+     * @param string|null $skilloid The course's Edukami skill ObjectId, or null.
+     * @return array ids (edukami_lesson id => Skilland lesson id), byname (edukami_lesson id => true)
+     *     and why (edukami_lesson id => why it did not match, '' when it did).
+     */
+    private function match_lessons(array $edukamilessons, array $index, ?string $skilloid): array {
+        $ids = [];
+        $byname = [];
+        $why = [];
+        foreach ($edukamilessons as $lesson) {
+            $why[$lesson->id] = '';
+            $candidates = self::candidates((string) $lesson->edukami_lessonid, $skilloid, 'content');
+            $lessonid = self::first_listed($candidates, $index['ids']);
+            if ($lessonid !== null) {
+                $ids[$lesson->id] = $lessonid;
+            }
+        }
+        $claims = array_count_values($ids);
+        $bynamecandidates = [];
+        foreach ($edukamilessons as $lesson) {
+            if (isset($ids[$lesson->id])) {
+                continue;
+            }
+            [$lessonid, $reason] = self::unique_name((string) $lesson->title, $index['names'], 'lesson');
+            if ($lessonid === null) {
+                $why[$lesson->id] = ' (' . $reason . ')';
+                continue;
+            }
+            if (isset($claims[$lessonid])) {
+                $why[$lesson->id] = ' (its title matches lesson ' . $lessonid . ', which another lesson matches by id)';
+                continue;
+            }
+            $bynamecandidates[$lesson->id] = $lessonid;
+        }
+        $nameclaims = array_count_values($bynamecandidates);
+        foreach ($bynamecandidates as $edukamilessonid => $lessonid) {
+            if ($nameclaims[$lessonid] > 1) {
+                $why[$edukamilessonid] = ' (its title matches lesson ' . $lessonid . ', which another lesson matches too)';
+                continue;
+            }
+            $ids[$edukamilessonid] = $lessonid;
+            $byname[$edukamilessonid] = true;
+        }
+        return ['ids' => $ids, 'byname' => $byname, 'why' => $why];
+    }
+
+    /**
+     * Index listed topics or lessons by lower-case id and by normalised name.
+     *
+     * @param array[] $listed Topics or lessons as listed, each with an id and a name.
+     * @return array ids (lower-case id => id as listed) and names (normalised name => ids as listed).
+     */
+    private static function index(array $listed): array {
+        $ids = [];
+        $names = [];
+        foreach ($listed as $item) {
+            $id = (string) $item['id'];
+            $ids[strtolower($id)] = $id;
+            $name = self::normalise_name((string) ($item['name'] ?? ''));
+            if ($name !== '') {
+                $names[$name][] = $id;
+            }
+        }
+        return ['ids' => $ids, 'names' => $names];
+    }
+
+    /**
+     * The one listed topic or lesson whose normalised name is this one's.
+     *
+     * @param string $name The Edukami activity name or lesson title.
+     * @param array $names Normalised name => ids as listed.
+     * @param string $kind topic or lesson, for the reason.
+     * @return array [id or null, why there is none].
+     */
+    private static function unique_name(string $name, array $names, string $kind): array {
+        $key = self::normalise_name($name);
+        $ids = $key === '' ? [] : array_values(array_unique($names[$key] ?? []));
+        if (count($ids) === 1) {
+            return [$ids[0], ''];
+        }
+        if (!$ids) {
+            return [null, "no {$kind} is named \"{$name}\""];
+        }
+        return [null, count($ids) . " {$kind}s are named \"{$name}\": ambiguous"];
+    }
+
+    /**
+     * A topic or lesson name as compared across Edukami and Skilland: Unicode NFC, whitespace collapsed
+     * and trimmed, a leading "T<n> - " numbering prefix removed, lower case.
+     *
+     * @param string $name
+     * @return string
+     */
+    public static function normalise_name(string $name): string {
+        if (class_exists(\Normalizer::class)) {
+            $normalised = \Normalizer::normalize($name, \Normalizer::FORM_C);
+            if (is_string($normalised)) {
+                $name = $normalised;
+            }
+        }
+        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
+        $name = preg_replace('/^T\s*\d+\s*[-\x{2013}\x{2014}:.]\s*/iu', '', $name) ?? $name;
+        return mb_strtolower(trim($name), 'UTF-8');
+    }
+
+    /**
+     * A report entry for an Edukami activity.
+     *
+     * @param \stdClass $row The edukami row with its course module fields.
+     * @param string $outcome Outcome.
+     * @param string $reason Reason.
+     * @return array
+     */
+    private static function entry(\stdClass $row, string $outcome, string $reason): array {
+        return [
+            'outcome' => $outcome,
+            'edukamiid' => (int) $row->id,
+            'cmid' => (int) $row->cmid,
+            'name' => (string) $row->name,
+            'reason' => $reason,
+            'skillandid' => null,
+            'matchedby' => null,
+            'warnings' => [],
+        ];
     }
 
     /**
@@ -580,15 +808,7 @@ class edukami_adopter {
      */
     private function all(array $report, array $rows, string $outcome, string $reason): array {
         foreach ($rows as $row) {
-            $report['activities'][] = [
-                'outcome' => $outcome,
-                'edukamiid' => (int) $row->id,
-                'cmid' => (int) $row->cmid,
-                'name' => (string) $row->name,
-                'reason' => $reason,
-                'skillandid' => null,
-                'warnings' => [],
-            ];
+            $report['activities'][] = self::entry($row, $outcome, $reason);
         }
         return $this->with_counts($report);
     }
@@ -624,6 +844,9 @@ class edukami_adopter {
                 $report['shortname'],
                 $report['skillid'] ?? 'none'
             );
+            if (!empty($report['note'])) {
+                $lines[] = '  note: ' . $report['note'];
+            }
             foreach ($report['activities'] as $activity) {
                 $lines[] = sprintf(
                     '  [%s] edukami %d (cm %d) "%s"%s',
