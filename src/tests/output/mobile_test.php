@@ -124,6 +124,8 @@ final class mobile_test extends skilland_testcase {
     }
 
     public function test_a_user_without_the_view_capability_is_refused(): void {
+        // A prohibited mod/skilland:view makes the activity not user-visible, so require_login()
+        // refuses before require_capability() is reached, exactly as view.php does.
         [$course, $skilland, $student] = $this->activity();
         $this->provision($skilland);
         $studentrole = $this->getDataGenerator()->create_role();
@@ -137,7 +139,7 @@ final class mobile_test extends skilland_testcase {
         role_assign($studentrole, $student->id, \context_module::instance($skilland->cmid)->id);
         accesslib_clear_all_caches_for_unit_testing();
 
-        $this->expectException(\required_capability_exception::class);
+        $this->expectException(\require_login_exception::class);
         $this->view($course, $skilland, $student);
     }
 }

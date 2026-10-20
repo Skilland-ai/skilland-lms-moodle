@@ -193,6 +193,26 @@ class view_progress_test extends TestCase {
         $this->assertSame($web['continuemode'], $app['continuemode']);
     }
 
+    public function test_app_template_text_encodes_angular_syntax(): void {
+        $this->assertSame('&#123;&#123; a &#125;&#125; &#64;if (b) &#123;c&#125; &lt;p&gt;',
+            skilland_app_template_text('{{ a }} @if (b) {c} &lt;p&gt;'));
+        $this->assertSame('Plain &amp; title', skilland_app_template_text('Plain &amp; title'));
+    }
+
+    public function test_lesson_list_encodes_titles_for_the_app_only(): void {
+        $skilland = (object) ['id' => 10, 'course' => 3, 'scormcmid' => 100, 'hidelabels' => 0];
+        $lessons = [1 => (object) ['id' => 1, 'title' => '{{ 1 + 1 }}', 'scoid' => 11, 'updatedat' => 0]];
+        $renderer = $GLOBALS['PAGE']->get_renderer('mod_skilland');
+
+        $web = (new \mod_skilland\output\lesson_list($skilland, $lessons, (object) ['id' => 90]))
+            ->export_for_template($renderer);
+        $app = (new \mod_skilland\output\lesson_list($skilland, $lessons, (object) ['id' => 90], 1, [], false, true))
+            ->export_for_template($renderer);
+
+        $this->assertSame('{{ 1 + 1 }}', $web['lessons'][0]['title'], 'The web view is unchanged');
+        $this->assertSame('&#123;&#123; 1 + 1 &#125;&#125;', $app['lessons'][0]['title']);
+    }
+
     public function test_lesson_list_app_links_leave_unplayable_lessons_without_a_link(): void {
         $skilland = (object) ['id' => 10, 'course' => 3, 'scormcmid' => 100, 'hidelabels' => 0];
         $lessons = [1 => (object) ['id' => 1, 'title' => 'No SCO', 'scoid' => null, 'updatedat' => 0]];

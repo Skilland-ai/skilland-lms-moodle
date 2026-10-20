@@ -3209,6 +3209,23 @@ function skilland_scorm_player_url(stdClass $skilland, stdClass $lesson, bool $f
 }
 
 /**
+ * Make formatted, user-controlled HTML safe to place in a Moodle App template.
+ *
+ * The app does not insert a site plugin's template into the page: it compiles it as an Angular
+ * template, with every app provider in scope, so a `{{ ... }}` interpolation, an `@` block or an
+ * ICU `{...}` in a lesson title or the intro would run as code in the student's app (SKL-699).
+ * format_string() and format_module_intro() leave these characters alone. Their HTML entities
+ * render the same characters but never start Angular syntax. Apply after formatting, and only to
+ * app output: the web view stays as it is.
+ *
+ * @param string $html Formatted HTML (format_string() or format_text() output).
+ * @return string The same HTML with `{`, `}` and `@` as entities.
+ */
+function skilland_app_template_text(string $html): string {
+    return strtr($html, ['{' => '&#123;', '}' => '&#125;', '@' => '&#64;']);
+}
+
+/**
  * Render the lesson list view with progress indicators.
  *
  * @param stdClass $skilland The skilland activity record.

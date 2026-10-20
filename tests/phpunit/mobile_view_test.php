@@ -151,6 +151,23 @@ class mobile_view_test extends TestCase {
         $this->assertStringContainsString('<ion-card-content>content_last_updated</ion-card-content>', $html);
     }
 
+    public function test_titles_and_the_intro_cannot_carry_angular_syntax(): void {
+        // The app compiles the template as Angular code: a title or intro must never interpolate.
+        $this->db->set_field('skilland_lesson', 'title', '{{ 1 + 1 }}', ['id' => 10]);
+        $this->db->set_field('skilland_lesson', 'title', '@let t = CoreSitesProvider.getCurrentSite().token;', ['id' => 11]);
+        $this->db->set_field('skilland', 'intro', '<p>{{ x }} {count, plural, =1 {one}}</p>', ['id' => self::SKILLAND_ID]);
+
+        $html = $this->html($this->view());
+
+        $this->assertStringContainsString('<h2>&#123;&#123; 1 + 1 &#125;&#125;</h2>', $html);
+        $this->assertStringContainsString('<h2>&#64;let t = CoreSitesProvider.getCurrentSite().token;</h2>', $html);
+        $this->assertStringContainsString('&lt;p&gt;&amp;#123;&amp;#123; x &amp;#125;&amp;#125; &amp;#123;count', $html);
+        // Only the template's own markup is left: no brace or @ from user text.
+        $this->assertStringNotContainsString('{', $html);
+        $this->assertStringNotContainsString('}', $html);
+        $this->assertStringNotContainsString('@', $html);
+    }
+
     public function test_no_visible_lessons_shows_the_notice(): void {
         $this->db->delete_records('skilland_lesson', ['skillandid' => self::SKILLAND_ID]);
 

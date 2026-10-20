@@ -165,12 +165,18 @@ class lesson_list implements renderable, templatable {
                 (($scorevalue >= 0 && $scorevalue <= 100) ? '%' : '');
         }
 
+        $title = format_string($lesson->title);
+        if ($this->applinks) {
+            // The app compiles its template as Angular code: no interpolation from a title.
+            $title = skilland_app_template_text($title);
+        }
+
         return array_merge(self::status_display($status, $canplay), [
             'playable' => $canplay,
             'url' => $url,
             'showlabel' => empty($this->skilland->hidelabels),
             'label' => skilland_lesson_label($this->topicorderindex, $lesson, $lessonindex),
-            'title' => format_string($lesson->title),
+            'title' => $title,
             'meta' => implode(' · ', $meta),
             'scomissing' => $this->showscowarnings && empty($lesson->scoid),
         ]);

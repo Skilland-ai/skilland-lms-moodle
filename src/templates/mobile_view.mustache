@@ -24,6 +24,9 @@
     core-link capture="true" keeps a link inside the app, so the SCORM player link handler
     opens it instead of the browser.
 
+    The app compiles this template as Angular code, so user-controlled text (the intro and the
+    lesson titles) arrives with its braces and @ as HTML entities (skilland_app_template_text()).
+
     Classes required for JS:
     * none
 
@@ -33,7 +36,7 @@
     Context variables required for this template:
     * cmid - The course module id.
     * notprovisioned - Whether the topic SCORM is not provisioned yet (nothing to play).
-    * intro - The formatted activity description, empty when there is none.
+    * intro - The formatted activity description, Angular-safe, empty when there is none.
     * lastupdated - The "Content last updated" notice, empty when the content was never rebuilt.
     * haslessons - Whether the activity has any visible lesson.
     * hassummary - Whether the progress summary and the Continue button are shown (a playable lesson exists).
@@ -48,7 +51,7 @@
       * url - The app player link of a playable lesson.
       * showlabel - Whether the lesson code badge is shown.
       * label - The lesson code, like L1.2.
-      * title - The lesson title, already formatted by format_string().
+      * title - The lesson title, formatted by format_string() and made Angular-safe.
       * meta - The updated date and score line, empty when there is neither.
       * statustext - The progress status.
       * helptext - Why the lesson is unavailable, empty for a playable lesson.

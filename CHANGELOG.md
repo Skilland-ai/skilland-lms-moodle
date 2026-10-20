@@ -14,7 +14,8 @@ and this project's version follows Moodle's `$plugin->release` in `src/version.p
   `classes/output/mobile.php`, `templates/mobile_view.mustache`). Playable lessons open in
   the app's own SCORM player; lessons without a SCO and unprovisioned activities show as
   unavailable with the web strings. The lesson list needs a connection and the lessons are
-  not available offline.
+  not available offline. Lesson titles and the intro reach the app's Angular-compiled
+  template with `{`, `}` and `@` encoded, so a title cannot run code in a student's app.
 - `mod_skilland_view_skilland`, a student-facing web service in the official mobile service
   that triggers the course module viewed event and view completion, called by the app view.
 

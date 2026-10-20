@@ -27,10 +27,12 @@ require_once(__DIR__ . '/../../locallib.php');
 /**
  * The Moodle App view of a Skilland activity (db/mobile.php, CoreCourseModuleDelegate).
  *
- * A pure read the app may cache: the same lesson list as view.php, with the lessons linking to
- * the app's native SCORM player. The viewed event and view completion come from the
- * mod_skilland_view_skilland web service, which the returned JavaScript calls through the
- * app's CoreCourseLogHelper (queued when offline), like core modules do.
+ * The same lesson list as view.php, with the lessons linking to the app's native SCORM player.
+ * Like view.php it refreshes the viewer's progress from their SCORM tracks (and with it their
+ * completion and grade) on every call, but it never logs the view: the viewed event and view
+ * completion come from the mod_skilland_view_skilland web service, which the returned
+ * JavaScript calls through the app's CoreCourseLogHelper (queued when offline), like core
+ * modules do.
  *
  * @package    mod_skilland
  * @copyright  2026 Skilland <https://skilland.ai>
@@ -91,7 +93,10 @@ class mobile {
         $data = [
             'cmid' => (int) $cm->id,
             'notprovisioned' => empty($skilland->scormcmid),
-            'intro' => !empty($skilland->intro) ? format_module_intro('skilland', $skilland, $cm->id) : '',
+            // The app compiles the template as Angular code: no interpolation from the intro.
+            'intro' => !empty($skilland->intro)
+                ? skilland_app_template_text(format_module_intro('skilland', $skilland, $cm->id))
+                : '',
             'lastupdated' => '',
             'haslessons' => false,
             'hassummary' => false,
