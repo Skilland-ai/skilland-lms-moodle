@@ -135,6 +135,97 @@ class view_progress_test extends TestCase {
         $this->assertCount(1, $GLOBALS['_test_completion_updates']);
     }
 
+    // ---------------------------------------------------------------
+    // skilland_viewer_progress() and the app player links (SKL-699)
+    // ---------------------------------------------------------------
+
+    public function test_viewer_progress_reads_nothing_without_lessons(): void {
+        $this->assertSame([], skilland_viewer_progress((object) ['id' => 10, 'scormcmid' => 100], [], 50));
+        $this->assertEmpty($this->db->get_calls());
+    }
+
+    public function test_viewer_progress_is_what_the_lesson_list_shows(): void {
+        $this->db->seed('skilland_progress', [
+            (object) ['id' => 1, 'skillandid' => 10, 'lessonid' => 1, 'userid' => 50, 'status' => 'completed',
+                'score' => '80.00000'],
+            (object) ['id' => 2, 'skillandid' => 10, 'lessonid' => 3, 'userid' => 51, 'status' => 'completed',
+                'score' => null],
+        ]);
+
+        $progress = skilland_viewer_progress((object) ['id' => 10, 'scormcmid' => 100], $this->lessons(), 50);
+
+        $this->assertSame([1 => ['status' => 'completed', 'score' => '80']], $progress);
+    }
+
+    public function test_player_url_has_a_web_shape_and_an_app_shape(): void {
+        $skilland = (object) ['id' => 10, 'course' => 3, 'scormcmid' => 100];
+        $lesson = (object) ['id' => 2, 'scoid' => 12];
+
+        $this->assertSame('/mod/scorm/player.php?scoid=12&cm=100&mode=normal&newattempt=off&display=popup',
+            skilland_scorm_player_url($skilland, $lesson)->out(false));
+        // The app's SCORM player link handler matches id= (or a=) and reads scoid, mode, newattempt and courseid.
+        $this->assertSame('/mod/scorm/player.php?id=100&scoid=12&mode=normal&newattempt=off&courseid=3',
+            skilland_scorm_player_url($skilland, $lesson, true)->out(false));
+    }
+
+    public function test_lesson_list_links_to_the_app_player_when_asked(): void {
+        $skilland = (object) ['id' => 10, 'course' => 3, 'scormcmid' => 100, 'hidelabels' => 0];
+        $renderer = $GLOBALS['PAGE']->get_renderer('mod_skilland');
+
+        $web = (new \mod_skilland\output\lesson_list($skilland, $this->lessons(), (object) ['id' => 90]))
+            ->export_for_template($renderer);
+        $app = (new \mod_skilland\output\lesson_list($skilland, $this->lessons(), (object) ['id' => 90], 1, [], false, true))
+            ->export_for_template($renderer);
+
+        $this->assertSame('/mod/skilland/view.php?id=90&play=1', $web['lessons'][0]['url']);
+        $this->assertSame('/mod/skilland/view.php?id=90&play=1', $web['continueurl']);
+        $this->assertSame('/mod/scorm/player.php?id=100&scoid=11&mode=normal&newattempt=off&courseid=3',
+            $app['lessons'][0]['url']);
+        $this->assertSame('/mod/scorm/player.php?id=100&scoid=13&mode=normal&newattempt=off&courseid=3',
+            $app['lessons'][2]['url']);
+        $this->assertSame($app['lessons'][0]['url'], $app['continueurl'], 'Start opens the first lesson');
+        // Everything but the links is the same on web and app.
+        foreach ($web['lessons'] as $i => $card) {
+            unset($card['url'], $app['lessons'][$i]['url']);
+            $this->assertSame($card, $app['lessons'][$i]);
+        }
+        $this->assertSame($web['continuetext'], $app['continuetext']);
+        $this->assertSame($web['continuemode'], $app['continuemode']);
+    }
+
+    public function test_app_template_text_encodes_angular_syntax(): void {
+        $this->assertSame('&#123;&#123; a &#125;&#125; &#64;if (b) &#123;c&#125; &lt;p&gt;',
+            skilland_app_template_text('{{ a }} @if (b) {c} &lt;p&gt;'));
+        $this->assertSame('Plain &amp; title', skilland_app_template_text('Plain &amp; title'));
+    }
+
+    public function test_lesson_list_encodes_titles_for_the_app_only(): void {
+        $skilland = (object) ['id' => 10, 'course' => 3, 'scormcmid' => 100, 'hidelabels' => 0];
+        $lessons = [1 => (object) ['id' => 1, 'title' => '{{ 1 + 1 }}', 'scoid' => 11, 'updatedat' => 0]];
+        $renderer = $GLOBALS['PAGE']->get_renderer('mod_skilland');
+
+        $web = (new \mod_skilland\output\lesson_list($skilland, $lessons, (object) ['id' => 90]))
+            ->export_for_template($renderer);
+        $app = (new \mod_skilland\output\lesson_list($skilland, $lessons, (object) ['id' => 90], 1, [], false, true))
+            ->export_for_template($renderer);
+
+        $this->assertSame('{{ 1 + 1 }}', $web['lessons'][0]['title'], 'The web view is unchanged');
+        $this->assertSame('&#123;&#123; 1 + 1 &#125;&#125;', $app['lessons'][0]['title']);
+    }
+
+    public function test_lesson_list_app_links_leave_unplayable_lessons_without_a_link(): void {
+        $skilland = (object) ['id' => 10, 'course' => 3, 'scormcmid' => 100, 'hidelabels' => 0];
+        $lessons = [1 => (object) ['id' => 1, 'title' => 'No SCO', 'scoid' => null, 'updatedat' => 0]];
+
+        $app = (new \mod_skilland\output\lesson_list($skilland, $lessons, (object) ['id' => 90], 1, [], false, true))
+            ->export_for_template($GLOBALS['PAGE']->get_renderer('mod_skilland'));
+
+        $this->assertFalse($app['lessons'][0]['playable']);
+        $this->assertSame('', $app['lessons'][0]['url']);
+        $this->assertSame('not_yet_available', $app['lessons'][0]['statustext']);
+        $this->assertFalse($app['hassummary']);
+    }
+
     public function test_progress_reader_issues_no_logging_only_queries(): void {
         // SKL-670: no per-view scorm_scoes listing or all-users scorm_attempt count just for a debug line.
         $this->db->get_manager()->set_table_exists('scorm_scoes_value', true);

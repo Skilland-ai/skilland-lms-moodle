@@ -46,6 +46,8 @@ class lesson_list implements renderable, templatable {
      * @param int $topicorderindex The topic order index (T1, T2, etc.).
      * @param array $progress The viewer's progress, keyed by lesson id: ['status' => ..., 'score' => ...].
      * @param bool $showscowarnings Whether to flag lessons missing from the installed package (teachers).
+     * @param bool $applinks Whether lesson links open the app's SCORM player (mod_skilland/mobile_view)
+     *        instead of the web player (view.php?play=).
      */
     public function __construct(
         /** @var stdClass The skilland activity record. */
@@ -59,8 +61,23 @@ class lesson_list implements renderable, templatable {
         /** @var array The viewer's progress, keyed by lesson id. */
         protected array $progress = [],
         /** @var bool Whether to flag lessons missing from the installed package. */
-        protected bool $showscowarnings = false
+        protected bool $showscowarnings = false,
+        /** @var bool Whether lesson links are Moodle App SCORM player links. */
+        protected bool $applinks = false
     ) {
+    }
+
+    /**
+     * The link that plays a lesson: the web player, or the app's SCORM player when $applinks.
+     *
+     * @param stdClass $lesson The lesson record.
+     * @return string The URL.
+     */
+    protected function player_url(stdClass $lesson): string {
+        if ($this->applinks) {
+            return skilland_scorm_player_url($this->skilland, $lesson, true)->out(false);
+        }
+        return (new moodle_url('/mod/skilland/view.php', ['id' => $this->cm->id, 'play' => $lesson->id]))->out(false);
     }
 
     /**
@@ -117,10 +134,7 @@ class lesson_list implements renderable, templatable {
             'progressbarlabel' => get_string('progress_bar_label', 'mod_skilland', $counts),
             'continuemode' => $target['mode'],
             'continuetext' => get_string($buttonstring, 'mod_skilland'),
-            'continueurl' => (new moodle_url('/mod/skilland/view.php', [
-                'id' => $this->cm->id,
-                'play' => $target['lesson']->id,
-            ]))->out(false),
+            'continueurl' => $this->player_url($target['lesson']),
         ];
     }
 
@@ -134,9 +148,7 @@ class lesson_list implements renderable, templatable {
     protected function export_lesson(stdClass $lesson, int $lessonindex): array {
         // A lesson can be played once it has a SCO in the installed package.
         $canplay = !empty($lesson->scoid) && !empty($this->skilland->scormcmid);
-        $url = $canplay
-            ? (new moodle_url('/mod/skilland/view.php', ['id' => $this->cm->id, 'play' => $lesson->id]))->out(false)
-            : '';
+        $url = $canplay ? $this->player_url($lesson) : '';
 
         $lessonprogress = $this->progress[$lesson->id] ?? null;
         $status = $lessonprogress['status'] ?? 'not_started';
@@ -153,12 +165,18 @@ class lesson_list implements renderable, templatable {
                 (($scorevalue >= 0 && $scorevalue <= 100) ? '%' : '');
         }
 
+        $title = format_string($lesson->title);
+        if ($this->applinks) {
+            // The app compiles its template as Angular code: no interpolation from a title.
+            $title = skilland_app_template_text($title);
+        }
+
         return array_merge(self::status_display($status, $canplay), [
             'playable' => $canplay,
             'url' => $url,
             'showlabel' => empty($this->skilland->hidelabels),
             'label' => skilland_lesson_label($this->topicorderindex, $lesson, $lessonindex),
-            'title' => format_string($lesson->title),
+            'title' => $title,
             'meta' => implode(' · ', $meta),
             'scomissing' => $this->showscowarnings && empty($lesson->scoid),
         ]);

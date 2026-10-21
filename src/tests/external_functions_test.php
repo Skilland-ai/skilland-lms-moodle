@@ -24,6 +24,7 @@ use mod_skilland\external\fetch_lessons;
 use mod_skilland\external\fetch_topics;
 use mod_skilland\external\provision_topic_scorm;
 use mod_skilland\external\update_topic_scorm;
+use mod_skilland\external\view_skilland;
 use mod_skilland\local\topic_scorm_updater;
 
 defined('MOODLE_INTERNAL') || die();
@@ -46,6 +47,7 @@ require_once(__DIR__ . '/skilland_testcase.php');
  * @covers     \mod_skilland\external\provision_topic_scorm
  * @covers     \mod_skilland\external\update_topic_scorm
  * @covers     \mod_skilland\external\check_topic_snapshot
+ * @covers     \mod_skilland\external\view_skilland
  */
 final class external_functions_test extends skilland_testcase {
     /**
@@ -71,6 +73,7 @@ final class external_functions_test extends skilland_testcase {
             'mod_skilland_provision_topic_scorm_ajax' => provision_topic_scorm::class,
             'mod_skilland_update_topic_scorm_ajax' => update_topic_scorm::class,
             'mod_skilland_check_topic_snapshot' => check_topic_snapshot::class,
+            'mod_skilland_view_skilland' => view_skilland::class,
         ];
         $registered = $DB->get_records_menu('external_functions', ['component' => 'mod_skilland'], '', 'name, classname');
         ksort($expected);
@@ -478,6 +481,75 @@ final class external_functions_test extends skilland_testcase {
         $this->assertSame('hash-v2', $result['contenthash']);
         $this->assertSame(2, $result['studentattemptcount']);
         $this->assertNull($result['error']);
+    }
+
+    public function test_view_skilland_is_the_only_function_in_the_mobile_service(): void {
+        global $DB;
+
+        $serviceid = $DB->get_field('external_services', 'id', ['shortname' => MOODLE_OFFICIAL_MOBILE_SERVICE], MUST_EXIST);
+        $inmobile = $DB->get_fieldset_select(
+            'external_services_functions',
+            'functionname',
+            "externalserviceid = :service AND functionname LIKE 'mod_skilland_%'",
+            ['service' => $serviceid]
+        );
+
+        $this->assertSame(['mod_skilland_view_skilland'], $inmobile);
+        $function = $DB->get_record('external_functions', ['name' => 'mod_skilland_view_skilland'], '*', MUST_EXIST);
+        $this->assertSame('mod/skilland:view', $function->capabilities);
+    }
+
+    public function test_view_skilland_logs_the_view_and_completes_viewing_for_a_student(): void {
+        global $CFG;
+
+        $CFG->enablecompletion = 1;
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $this->generator()->create_course_mapping($course->id);
+        $student = $this->enrol($course, 'student');
+        $skilland = $this->create_activity($course, [
+            'completion' => COMPLETION_TRACKING_AUTOMATIC,
+            'completionview' => 1,
+        ]);
+        $cm = get_coursemodule_from_instance('skilland', $skilland->id, $course->id, false, MUST_EXIST);
+        $this->setUser($student);
+        $sink = $this->redirectEvents();
+
+        $result = external_api::clean_returnvalue(view_skilland::execute_returns(), view_skilland::execute($skilland->id));
+
+        $events = array_values(array_filter(
+            $sink->get_events(),
+            fn($event) => $event instanceof \mod_skilland\event\course_module_viewed
+        ));
+        $sink->close();
+        $this->assertSame(['status' => true, 'warnings' => []], $result);
+        $this->assertCount(1, $events);
+        $this->assertEquals($skilland->id, $events[0]->objectid);
+        $this->assertEquals(\context_module::instance($cm->id)->id, $events[0]->contextid);
+        $this->assertEquals($student->id, $events[0]->userid);
+        $completion = new \completion_info($course);
+        $this->assertEquals(1, $completion->get_data($cm, false, $student->id)->viewed);
+    }
+
+    public function test_view_skilland_refuses_a_user_outside_the_course(): void {
+        [$course] = $this->mapped_course();
+        $skilland = $this->create_activity($course);
+        [, $otherteacher] = $this->mapped_course();
+        $this->setUser($otherteacher);
+
+        $this->expectException(\require_login_exception::class);
+        view_skilland::execute($skilland->id);
+    }
+
+    public function test_view_skilland_refuses_when_the_plugin_is_disabled(): void {
+        global $DB;
+
+        [$course, , $student] = $this->mapped_course();
+        $skilland = $this->create_activity($course);
+        $DB->set_field('modules', 'visible', 0, ['name' => 'skilland']);
+        $this->setUser($student);
+
+        $this->expectExceptionObject(new \moodle_exception('error_plugin_disabled', 'mod_skilland'));
+        view_skilland::execute($skilland->id);
     }
 
     public function test_check_topic_snapshot_is_not_stale_when_the_api_is_down(): void {

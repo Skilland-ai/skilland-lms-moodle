@@ -28,6 +28,13 @@ if (!defined('PARAM_ALPHANUMEXT')) {
 if (!defined('PARAM_BOOL')) {
     define('PARAM_BOOL', 'bool');
 }
+if (!defined('PARAM_ALPHANUM')) {
+    define('PARAM_ALPHANUM', 'alphanum');
+}
+// The official Moodle App service db/services.php registers the student-facing functions in.
+if (!defined('MOODLE_OFFICIAL_MOBILE_SERVICE')) {
+    define('MOODLE_OFFICIAL_MOBILE_SERVICE', 'moodle_mobile_app');
+}
 if (!defined('SQL_PARAMS_NAMED')) {
     define('SQL_PARAMS_NAMED', 1);
 }
@@ -432,6 +439,22 @@ if (!function_exists('require_capability')) {
         $GLOBALS['_test_call_order'][] = ['require_capability', $capability];
         if (!has_capability($capability, $context, $userid)) {
             throw new \required_capability_exception($context, $capability);
+        }
+    }
+}
+
+// require_login() stub: appends ['require_login', $courseid, $cmid] to $GLOBALS['_test_call_order'] and
+// throws \require_login_exception when the course id or the cm id is in $GLOBALS['_test_login_denied_ids']
+// (not enrolled, hidden course), like external_api::validate_context() in the core_external stub.
+if (!function_exists('require_login')) {
+    function require_login($courseorid = null, $autologinguest = true, $cm = null, $setwantsurltome = true,
+            $preventredirect = false) {
+        $courseid = is_object($courseorid) ? (int) ($courseorid->id ?? 0) : (int) $courseorid;
+        $cmid = is_object($cm) ? (int) ($cm->id ?? 0) : 0;
+        $GLOBALS['_test_call_order'][] = ['require_login', $courseid, $cmid];
+        $denied = $GLOBALS['_test_login_denied_ids'] ?? [];
+        if (($courseid && in_array($courseid, $denied, true)) || ($cmid && in_array($cmid, $denied, true))) {
+            throw new \require_login_exception('Not enrolled');
         }
     }
 }

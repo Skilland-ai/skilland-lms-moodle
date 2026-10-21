@@ -3150,6 +3150,82 @@ function skilland_view_renderer(): \mod_skilland\output\renderer {
 }
 
 /**
+ * The viewer's lesson progress for the lesson list, refreshed from their SCORM tracks first.
+ *
+ * Merges the learner's current tracks into the progress store (SKL-668), recomputes their
+ * completion and grade when that changed anything, then reads the store. Shared by the web
+ * lesson list and the Moodle App view, so both show the same status for every lesson.
+ *
+ * @param stdClass $skilland The skilland activity record.
+ * @param array $lessons The visible lessons; nothing is refreshed or read without any.
+ * @param int $userid The viewer.
+ * @return array The progress keyed by lesson id, as skilland_get_user_progress() returns it.
+ */
+function skilland_viewer_progress(stdClass $skilland, array $lessons, int $userid): array {
+    if (empty($lessons)) {
+        return [];
+    }
+    if (skilland_refresh_progress($skilland, $userid)) {
+        skilland_recompute_user($skilland, $userid);
+    }
+    $progress = skilland_get_user_progress((int) $skilland->id, $userid);
+
+    logger::debug('Progress', 'Progress for user ' . $userid . ', skilland ' . $skilland->id . ': ' . json_encode($progress));
+
+    return $progress;
+}
+
+/**
+ * The mod_scorm player URL of a lesson's SCO, for the web player or for the Moodle App.
+ *
+ * The web shape (`scoid`, `cm`, `display=popup`) is what the fullscreen iframe loads. The app
+ * shape carries `id=<SCORM cmid>` and `courseid` instead: the app's SCORM player link handler
+ * only matches player.php links with `id=` or `a=` and ignores `cm=`, and it reads `scoid`,
+ * `mode` and `newattempt` to open the SCO in its native player. One builder keeps both shapes
+ * from drifting.
+ *
+ * @param stdClass $skilland The skilland activity record (scormcmid and course).
+ * @param stdClass $lesson The lesson record (scoid).
+ * @param bool $forapp True for the Moodle App link, false for the web player.
+ * @return moodle_url The player URL.
+ */
+function skilland_scorm_player_url(stdClass $skilland, stdClass $lesson, bool $forapp = false): moodle_url {
+    if ($forapp) {
+        return new moodle_url('/mod/scorm/player.php', [
+            'id' => (int) $skilland->scormcmid,
+            'scoid' => (int) $lesson->scoid,
+            'mode' => 'normal',
+            'newattempt' => 'off',
+            'courseid' => (int) ($skilland->course ?? 0),
+        ]);
+    }
+    return new moodle_url('/mod/scorm/player.php', [
+        'scoid' => $lesson->scoid,
+        'cm' => $skilland->scormcmid,
+        'mode' => 'normal',
+        'newattempt' => 'off',
+        'display' => 'popup',
+    ]);
+}
+
+/**
+ * Make formatted, user-controlled HTML safe to place in a Moodle App template.
+ *
+ * The app does not insert a site plugin's template into the page: it compiles it as an Angular
+ * template, with every app provider in scope, so a `{{ ... }}` interpolation, an `@` block or an
+ * ICU `{...}` in a lesson title or the intro would run as code in the student's app (SKL-699).
+ * format_string() and format_module_intro() leave these characters alone. Their HTML entities
+ * render the same characters but never start Angular syntax. Apply after formatting, and only to
+ * app output: the web view stays as it is.
+ *
+ * @param string $html Formatted HTML (format_string() or format_text() output).
+ * @return string The same HTML with `{`, `}` and `@` as entities.
+ */
+function skilland_app_template_text(string $html): string {
+    return strtr($html, ['{' => '&#123;', '}' => '&#125;', '@' => '&#64;']);
+}
+
+/**
  * Render the lesson list view with progress indicators.
  *
  * @param stdClass $skilland The skilland activity record.
@@ -3161,17 +3237,9 @@ function skilland_view_renderer(): \mod_skilland\output\renderer {
 function skilland_render_lesson_list($skilland, $lessons, $cm, $topicorderindex = 1) {
     global $USER;
 
-    $progress = [];
+    $progress = skilland_viewer_progress($skilland, $lessons, (int) $USER->id);
     $canprovision = false;
     if (!empty($lessons)) {
-        // Merge the learner's SCORM tracks into the progress store, then read it (SKL-668).
-        if (skilland_refresh_progress($skilland, (int) $USER->id)) {
-            skilland_recompute_user($skilland, (int) $USER->id);
-        }
-        $progress = skilland_get_user_progress((int) $skilland->id, (int) $USER->id);
-
-        logger::debug('Progress', 'Progress for user ' . $USER->id . ', skilland ' . $skilland->id . ': ' . json_encode($progress));
-
         // Teachers see which visible lessons are missing from the installed package (SKL-655).
         $canprovision = !empty($skilland->scormcmid) &&
             has_capability('mod/skilland:provision', context_module::instance($cm->id));
@@ -3220,13 +3288,7 @@ function skilland_render_player_view($skilland, $lesson, $cm, $alllessons, $topi
     }
 
     // Build the player URL with the specific SCO.
-    $scormplayerurl = new moodle_url('/mod/scorm/player.php', [
-        'scoid' => $lesson->scoid,
-        'cm' => $skilland->scormcmid,
-        'mode' => 'normal',
-        'newattempt' => 'off',
-        'display' => 'popup',
-    ]);
+    $scormplayerurl = skilland_scorm_player_url($skilland, $lesson);
 
     $player = new \mod_skilland\output\player(
         $skilland,
