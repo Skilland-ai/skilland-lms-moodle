@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.64-beta]
+
+### Added
+- French, German, Italian and Portuguese translations of the plugin's strings (SKL-1234).
+
 ## [0.9.63-beta]
 
 ### Added

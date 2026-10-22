@@ -29,7 +29,7 @@ $plugin->component = 'mod_skilland';
 $plugin->supported = [405, 405];
 
 
-$plugin->version   = 2026101901;   // YYYYMMDDHH - Moodle App support (SKL-699).
+$plugin->version   = 2026102100;   // YYYYMMDDHH - French, German, Italian and Portuguese translations.
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.9.63-beta';
+$plugin->release   = '0.9.64-beta';
 $plugin->dependencies = ['mod_scorm' => ANY_VERSION];
