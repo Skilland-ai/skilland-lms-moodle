@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project's version follows Moodle's `$plugin->release` in `src/version.php`
 (each build is also tagged with the numeric `$plugin->version`).
 
+## [0.9.65-beta]
+
+### Fixed
+- The buttons in the activity form's missing Skilland course ID warning keep their own text
+  colour, so a theme that colours alert links (dark brown on the purple button) no longer
+  makes them unreadable (SKL-1538).
+
 ## [0.9.64-beta]
 
 ### Added

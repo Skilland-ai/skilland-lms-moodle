@@ -23,6 +23,29 @@ form.mform:has(.skilland-missing-courseid) .collapsed {
     display: none !important;
 }
 
+/* The warning's buttons are links inside .alert-warning. Themes colour alert links (dark brown
+ * in some, e.g. ULL's), which beats the button text colour: restore each button's own colour
+ * (the theme's Bootstrap 5 variable when it has one, Boost's Bootstrap 4 value otherwise). */
+.skilland-missing-courseid a.btn-primary,
+.skilland-missing-courseid a.btn-primary:link,
+.skilland-missing-courseid a.btn-primary:visited,
+.skilland-missing-courseid a.btn-primary:hover,
+.skilland-missing-courseid a.btn-primary:focus,
+.skilland-missing-courseid a.btn-primary:active {
+    color: var(--bs-btn-color, #fff);
+    text-decoration: none;
+}
+
+.skilland-missing-courseid a.btn-secondary,
+.skilland-missing-courseid a.btn-secondary:link,
+.skilland-missing-courseid a.btn-secondary:visited,
+.skilland-missing-courseid a.btn-secondary:hover,
+.skilland-missing-courseid a.btn-secondary:focus,
+.skilland-missing-courseid a.btn-secondary:active {
+    color: var(--bs-btn-color, #1d2125);
+    text-decoration: none;
+}
+
 /* Kept apart: a browser without complex :not() support drops only this rule, not the one above. */
 form.mform:has(.skilland-missing-courseid) h3:not(.skilland-missing-courseid h3),
 form.mform:has(.skilland-missing-courseid) h4:not(.skilland-missing-courseid h4) {
